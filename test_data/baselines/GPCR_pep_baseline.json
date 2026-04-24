@@ -1,0 +1,202 @@
+{
+  "test_case": "GPCR_pep",
+  "pdb_file": "/home/pcmd36/Desktop/BHM/My_Progs/fplip/test_data/GPCR_pep.pdb",
+  "created_at": "2026-04-24T21:38:12.355553",
+  "plip_version": "3.0.0",
+  "num_ligands": 11,
+  "ligands": [
+    {
+      "ligand_id": "SER:Z:1",
+      "ligand_type": "SMALLMOLECULE",
+      "num_hydrogen_bonds": 3,
+      "num_hydrophobic": 0,
+      "num_salt_bridges": 0,
+      "num_pi_stacking": 0,
+      "num_pi_cation": 0,
+      "num_halogen_bonds": 0,
+      "num_water_bridges": 0,
+      "num_metal_complexes": 0,
+      "interacting_chains": [
+        "A",
+        "Z"
+      ],
+      "interacting_residues": 3
+    },
+    {
+      "ligand_id": "ALA:Z:2",
+      "ligand_type": "SMALLMOLECULE",
+      "num_hydrogen_bonds": 3,
+      "num_hydrophobic": 1,
+      "num_salt_bridges": 0,
+      "num_pi_stacking": 0,
+      "num_pi_cation": 0,
+      "num_halogen_bonds": 0,
+      "num_water_bridges": 0,
+      "num_metal_complexes": 0,
+      "interacting_chains": [
+        "Z"
+      ],
+      "interacting_residues": 3
+    },
+    {
+      "ligand_id": "LEU:Z:3",
+      "ligand_type": "SMALLMOLECULE",
+      "num_hydrogen_bonds": 2,
+      "num_hydrophobic": 4,
+      "num_salt_bridges": 0,
+      "num_pi_stacking": 0,
+      "num_pi_cation": 0,
+      "num_halogen_bonds": 0,
+      "num_water_bridges": 0,
+      "num_metal_complexes": 0,
+      "interacting_chains": [
+        "A",
+        "Z"
+      ],
+      "interacting_residues": 5
+    },
+    {
+      "ligand_id": "SER:Z:4",
+      "ligand_type": "SMALLMOLECULE",
+      "num_hydrogen_bonds": 3,
+      "num_hydrophobic": 0,
+      "num_salt_bridges": 0,
+      "num_pi_stacking": 0,
+      "num_pi_cation": 0,
+      "num_halogen_bonds": 0,
+      "num_water_bridges": 0,
+      "num_metal_complexes": 0,
+      "interacting_chains": [
+        "A"
+      ],
+      "interacting_residues": 3
+    },
+    {
+      "ligand_id": "ASP:Z:5",
+      "ligand_type": "SMALLMOLECULE",
+      "num_hydrogen_bonds": 2,
+      "num_hydrophobic": 1,
+      "num_salt_bridges": 1,
+      "num_pi_stacking": 0,
+      "num_pi_cation": 0,
+      "num_halogen_bonds": 0,
+      "num_water_bridges": 0,
+      "num_metal_complexes": 0,
+      "interacting_chains": [
+        "A",
+        "Z"
+      ],
+      "interacting_residues": 3
+    },
+    {
+      "ligand_id": "LEU:Z:6",
+      "ligand_type": "SMALLMOLECULE",
+      "num_hydrogen_bonds": 3,
+      "num_hydrophobic": 2,
+      "num_salt_bridges": 0,
+      "num_pi_stacking": 0,
+      "num_pi_cation": 0,
+      "num_halogen_bonds": 0,
+      "num_water_bridges": 0,
+      "num_metal_complexes": 0,
+      "interacting_chains": [
+        "Z"
+      ],
+      "interacting_residues": 4
+    },
+    {
+      "ligand_id": "HIS:Z:7",
+      "ligand_type": "SMALLMOLECULE",
+      "num_hydrogen_bonds": 1,
+      "num_hydrophobic": 0,
+      "num_salt_bridges": 0,
+      "num_pi_stacking": 0,
+      "num_pi_cation": 0,
+      "num_halogen_bonds": 0,
+      "num_water_bridges": 0,
+      "num_metal_complexes": 0,
+      "interacting_chains": [
+        "A"
+      ],
+      "interacting_residues": 1
+    },
+    {
+      "ligand_id": "ALA:Z:8",
+      "ligand_type": "SMALLMOLECULE",
+      "num_hydrogen_bonds": 1,
+      "num_hydrophobic": 2,
+      "num_salt_bridges": 0,
+      "num_pi_stacking": 0,
+      "num_pi_cation": 0,
+      "num_halogen_bonds": 0,
+      "num_water_bridges": 0,
+      "num_metal_complexes": 0,
+      "interacting_chains": [
+        "A",
+        "Z"
+      ],
+      "interacting_residues": 2
+    },
+    {
+      "ligand_id": "HIS:Z:9",
+      "ligand_type": "SMALLMOLECULE",
+      "num_hydrogen_bonds": 3,
+      "num_hydrophobic": 1,
+      "num_salt_bridges": 0,
+      "num_pi_stacking": 0,
+      "num_pi_cation": 1,
+      "num_halogen_bonds": 0,
+      "num_water_bridges": 0,
+      "num_metal_complexes": 0,
+      "interacting_chains": [
+        "A",
+        "Z"
+      ],
+      "interacting_residues": 5
+    },
+    {
+      "ligand_id": "LYS:Z:10",
+      "ligand_type": "SMALLMOLECULE",
+      "num_hydrogen_bonds": 1,
+      "num_hydrophobic": 4,
+      "num_salt_bridges": 0,
+      "num_pi_stacking": 0,
+      "num_pi_cation": 0,
+      "num_halogen_bonds": 0,
+      "num_water_bridges": 0,
+      "num_metal_complexes": 0,
+      "interacting_chains": [
+        "A",
+        "Z"
+      ],
+      "interacting_residues": 5
+    },
+    {
+      "ligand_id": "LEU:Z:11",
+      "ligand_type": "SMALLMOLECULE",
+      "num_hydrogen_bonds": 0,
+      "num_hydrophobic": 5,
+      "num_salt_bridges": 1,
+      "num_pi_stacking": 0,
+      "num_pi_cation": 0,
+      "num_halogen_bonds": 0,
+      "num_water_bridges": 0,
+      "num_metal_complexes": 0,
+      "interacting_chains": [
+        "A",
+        "Z"
+      ],
+      "interacting_residues": 6
+    }
+  ],
+  "metrics": {
+    "pdb_id": "GPCR_pep",
+    "total_time": 2.214599216822535,
+    "load_time": 0.35585435782559216,
+    "analysis_time": 1.8518345351330936,
+    "report_time": 0.006851625861600041,
+    "num_atoms": 5994,
+    "num_ligands": 11,
+    "num_interactions": 45
+  }
+}
