@@ -1135,7 +1135,7 @@ class BindingSite(Mol):
         self.hydroph_atoms = self.hydrophobic_atoms(self.all_atoms)
         self.hbond_acc_atoms = self.find_hba(self.all_atoms)
         self.hbond_don_atom_pairs = self.find_hbd(self.all_atoms, self.hydroph_atoms)
-        self.charged, self.metal_binding = self.find_charged_and_metal_binding(self.full_mol)
+        self.charged, self.metal_binding = self.find_charged_and_metal_binding()
         self.halogenbond_acc = self.find_hal(self.all_atoms)
 
     def find_hal(self, atoms):
@@ -1151,7 +1151,7 @@ class BindingSite(Mol):
                 a_set.append(data(o=a, o_orig_idx=o_orig_idx, y=pybel.Atom(n_atoms[0]), y_orig_idx=y_orig_idx))
         return a_set
 
-    def find_charged_and_metal_binding(self, mol):
+    def find_charged_and_metal_binding(self):
         """Combined function to find charged residues and metal binding atoms in a single pass.
         
         Looks for:
@@ -1623,9 +1623,6 @@ class PDBComplex:
         if len(self.excluded) != 0:
             logger.info(f'excluded molecules as ligands: {self.excluded}')
 
-        # https://openbabel.org/api/3.0/namespaceOpenBabel_1_1OBResidueProperty.shtml
-        # AMINO = 0, AMINO_NUCLEO = 1, COENZYME = 2, ION = 3, NUCLEO = 4, PROTEIN = 5, PURINE = 6, PYRIMIDINE = 7,
-        # SOLVENT = 8, WATER = 9
         if config.DNARECEPTOR and config.KEEPMOD:
             self.resis = [obres for obres in pybel.ob.OBResidueIter(
                 self.protcomplex.OBMol) if obres.GetName() in config.DNA + config.RNA
@@ -1708,7 +1705,8 @@ class PDBComplex:
         # 根据config.BS_DIST过滤一遍bs_atoms
         bs_atoms_refined = [rec_atoms_pack[i] for i in range(len(rec_atoms_pack)) if min_dist_arr[i] <= config.BS_DIST]
         min_dist_idx = min_dist_idx[min_dist_arr <= config.BS_DIST]
-        min_dist_arr = min_dist_arr[min_dist_arr <= config.BS_DIST]        
+        bs_coords = bs_coords[min_dist_arr <= config.BS_DIST]
+        min_dist_arr = min_dist_arr[min_dist_arr <= config.BS_DIST]
 
         # Create hash with BSRES -> (MINDIST_TO_LIG, AA_TYPE)
         # and refine binding site atom selection with exact threshold
