@@ -1,8 +1,16 @@
-from collections import namedtuple
 import re
+from collections import namedtuple
 
 from plip.basic import config, logger
 from plip.basic.supplemental import read
+
+# Try to import Cython-optimized parser
+try:
+    from plip.structure._pdb_parser import \
+        fix_pdbline_str as _fix_pdbline_cython
+    _CYTHON_AVAILABLE = True
+except ImportError:
+    _CYTHON_AVAILABLE = False
 
 
 class PDBParser:
@@ -125,8 +133,21 @@ class PDBParser:
     def fix_pdbline(self, pdbline, lastnum):
         """Fix a PDB line if information is missing.
 
-        Optimized: Uses pre-compiled patterns and reduces redundant operations.
+        Uses Cython-optimized implementation if available, otherwise falls back
+        to the pure Python implementation.
         """
+        # Use Cython version if available
+        if _CYTHON_AVAILABLE:
+            result, new_num = _fix_pdbline_cython(pdbline, lastnum)
+            if result is not None:
+                self.num_fixed_lines += 1
+            return result, new_num
+        
+        # Fallback to Python implementation
+        return self._fix_pdbline_python(pdbline, lastnum)
+    
+    def _fix_pdbline_python(self, pdbline, lastnum):
+        """Pure Python implementation of fix_pdbline (fallback)."""
         fixed = False
         new_num = 0
 
@@ -152,7 +173,6 @@ class PDBParser:
             new_num = lastnum + 1
             current_num = int(pdbline[6:11])
             resnum = pdbline[22:27].strip()
-            resname = pdbline[17:21].strip()
 
             # Invalid residue number
             try:
@@ -162,7 +182,7 @@ class PDBParser:
                 fixed = True
 
             # Invalid characters in residue name - 使用预编译正则
-            if self._FORBIDDEN_PATTERN.search(resname.strip()):
+            if self._FORBIDDEN_PATTERN.search(pdbline[17:21].strip()):
                 pdbline = pdbline[:17] + 'UNK ' + pdbline[21:]
                 fixed = True
 
