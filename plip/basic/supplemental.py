@@ -378,12 +378,11 @@ def canonicalize(lig, preserve_bond_order=False):
     lig = pybel.Molecule(lig)
     testcan = lig.write(format='can')
     try:
-        pybel.readstring('can', testcan)
         reference = pybel.readstring('can', testcan)
     except IOError:
-        testcan, reference = '', ''
-    if testcan != '':
-        reference.removeh()
+        reference = ''
+    if reference != '':
+        reference.addh()
         isomorphs = get_isomorphisms(reference, lig)  # isomorphs now holds all isomorphisms within the molecule
         if not len(isomorphs) == 0:
             smi_dict = {}

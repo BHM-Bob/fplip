@@ -378,8 +378,7 @@ class LigandFinder:
 
         hetatoms = dict()
         for obresidue in kmer:
-            cur_hetatoms = {obatom.GetIdx(): obatom for obatom in pybel.ob.OBResidueAtomIter(obresidue) if
-                            obatom.GetAtomicNum() != 1}
+            cur_hetatoms = {obatom.GetIdx(): obatom for obatom in pybel.ob.OBResidueAtomIter(obresidue)}
             if not config.ALTLOC:
                 # remove alternative conformations (standard -> True)
                 ids_to_remove = [atom_id for atom_id in cur_hetatoms.keys() if
