@@ -51,3 +51,15 @@ target/
 tests/
 # JetBrains IDE settings
 .idea/
+
+# TRAE
+.trae
+.vscode
+pyrightconfig.json
+
+# viztracer
+result.json
+
+# Cython
+plip/structure/_pdb_parser.c
+plip/structure/_pdb_parser.html
