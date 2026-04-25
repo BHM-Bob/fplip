@@ -1588,6 +1588,9 @@ class PDBComplex:
         if len(self.excluded) != 0:
             logger.info(f'excluded molecules as ligands: {self.excluded}')
 
+        # https://openbabel.org/api/3.0/namespaceOpenBabel_1_1OBResidueProperty.shtml
+        # AMINO = 0, AMINO_NUCLEO = 1, COENZYME = 2, ION = 3, NUCLEO = 4, PROTEIN = 5, PURINE = 6, PYRIMIDINE = 7,
+        # SOLVENT = 8, WATER = 9
         if config.DNARECEPTOR and config.KEEPMOD:
             self.resis = [obres for obres in pybel.ob.OBResidueIter(
                 self.protcomplex.OBMol) if obres.GetName() in config.DNA + config.RNA
@@ -1694,3 +1697,11 @@ class PDBComplex:
     @output_path.setter
     def output_path(self, path):
         self._output_path = tilde_expansion(path)
+
+
+if __name__ == '__main__':
+    config.PEPTIDES = ['Z']
+    mol = PDBComplex({"PEPTIDES": ['Z']})
+    mol.load_pdb('test_data/GPCR_pep.pdb', as_string=False)
+    for ligand in mol.ligands:
+        mol.characterize_complex(ligand)
