@@ -896,7 +896,7 @@ class PLInteraction:
         # Just two hydrogen bonds per water molecule
         # only the two water-acceptor combos with angle closest to omega are kept
         for wb_tuple in wb_dict:
-            water, acceptor = wb_tuple
+            water, _ = wb_tuple
             if water not in wb_dict2:
                 wb_dict2[water] = [(abs(omega - wb_dict[wb_tuple].w_angle), wb_dict[wb_tuple]), ]
             elif len(wb_dict2[water]) == 1:
@@ -1490,7 +1490,7 @@ class PDBComplex:
         bs_atoms_refined = []
         
         # 计算距离矩阵
-        bs_coords = np.array([a.coords for i, a in rec_atoms_pack])
+        bs_coords = np.array([a.coords for _, a in rec_atoms_pack])
         lig_coords = np.array([a.coords for a in ligand.mol.atoms])
         atm_atm_dist = scipy.spatial.distance.cdist(bs_coords, lig_coords)
         # 找到每个bs_atom最近的lig_atom
@@ -1505,7 +1505,7 @@ class PDBComplex:
         # Create hash with BSRES -> (MINDIST_TO_LIG, AA_TYPE)
         # and refine binding site atom selection with exact threshold
         min_dist_dict = {}
-        for (bs_atm_idx, bs_atm), min_dist_i in zip(bs_atoms_refined, min_dist_arr):
+        for (_, bs_atm), min_dist_i in zip(bs_atoms_refined, min_dist_arr):
             bs_res_id = ''.join([str(whichresnumber(bs_atm)), whichchain(bs_atm)])
             min_dist_dict[bs_res_id] = (min_dist_i, bs_atm.residue.name)
         num_bs_atoms = len(bs_atoms_refined)
