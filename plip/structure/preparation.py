@@ -6,17 +6,25 @@ from collections import namedtuple
 from operator import itemgetter
 
 import numpy as np
+import scipy
 from openbabel import pybel
 
 from plip.basic import config, logger
-from plip.basic.supplemental import centroid, tilde_expansion, tmpfile, classify_by_name
-from plip.basic.supplemental import cluster_doubles, is_lig, normalize_vector, vector, ring_is_planar
-from plip.basic.supplemental import extract_pdbid, read_pdb, create_folder_if_not_exists, canonicalize
-from plip.basic.supplemental import read, nucleotide_linkage, sort_members_by_importance
-from plip.basic.supplemental import whichchain, whichrestype, whichresnumber, euclidean3d, int32_to_negative
-from plip.basic.supplemental import residue_belongs_to_receptor
-from plip.structure.detection import halogen, pication, water_bridges, metal_complexation
-from plip.structure.detection import hydrophobic_interactions, pistacking, hbonds, saltbridge
+from plip.basic.supplemental import (canonicalize, centroid, classify_by_name,
+                                     cluster_doubles,
+                                     create_folder_if_not_exists, euclidean3d,
+                                     extract_pdbid, int32_to_negative, is_lig,
+                                     normalize_vector, nucleotide_linkage,
+                                     read, read_pdb,
+                                     residue_belongs_to_receptor,
+                                     ring_is_planar,
+                                     sort_members_by_importance,
+                                     tilde_expansion, tmpfile, vector,
+                                     whichchain, whichresnumber, whichrestype)
+from plip.structure.detection import (halogen, hbonds,
+                                      hydrophobic_interactions,
+                                      metal_complexation, pication, pistacking,
+                                      saltbridge, water_bridges)
 
 logger = logger.get_logger()
 
@@ -351,7 +359,7 @@ class LigandFinder:
 
     def extract_ligand(self, kmer, regions=None):
         """Extract the ligand by copying atoms and bonds and assign all information necessary for later steps."""
-        data = namedtuple('ligand', 'mol hetid chain position water members longname type atomorder can_to_pdb regions')
+        data = namedtuple('ligand', 'mol hetid chain position water members longname type atomorder can_to_pdb regions newidx')
         members = [(res.GetName(), res.GetChain(), int32_to_negative(res.GetNum())) for res in kmer]
         members = sort_members_by_importance(members)
         rname, rchain, rnum = members[0]
@@ -426,7 +434,7 @@ class LigandFinder:
 
         ligand = data(mol=lig, hetid=rname, chain=rchain, position=rnum, water=self.water,
                       members=members, longname=longname, type=ligtype, atomorder=atomorder,
-                      can_to_pdb=can_to_pdb, regions=regions)
+                      can_to_pdb=can_to_pdb, regions=regions, newidx=newidx)
         return ligand
 
     @staticmethod
@@ -1111,7 +1119,8 @@ class BindingSite(Mol):
         Mol.__init__(self, altconf, mapper, mtype='protein', bsid=None)
         self.complex = cclass
         self.full_mol = protcomplex
-        self.all_atoms = atoms
+        self.all_atoms_idx = list(map(lambda x: x[0], atoms))
+        self.all_atoms = list(map(lambda x: x[1], atoms))
         self.min_dist = min_dist  # Minimum distance of bs res to ligand
         self.regions = regions
         self.bs_res = list(set([''.join([str(whichresnumber(a)), whichchain(a)]) for a in self.all_atoms]))  # e.g. 47A
@@ -1633,69 +1642,45 @@ class PDBComplex:
         if ligtype not in ['POLYMER', 'DNA', 'ION', 'DNA+ION', 'RNA+ION', 'SMALLMOLECULE+ION'] and any_in_biolip:
             logger.info('may be biologically irrelevant')
 
+        # 准备配体
         lig_obj = Ligand(self, ligand)
-        cutoff = lig_obj.max_dist_to_center + config.BS_DIST
-
-        resis = self.resis
-        if config.KEEPMOD:
-            resis = self.exclude_ligand_modresidues(lig_obj.members, resis)
-
-        bs_res = self.extract_bs(cutoff, lig_obj.centroid, resis, lig_obj.regions)
-        # Get a list of all atoms belonging to the binding site, search by idx
-        bs_atoms = [self.atoms[idx] for idx in [i for i in self.atoms.keys()
-                                                if self.atoms[i].OBAtom.GetResidue().GetIdx() in bs_res]
-                    if idx in self.Mapper.proteinmap and self.Mapper.mapid(idx, mtype='protein') not in self.altconf]
+        # 准备受体，排除配体原子
+        rec_atoms_pack = [[atm.idx, atm] for atm in self.protcomplex.atoms]
+        rec_atoms_pack = list(filter(lambda x: x[0] in self.Mapper.proteinmap, rec_atoms_pack))
+        if self.altconf:
+            rec_atoms_pack = list(filter(lambda x: self.mapper.mapid(x[0], mtype='protein') not in self.altconf, rec_atoms_pack))
+            
         if ligand.type == 'PEPTIDE' and not config.REGIONS:
             # If peptide, don't consider the peptide chain as part of the protein binding site
-            bs_atoms = [a for a in bs_atoms if a.OBAtom.GetResidue().GetChain() != lig_obj.chain]
+            rec_atoms_pack = list(filter(lambda x: x[0] not in ligand.newidx, rec_atoms_pack))
         if ligand.type == 'INTRA':
             # Interactions within the chain
-            bs_atoms = [a for a in bs_atoms if a.OBAtom.GetResidue().GetChain() == lig_obj.chain]
+            rec_atoms_pack = list(filter(lambda x: x[1].OBAtom.GetResidue().GetChain() == lig_obj.chain, rec_atoms_pack))
         bs_atoms_refined = []
+        
+        # 计算距离矩阵
+        bs_coords = np.array([a.coords for i, a in rec_atoms_pack])
+        lig_coords = np.array([a.coords for a in ligand.mol.atoms])
+        atm_atm_dist = scipy.spatial.distance.cdist(bs_coords, lig_coords)
+        # 找到每个bs_atom最近的lig_atom
+        min_dist_arr = np.min(atm_atm_dist, axis=1)
+        min_dist_idx = np.argmin(atm_atm_dist, axis=1)
+        # 根据config.BS_DIST过滤一遍bs_atoms
+        bs_atoms_refined = [rec_atoms_pack[i] for i in range(len(rec_atoms_pack)) if min_dist_arr[i] <= config.BS_DIST]
+        min_dist_idx = min_dist_idx[min_dist_arr <= config.BS_DIST]
+        min_dist_arr = min_dist_arr[min_dist_arr <= config.BS_DIST]        
 
         # Create hash with BSRES -> (MINDIST_TO_LIG, AA_TYPE)
         # and refine binding site atom selection with exact threshold
-        min_dist = {}
-        for r in bs_atoms:
-            bs_res_id = ''.join([str(whichresnumber(r)), whichchain(r)])
-            for l in ligand.mol.atoms:
-                distance = euclidean3d(r.coords, l.coords)
-                if bs_res_id not in min_dist:
-                    min_dist[bs_res_id] = (distance, whichrestype(r))
-                elif min_dist[bs_res_id][0] > distance:
-                    min_dist[bs_res_id] = (distance, whichrestype(r))
-                if distance <= config.BS_DIST and r not in bs_atoms_refined:
-                    bs_atoms_refined.append(r)
+        min_dist_dict = {}
+        for (bs_atm_idx, bs_atm), min_dist_i in zip(bs_atoms_refined, min_dist_arr):
+            bs_res_id = ''.join([str(whichresnumber(bs_atm)), whichchain(bs_atm)])
+            min_dist_dict[bs_res_id] = (min_dist_i, bs_atm.residue.name)
         num_bs_atoms = len(bs_atoms_refined)
         logger.info(f'binding site atoms in vicinity ({config.BS_DIST} A max. dist: {num_bs_atoms})')
-
-        bs_obj = BindingSite(bs_atoms_refined, self.protcomplex, self, self.altconf, min_dist, self.Mapper, lig_obj.regions)
+        bs_obj = BindingSite(bs_atoms_refined, self.protcomplex, self, self.altconf, min_dist_dict, self.Mapper, lig_obj.regions)
         pli_obj = PLInteraction(lig_obj, bs_obj, self)
         self.interaction_sets[ligand.mol.title] = pli_obj
-
-    def exclude_ligand_modresidues(self, ligmembers, resis):
-        """If the ligand contains modified residues, exclude these from the receptor residues."""
-        lig_modres = [member for member in ligmembers if member[0] in self.modres]
-        if lig_modres:
-            return [obres for obres in resis if
-                    not (obres.GetName(), obres.GetChain(), int32_to_negative(obres.GetNum())) in lig_modres]
-        else:
-            return resis
-
-    def extract_bs(self, cutoff, ligcentroid, resis, regions=None):
-        """Return list of ids from residues belonging to the binding site"""
-        return [obres.GetIdx() for obres in resis if self.res_belongs_to_bs(obres, cutoff, ligcentroid, regions)]
-
-    @staticmethod
-    def res_belongs_to_bs(res, cutoff, ligcentroid, regions=None):
-        """Check for each residue if its centroid is within a certain distance to the ligand centroid.
-        Additionally checks if a residue belongs to a chain restricted by the user (e.g. by defining a peptide chain)"""
-        rescentroid = centroid([(atm.x(), atm.y(), atm.z()) for atm in pybel.ob.OBResidueAtomIter(res)])
-        # Check geometry
-        near_enough = True if euclidean3d(rescentroid, ligcentroid) < cutoff else False
-        #Todo: Test if properly working
-        # Add restriction via chains flag
-        return near_enough and residue_belongs_to_receptor(res, regions)
 
     def get_atom(self, idx):
         return self.atoms[idx]
