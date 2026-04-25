@@ -604,7 +604,7 @@ class Mol:
         donor_pairs = sorted(donor_pairs, key=lambda x: (x.d_orig_idx, x.h.idx))
         return donor_pairs
 
-    def find_rings(self, mol, all_atoms):
+    def find_rings(self, mol, all_atoms, all_atoms_idx):
         """Find rings and return only aromatic.
         Rings have to be sufficiently planar OR be detected by OpenBabel as aromatic."""
         data = namedtuple('aromatic_ring', 'atoms orig_atoms atoms_orig_idx normal obj center type')
@@ -614,9 +614,10 @@ class Mol:
         logger.debug(f'number of aromatic ring candidates: {len(ring_candidates)}')
         # Check here first for ligand rings not being detected as aromatic by Babel and check for planarity
         for ring in ring_candidates:
-            r_atoms = [a for a in all_atoms if ring.IsMember(a.OBAtom)]
-            r_atoms = sorted(r_atoms, key=lambda x: x.idx)
-            if 4 < len(r_atoms) <= 6:
+            r_atoms_idx = list(set(ring._path) & set(all_atoms_idx))
+            if r_atoms_idx and (4 < len(r_atoms_idx) <= 6):
+                r_atoms = [a for i, a in zip(all_atoms_idx, all_atoms) if i in r_atoms_idx]
+                r_atoms = sorted(r_atoms, key=lambda x: x.idx)
                 res = list(set([whichrestype(a) for a in r_atoms]))
                 # re-sort ring atoms for only ligands, because HETATM numbering is not canonical in OpenBabel
                 if res[0] == 'UNL':
@@ -1124,7 +1125,7 @@ class BindingSite(Mol):
         self.min_dist = min_dist  # Minimum distance of bs res to ligand
         self.regions = regions
         self.bs_res = list(set([''.join([str(whichresnumber(a)), whichchain(a)]) for a in self.all_atoms]))  # e.g. 47A
-        self.rings = self.find_rings(self.full_mol, self.all_atoms)
+        self.rings = self.find_rings(self.full_mol, self.all_atoms, self.all_atoms_idx)
         self.hydroph_atoms = self.hydrophobic_atoms(self.all_atoms)
         self.hbond_acc_atoms = self.find_hba(self.all_atoms)
         self.hbond_don_atom_pairs = self.find_hbd(self.all_atoms, self.hydroph_atoms)
@@ -1266,8 +1267,9 @@ class Ligand(Mol):
             self.smiles = ''
         self.heavy_atoms = self.molecule.OBMol.NumHvyAtoms()  # Heavy atoms count
         self.all_atoms = self.molecule.atoms
+        self.all_atoms_idx = list(map(lambda x: x.idx, self.all_atoms))
         self.atmdict = {l.idx: l for l in self.all_atoms}
-        self.rings = self.find_rings(self.molecule, self.all_atoms)
+        self.rings = self.find_rings(self.molecule, self.all_atoms, self.all_atoms_idx)
         self.hydroph_atoms = self.hydrophobic_atoms(self.all_atoms)
         self.hbond_acc_atoms = self.find_hba(self.all_atoms)
         self.num_rings = len(self.rings)
