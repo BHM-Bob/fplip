@@ -104,7 +104,7 @@ class PDBParser:
             corrected_lines = fil
 
         for line in corrected_lines:
-            if line.startswith(("ATOM", "HETATM")):
+            if line[:6] in ("ATOM  ", "HETATM"):
                 # Retrieve alternate conformations
                 atomid, location = int(line[6:11]), line[16]
                 location = 'A' if location == ' ' else location
@@ -119,15 +119,15 @@ class PDBParser:
                     j += 2
                 d[i] = j
                 previous_ter = False
+            # Get covalent linkages between ligands
+            elif line[:4] == "LINK":
+                covalent.append(self.get_linkage(line))
             # Numbering Changes at TER records
-            if line.startswith("TER"):
+            elif line[:3] == "TER":
                 previous_ter = True
             # Get modified residues
-            if line.startswith("MODRES"):
+            elif line[:6] == "MODRES":
                 modres.add(line[12:15].strip())
-            # Get covalent linkages between ligands
-            if line.startswith("LINK"):
-                covalent.append(self.get_linkage(line))
         return d, modres, covalent, alt, corrected_pdb
 
     def fix_pdbline(self, pdbline, lastnum):
