@@ -46,6 +46,7 @@ TEST_CASES = {
         "file": "GPCR_pep.pdb",
         "description": "GPCR peptide complex - medium size",
         "expected_ligands": 5,
+        "peptide": ["Z"],
         "expected_interactions": {
             "hydrogen_bonds": ">=3",
             "hydrophobic": ">=2",
@@ -112,7 +113,7 @@ class PerformanceMetrics:
 # Core Analysis Function
 # =============================================================================
 
-def process_pdb_detailed(pdbfile: str, outpath: str, as_string: bool = False, 
+def process_pdb_detailed(cfg_kwgs: dict, pdbfile: str, outpath: str, as_string: bool = False, 
                          outputprefix: str = 'report') -> Tuple[AnalysisResult, PerformanceMetrics]:
     """
     Process a PDB file with detailed timing and result collection.
@@ -130,7 +131,7 @@ def process_pdb_detailed(pdbfile: str, outpath: str, as_string: bool = False,
         logger.info('Starting analysis from STDIN')
     
     # Initialize PDBComplex
-    mol = PDBComplex()
+    mol = PDBComplex(cfg_kwgs)
     mol.output_path = outpath
     
     # Load PDB
@@ -223,12 +224,13 @@ class ConsistencyTester:
         self.baseline_dir.mkdir(parents=True, exist_ok=True)
         self.results = []
     
-    def generate_baseline(self, test_case: str, pdb_path: Path) -> Dict:
+    def generate_baseline(self, test_case: str, cfg_kwgs: dict, pdb_path: Path) -> Dict:
         """Generate a new baseline for a test case"""
         print(f"Generating baseline for {test_case}...")
         
         with tempfile.TemporaryDirectory() as tmpdir:
             result, metrics = process_pdb_detailed(
+                cfg_kwgs,
                 str(pdb_path), 
                 tmpdir, 
                 outputprefix='baseline'
@@ -320,7 +322,7 @@ class ConsistencyTester:
         
         return differences
     
-    def run_test(self, test_case: str, pdb_path: Path, 
+    def run_test(self, test_case: str, cfg_kwgs: dict, pdb_path: Path, 
                  generate_baseline: bool = False) -> bool:
         """Run a single consistency test"""
         print(f"\n{'='*60}")
@@ -329,7 +331,7 @@ class ConsistencyTester:
         print(f"{'='*60}")
         
         if generate_baseline:
-            baseline = self.generate_baseline(test_case, pdb_path)
+            baseline = self.generate_baseline(test_case, cfg_kwgs, pdb_path)
             print(f"  Status: BASELINE GENERATED")
             return True
         
@@ -337,7 +339,7 @@ class ConsistencyTester:
         baseline = self.load_baseline(test_case)
         if baseline is None:
             print(f"  Status: NO BASELINE - Generating...")
-            baseline = self.generate_baseline(test_case, pdb_path)
+            baseline = self.generate_baseline(test_case, cfg_kwgs, pdb_path)
             print(f"  Status: BASELINE GENERATED")
             return True
         
@@ -345,6 +347,7 @@ class ConsistencyTester:
         print(f"  Running analysis...")
         with tempfile.TemporaryDirectory() as tmpdir:
             current_result, metrics = process_pdb_detailed(
+                cfg_kwgs,
                 str(pdb_path),
                 tmpdir,
                 outputprefix='test'
@@ -376,8 +379,8 @@ class ConsistencyTester:
             if not pdb_file.exists():
                 print(f"\nWARNING: Test file not found: {pdb_file}")
                 continue
-            
-            passed = self.run_test(test_name, pdb_file, generate_baselines)
+            cfg_kwgs = {"PEPTIDES": test_info["peptide"]}
+            passed = self.run_test(test_name, cfg_kwgs, pdb_file, generate_baselines)
             all_passed = all_passed and passed
         
         print("\n" + "="*60)
@@ -402,7 +405,7 @@ class PerformanceTester:
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.metrics_history = []
     
-    def run_single_benchmark(self, test_case: str, pdb_path: Path, 
+    def run_single_benchmark(self, test_case: str, cfg_kwgs: dict, pdb_path: Path, 
                             num_runs: int = 3) -> Dict:
         """Run performance benchmark multiple times"""
         print(f"\nBenchmarking {test_case} ({num_runs} runs)...")
@@ -413,6 +416,7 @@ class PerformanceTester:
             print(f"  Run {i+1}/{num_runs}...", end=' ')
             with tempfile.TemporaryDirectory() as tmpdir:
                 result, metrics = process_pdb_detailed(
+                    cfg_kwgs,
                     str(pdb_path),
                     tmpdir,
                     outputprefix=f'perf_{i}'
@@ -507,7 +511,8 @@ class PerformanceTester:
                 print(f"\nWARNING: Test file not found: {pdb_file}")
                 continue
             
-            benchmark = self.run_single_benchmark(test_name, pdb_file, num_runs)
+            cfg_kwgs = {"PEPTIDES": test_info["peptide"]}
+            benchmark = self.run_single_benchmark(test_name, cfg_kwgs, pdb_file, num_runs)
             self.print_benchmark_summary(benchmark)
             results.append(benchmark)
         

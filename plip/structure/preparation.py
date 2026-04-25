@@ -1468,7 +1468,7 @@ class PDBComplex:
     such as PDB files.
     """
 
-    def __init__(self):
+    def __init__(self, cfg_kwgs: dict = None):
         self.interaction_sets = {}  # Dictionary with site identifiers as keys and object as value
         self.protcomplex = None
         self.filetype = None
@@ -1485,6 +1485,10 @@ class PDBComplex:
         self.excluded = []  # Excluded ligands
         self.Mapper = Mapper()
         self.ligands = []
+        
+        if cfg_kwgs is not None:
+            for k, v in cfg_kwgs.items():
+                setattr(config, k, v)
 
     def __str__(self):
         formatted_lig_names = [":".join([x.hetid, x.chain, str(x.position)]) for x in self.ligands]
