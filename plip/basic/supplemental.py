@@ -394,18 +394,15 @@ def canonicalize(lig, preserve_bond_order=False):
             atomorder = None
     return atomorder
 
-
+int32_to_negative_dict = {int(np.array(i).astype(np.uint32)): i for i in range(-1000, -1)}
 def int32_to_negative(int32):
     """Checks if a suspicious number (e.g. ligand position) is in fact a negative number represented as a
     32 bit integer and returns the actual number.
     """
-    dct = {}
     if int32 == 4294967295:  # Special case in some structures (note, this is just a workaround)
         return -1
-    for i in range(-1000, -1):
-        dct[int(np.array(i).astype(np.uint32))] = i
-    if int32 in dct:
-        return dct[int32]
+    if int32 in int32_to_negative_dict:
+        return int32_to_negative_dict[int32]
     else:
         return int32
 
