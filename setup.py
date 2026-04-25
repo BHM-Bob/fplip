@@ -1,101 +1,124 @@
-from setuptools import setup, find_packages
-from setuptools.command.build_ext import build_ext
-from setuptools.command.install import install
-from distutils.command.build import build
+import os
+import sys
 
-def install_pkg_via_pip(package):
-    import sys
-    import subprocess
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
+from setuptools import Extension, find_packages, setup
+from setuptools.command.build_ext import build_ext as _build_ext
 
-def build_ob_py_bindings():
-    """ Fix openbabel issue (https://github.com/openbabel/openbabel/issues/2408) manually
-      - Download openbabel bindings from pypi
-      - extract to a tmpdir
-      - fix version in $tmpdir/openbabel-3.1.1.1/openbabel/__init__.py to have 2 dot version only
-      - install the fixed version with setuptools/pip
-      - cleanup the tmpdir
-    """
-    import requests
-    import tarfile
-    import tempfile
-    import shutil
-    import fileinput
-    import subprocess
-    import sys
+# Check if Cython is available
+try:
+    from Cython.Build import cythonize
+    CYTHON_AVAILABLE = True
+except ImportError:
+    CYTHON_AVAILABLE = False
 
-    openbabel_pypi_url='https://files.pythonhosted.org/packages/9d/3f/f08f5d1422d74ed0e1e612870b343bfcc26313bdf9efec9165c3ea4b3ae2/openbabel-3.1.1.1.tar.gz'
 
-    print (f"Downloading openbabel package from : {openbabel_pypi_url}")
-    obtar=requests.get(openbabel_pypi_url)
-    obtmpdir = tempfile.mkdtemp()
-    obtmp = obtmpdir+'/openbabel-3.1.1.1.tar'
-    open(obtmp,'wb').write(obtar.content)
-    print(f"Saving openbabel tar.gz to {obtmpdir}")
-    versfile = obtmpdir+'/openbabel-3.1.1.1/openbabel/__init__.py'
-
-    with tarfile.open(obtmp,mode='r') as tf:
-        tf.extractall(obtmpdir)
-
-    print ('Fix versions: s/3.1.1.1/3.1.1/ to make StrictVersion() in openbabel\'s setup.py happy')
-    print ('See https://github.com/openbabel/openbabel/issues/2408 for more details')
-    with fileinput.input(files=versfile,inplace=True) as f:
-        for line in f:
-            op = line.replace('__version__ = "3.1.1.1"', '__version__ = "3.1.1"')
-            print(op, end='')
-
-    install_pkg_via_pip(obtmpdir+'/openbabel-3.1.1.1/')
-    print (f"Cleanup tmpdir: {obtmpdir}")
-    shutil.rmtree(obtmpdir)
-
-class CustomBuild(build):
-    """Ensure build_ext runs first in build command."""
+class build_ext(_build_ext):
+    """Custom build_ext to handle Cython extensions gracefully."""
+    
     def run(self):
-        self.run_command('build_ext')
-        build.run(self)
+        if CYTHON_AVAILABLE:
+            # Cython is available, build extensions normally
+            super().run()
+        else:
+            # Cython not available, skip building extensions
+            # The code will fall back to pure Python implementation
+            print("Warning: Cython not available. Building without optimized extensions.")
+            print("Install Cython for better performance: pip install cython")
 
-class CustomInstall(install):
-    """Ensure build_ext runs first in install command."""
-    def run(self):
-        self.run_command('build_ext')
-        install.run(self)
 
-class CustomBuildExt(build_ext):
-    """ Check if openbabel bindings are installed || build them """
-    def run(self):
-        try: import openbabel
-        except ModuleNotFoundError:
-            try: import requests
-            except ModuleNotFoundError:
-                install_pkg_via_pip('requests')
-            build_ob_py_bindings()
-        return
+def get_extensions():
+    """Get Cython extensions to build."""
+    if not CYTHON_AVAILABLE:
+        return []
+    
+    extensions = [
+        Extension(
+            "plip.structure._pdb_parser",
+            ["plip/structure/_pdb_parser.pyx"],
+            extra_compile_args=[
+                "-O3",              # Maximum optimization
+                "-march=native",    # Optimize for current CPU
+                "-ffast-math",      # Fast math operations
+                "-funroll-loops",   # Unroll loops
+            ],
+            extra_link_args=["-O3"],
+        ),
+    ]
+    
+    # Cython compiler directives
+    compiler_directives = {
+        'language_level': "3",
+        'boundscheck': False,           # Disable bounds checking
+        'wraparound': False,            # Disable negative index handling
+        'initializedcheck': False,      # Disable initialization checking
+        'cdivision': True,              # Use C division (faster)
+        'profile': False,               # Disable profiling
+        'linetrace': False,             # Disable line tracing
+    }
+    
+    return cythonize(
+        extensions,
+        compiler_directives=compiler_directives,
+        annotate=False,  # Don't generate HTML annotation for release
+    )
 
-setup(name='plip',
+
+# Read long description from README
+def read_readme():
+    readme_path = os.path.join(os.path.dirname(__file__), 'README.md')
+    if os.path.exists(readme_path):
+        with open(readme_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    return ''
+
+
+setup(
+    name='plip',
     version='3.0.0',
-    description='PLIP - Fully automated protein-ligand interaction profiler',
+    description='FPLIP - Fast Protein-Ligand Interaction Profiler',
+    long_description=read_readme(),
+    long_description_content_type='text/markdown',
     classifiers=[
-        'Development Status :: 5 - Production/Stable',
+        'Development Status :: 0 - Alpha',
         'Intended Audience :: Science/Research',
         'Natural Language :: English',
         'License :: OSI Approved :: GNU General Public License v2 (GPLv2)',
-        'Programming Language :: Python :: 3.6',
-        'Topic :: Scientific/Engineering :: Bio-Informatics'
-        ],
-    url='https://github.com/pharmai/plip',
-    author='PharmAI GmbH',
-    author_email='hello@pharm.ai',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+        'Programming Language :: Cython',
+        'Topic :: Scientific/Engineering :: Bio-Informatics',
+        'Topic :: Scientific/Engineering :: Chemistry',
+    ],
+    url='https://github.com/BHM-Bob/fplip',
+    author='BHM-Bob_G',
+    author_email='bhmfly@foxmail.com',
     license='GPLv2',
     packages=find_packages(),
     scripts=['plip/plipcmd.py'],
-    cmdclass={'build': CustomBuild, 'build_ext': CustomBuildExt, 'install': CustomInstall},
+    cmdclass={'build_ext': build_ext},
+    ext_modules=get_extensions(),
     install_requires=[
         'numpy',
-        'lxml'
+        'lxml',
+        'openbabel',  # Now available as standard package
+    ],
+    extras_require={
+        'cython': ['cython>=0.29.0'],  # Optional for performance
+        'dev': [
+            'cython>=0.29.0',
+            'pytest',
+            'pytest-cov',
         ],
+    },
     entry_points={
         "console_scripts": [
             "plip = plip.plipcmd:main"
-            ]
-        },
-    zip_safe=False)
+        ]
+    },
+    zip_safe=False,
+    python_requires='>=3.8',
+)

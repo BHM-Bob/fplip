@@ -1,4 +1,11 @@
 recursive-include plip *.py
+recursive-include plip *.pyx
+recursive-include plip *.pxd
 include *.txt
 include *.md
+include LICENSE.txt
 prune plip/test
+prune test
+prune docs
+prune build
+prune dist
