@@ -556,50 +556,56 @@ class Mol:
         self.hbond_acc_atoms = None
         self.altconf = altconf
         self.Mapper = mapper
+        self.all_coords: np.ndarray = None
 
     def hydrophobic_atoms(self, all_atoms):
         """Select all carbon atoms which have only carbons and/or hydrogens as direct neighbors."""
         atom_set = []
-        data = namedtuple('hydrophobic', 'atom orig_atom orig_idx')
+        data = namedtuple('hydrophobic', 'atom orig_atom orig_idx coords')
         atm = [a for a in all_atoms if a.atomicnum == 6 and set([natom.GetAtomicNum() for natom
                                                                  in pybel.ob.OBAtomAtomIter(a.OBAtom)]).issubset(
             {1, 6})]
-        for atom in atm:
+        for i, atom in enumerate(atm):
             orig_idx = self.Mapper.mapid(atom.idx, mtype=self.mtype, bsid=self.bsid)
             orig_atom = self.Mapper.id_to_atom(orig_idx)
             if atom.idx not in self.altconf:
-                atom_set.append(data(atom=atom, orig_atom=orig_atom, orig_idx=orig_idx))
+                atom_set.append(data(atom=atom, orig_atom=orig_atom, orig_idx=orig_idx, coords=self.all_coords[i]))
         return atom_set
 
     def find_hba(self, all_atoms):
         """Find all possible hydrogen bond acceptors"""
-        data = namedtuple('hbondacceptor', 'a a_orig_atom a_orig_idx type')
+        data = namedtuple('hbondacceptor', 'a a_orig_atom a_orig_idx type coords')
         a_set = []
-        for atom in all_atoms:
+        for i, atom in enumerate(all_atoms):
             if atom.atomicnum not in [9, 17, 35, 53] and atom.idx not in self.altconf:  # Exclude halogen atoms
                 a_orig_idx = self.Mapper.mapid(atom.idx, mtype=self.mtype, bsid=self.bsid)
                 a_orig_atom = self.Mapper.id_to_atom(a_orig_idx)
                 if a_orig_atom.OBAtom.IsHbondAcceptor():
-                    a_set.append(data(a=atom, a_orig_atom=a_orig_atom, a_orig_idx=a_orig_idx, type='regular'))
+                    a_set.append(data(a=atom, a_orig_atom=a_orig_atom, a_orig_idx=a_orig_idx, type='regular', coords=self.all_coords[i]))
         a_set = sorted(a_set, key=lambda x: x.a_orig_idx)
         return a_set
 
     def find_hbd(self, all_atoms, hydroph_atoms):
         """Find all possible strong and weak hydrogen bonds donors (all hydrophobic C-H pairings)"""
         donor_pairs = []
-        data = namedtuple('hbonddonor', 'd d_orig_atom d_orig_idx h type')
-        for donor in [a for a in all_atoms if a.OBAtom.IsHbondDonor() and a.idx not in self.altconf]:
-            for adj_atom in [a for a in pybel.ob.OBAtomAtomIter(donor.OBAtom) if a.IsHbondDonorH()]:
-                d_orig_idx = self.Mapper.mapid(donor.idx, mtype=self.mtype, bsid=self.bsid)
-                d_orig_atom = self.Mapper.id_to_atom(d_orig_idx)
-                donor_pairs.append(data(d=donor, d_orig_atom=d_orig_atom, d_orig_idx=d_orig_idx,
-                                        h=pybel.Atom(adj_atom), type='regular'))
+        data = namedtuple('hbonddonor', 'd d_orig_atom d_orig_idx h type coords h_coords')
+        for i, donor in enumerate(all_atoms):
+            if donor.OBAtom.IsHbondDonor() and donor.idx not in self.altconf:
+                for adj_atom in [a for a in pybel.ob.OBAtomAtomIter(donor.OBAtom) if a.IsHbondDonorH()]:
+                    d_orig_idx = self.Mapper.mapid(donor.idx, mtype=self.mtype, bsid=self.bsid)
+                    d_orig_atom = self.Mapper.id_to_atom(d_orig_idx)
+                    h_atom = pybel.Atom(adj_atom)
+                    donor_pairs.append(data(d=donor, d_orig_atom=d_orig_atom, d_orig_idx=d_orig_idx,
+                                            h=h_atom, type='regular', coords=self.all_coords[i],
+                                            h_coords=np.array(h_atom.coords)))
         for carbon in hydroph_atoms:
             for adj_atom in [a for a in pybel.ob.OBAtomAtomIter(carbon.atom.OBAtom) if a.GetAtomicNum() == 1]:
                 d_orig_idx = self.Mapper.mapid(carbon.atom.idx, mtype=self.mtype, bsid=self.bsid)
                 d_orig_atom = self.Mapper.id_to_atom(d_orig_idx)
+                h_atom = pybel.Atom(adj_atom)
                 donor_pairs.append(data(d=carbon, d_orig_atom=d_orig_atom,
-                                        d_orig_idx=d_orig_idx, h=pybel.Atom(adj_atom), type='weak'))
+                                        d_orig_idx=d_orig_idx, h=h_atom, type='weak', coords=carbon.coords,
+                                        h_coords=np.array(h_atom.coords)))
         donor_pairs = sorted(donor_pairs, key=lambda x: (x.d_orig_idx, x.h.idx))
         return donor_pairs
 
@@ -1114,13 +1120,14 @@ class PLInteraction:
 
 
 class BindingSite(Mol):
-    def __init__(self, atoms, protcomplex, cclass, altconf, min_dist, mapper, regions):
+    def __init__(self, atoms, coords, protcomplex, cclass, altconf, min_dist, mapper, regions):
         """Find all relevant parts which could take part in interactions"""
         Mol.__init__(self, altconf, mapper, mtype='protein', bsid=None)
         self.complex = cclass
         self.full_mol = protcomplex
         self.all_atoms_idx = list(map(lambda x: x[0], atoms))
         self.all_atoms = list(map(lambda x: x[1], atoms))
+        self.all_coords = coords
         self.all_res_dict = {f'{a[1].residue.idx}_{a[1].residue.name}': a[1].residue for a in atoms}
         self.min_dist = min_dist  # Minimum distance of bs res to ligand
         self.regions = regions
@@ -1306,6 +1313,10 @@ class Ligand(Mol):
             self.smiles = ''
         self.heavy_atoms = self.molecule.OBMol.NumHvyAtoms()  # Heavy atoms count
         self.all_atoms = self.molecule.atoms
+        # coordinates
+        self.all_coords = np.array([a.coords for a in self.all_atoms])
+        self.centroid = np.mean(self.all_coords, axis=0)
+        self.max_dist_to_center = np.max(np.linalg.norm(self.all_coords - self.centroid, axis=1))
         self.all_atoms_idx = list(map(lambda x: x.idx, self.all_atoms))
         self.atmdict = {l.idx: l for l in self.all_atoms}
         self.rings = self.find_rings(self.molecule, self.all_atoms, self.all_atoms_idx)
@@ -1328,23 +1339,9 @@ class Ligand(Mol):
         self.pdb_to_idx_mapping = {v: k for k, v in self.Mapper.proteinmap.items()}
         self.hbond_don_atom_pairs = self.find_hbd(self.all_atoms, self.hydroph_atoms)
 
-        ######
-        donor_pairs = []
-        data = namedtuple('hbonddonor', 'd d_orig_atom d_orig_idx h type')
-        for donor in self.all_atoms:
-            pdbidx = self.Mapper.mapid(donor.idx, mtype='ligand', bsid=self.bsid, to='original')
-            d = cclass.atoms[self.pdb_to_idx_mapping[pdbidx]]
-            if d.OBAtom.IsHbondDonor():
-                for adj_atom in [a for a in pybel.ob.OBAtomAtomIter(d.OBAtom) if a.IsHbondDonorH()]:
-                    d_orig_atom = self.Mapper.id_to_atom(pdbidx)
-                    donor_pairs.append(data(d=donor, d_orig_atom=d_orig_atom, d_orig_idx=pdbidx,
-                                            h=pybel.Atom(adj_atom), type='regular'))
-        self.hbond_don_atom_pairs = donor_pairs
         #######
 
         self.charged = self.find_charged(self.all_atoms)
-        self.centroid = centroid([a.coords for a in self.all_atoms])
-        self.max_dist_to_center = max((euclidean3d(self.centroid, a.coords) for a in self.all_atoms))
         self.water = []
         data = namedtuple('water', 'oxy oxy_orig_idx')
         for hoh in ligand.water:
@@ -1722,7 +1719,7 @@ class PDBComplex:
             min_dist_dict[bs_res_id] = (min_dist_i, bs_atm.residue.name)
         num_bs_atoms = len(bs_atoms_refined)
         logger.info(f'binding site atoms in vicinity ({config.BS_DIST} A max. dist: {num_bs_atoms})')
-        bs_obj = BindingSite(bs_atoms_refined, self.protcomplex, self, self.altconf, min_dist_dict, self.Mapper, lig_obj.regions)
+        bs_obj = BindingSite(bs_atoms_refined, bs_coords, self.protcomplex, self, self.altconf, min_dist_dict, self.Mapper, lig_obj.regions)
         pli_obj = PLInteraction(lig_obj, bs_obj, self)
         self.interaction_sets[ligand.mol.title] = pli_obj
 

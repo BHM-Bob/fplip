@@ -69,45 +69,106 @@ def hbonds(acceptors, donor_pairs, protisdon, typ):
     Definition: All pairs of hydrogen bond acceptor and donors with
     donor hydrogens and acceptor showing a distance within HBOND DIST MIN and HBOND DIST MAX
     and donor angles above HBOND_DON_ANGLE_MIN
+    
+    Optimized: Uses vectorized numpy operations for distance and angle calculations.
     """
+    if not typ == 'strong':
+        return []
+    
     data = namedtuple('hbond', 'a a_orig_idx d d_orig_idx h distance_ah distance_ad angle type protisdon resnr '
                                'restype reschain resnr_l restype_l reschain_l sidechain atype dtype')
+    
+    # Pre-extract coordinates for vectorized computation
+    n_acc = len(acceptors)
+    n_don = len(donor_pairs)
+    
+    if n_acc == 0 or n_don == 0:
+        return []
+    
+    # Get all coordinates as numpy arrays [N, 3]
+    acc_coords = np.array([acc.coords for acc in acceptors])  # [n_acc, 3]
+    don_h_coords = np.array([don.h_coords for don in donor_pairs])  # [n_don, 3]
+    don_d_coords = np.array([don.coords for don in donor_pairs])  # [n_don, 3]
+    
+    # Compute all pairwise distances using broadcasting
+    # dist_ah[i, j] = distance between acceptor i and donor j's hydrogen
+    diff_ah = acc_coords[:, np.newaxis, :] - don_h_coords[np.newaxis, :, :]  # [n_acc, n_don, 3]
+    dist_ah_matrix = np.sqrt(np.sum(diff_ah ** 2, axis=2))  # [n_acc, n_don]
+    
+    # dist_ad[i, j] = distance between acceptor i and donor j's donor atom
+    diff_ad = acc_coords[:, np.newaxis, :] - don_d_coords[np.newaxis, :, :]  # [n_acc, n_don, 3]
+    dist_ad_matrix = np.sqrt(np.sum(diff_ad ** 2, axis=2))  # [n_acc, n_don]
+    
+    # Filter by distance criteria
+    dist_mask = (dist_ad_matrix > config.MIN_DIST) & (dist_ad_matrix < config.HBOND_DIST_MAX)
+    
+    # Compute angles for pairs passing distance filter
+    # Vector from H to D: don_d_coords - don_h_coords
+    vec_hd = don_d_coords - don_h_coords  # [n_don, 3]
+    # Vector from H to A: acc_coords - don_h_coords (for each pair)
+    vec_ha = acc_coords[:, np.newaxis, :] - don_h_coords[np.newaxis, :, :]  # [n_acc, n_don, 3]
+    
+    # Compute angles using dot product
+    # cos(angle) = (vec_hd · vec_ha) / (|vec_hd| * |vec_ha|)
+    norm_hd = np.linalg.norm(vec_hd, axis=1)  # [n_don]
+    norm_ha = np.linalg.norm(vec_ha, axis=2)  # [n_acc, n_don]
+    
+    # Avoid division by zero
+    norm_hd_safe = np.where(norm_hd == 0, 1, norm_hd)
+    norm_ha_safe = np.where(norm_ha == 0, 1, norm_ha)
+    
+    # Dot product: [n_acc, n_don, 3] @ [n_don, 3] -> need broadcasting
+    dot_product = np.sum(vec_ha * vec_hd[np.newaxis, :, :], axis=2)  # [n_acc, n_don]
+    
+    cos_angle = dot_product / (norm_hd_safe[np.newaxis, :] * norm_ha_safe)
+    # Clip to [-1, 1] to avoid numerical errors
+    cos_angle = np.clip(cos_angle, -1.0, 1.0)
+    angle_matrix = np.degrees(np.arccos(cos_angle))  # [n_acc, n_don]
+    
+    # Filter by angle criteria
+    angle_mask = angle_matrix > config.HBOND_DON_ANGLE_MIN
+    
+    # Combine masks
+    valid_mask = dist_mask & angle_mask
+    
+    # Get indices of valid pairs
+    valid_indices = np.argwhere(valid_mask)  # [N, 2] where each row is [acc_idx, don_idx]
+    
+    # Process only valid pairs
     pairings = []
-    for acc, don in itertools.product(acceptors, donor_pairs):
-        if not typ == 'strong':
-            continue
-        # Regular (strong) hydrogen bonds
-        dist_ah = euclidean3d(acc.a.coords, don.h.coords)
-        dist_ad = euclidean3d(acc.a.coords, don.d.coords)
-        if not config.MIN_DIST < dist_ad < config.HBOND_DIST_MAX:
-            continue
-        vec1, vec2 = vector(don.h.coords, don.d.coords), vector(don.h.coords, acc.a.coords)
-        v = vecangle(vec1, vec2)
-        if not v > config.HBOND_DON_ANGLE_MIN:
-            continue
+    for acc_idx, don_idx in valid_indices:
+        acc = acceptors[acc_idx]
+        don = donor_pairs[don_idx]
+        
+        dist_ah = dist_ah_matrix[acc_idx, don_idx]
+        dist_ad = dist_ad_matrix[acc_idx, don_idx]
+        v = angle_matrix[acc_idx, don_idx]
+        
         protatom = don.d.OBAtom if protisdon else acc.a.OBAtom
         ligatom = don.d.OBAtom if not protisdon else acc.a.OBAtom
-        is_sidechain_hbond = protatom.GetResidue().GetAtomProperty(protatom, 8)  # Check if sidechain atom
+        is_sidechain_hbond = protatom.GetResidue().GetAtomProperty(protatom, 8)
         resnr = whichresnumber(don.d) if protisdon else whichresnumber(acc.a)
         resnr_l = whichresnumber(acc.a_orig_atom) if protisdon else whichresnumber(don.d_orig_atom)
         restype = whichrestype(don.d) if protisdon else whichrestype(acc.a)
         restype_l = whichrestype(acc.a_orig_atom) if protisdon else whichrestype(don.d_orig_atom)
         reschain = whichchain(don.d) if protisdon else whichchain(acc.a)
         rechain_l = whichchain(acc.a_orig_atom) if protisdon else whichchain(don.d_orig_atom)
-        # Next line prevents H-Bonds within amino acids in intermolecular interactions
+        
+        # Skip H-Bonds within same amino acid in intra mode
         if config.INTRA is not None and whichresnumber(don.d) == whichresnumber(acc.a):
             continue
-        # Next line prevents backbone-backbone H-Bonds
-        if config.INTRA is not None and protatom.GetResidue().GetAtomProperty(protatom,
-                                                                              8) and ligatom.GetResidue().GetAtomProperty(
-                ligatom, 8):
+        # Skip backbone-backbone H-Bonds in intra mode
+        if config.INTRA is not None and protatom.GetResidue().GetAtomProperty(protatom, 8) and \
+                ligatom.GetResidue().GetAtomProperty(ligatom, 8):
             continue
+        
         contact = data(a=acc.a, a_orig_idx=acc.a_orig_idx, d=don.d, d_orig_idx=don.d_orig_idx, h=don.h,
                        distance_ah=dist_ah, distance_ad=dist_ad, angle=v, type=typ, protisdon=protisdon,
                        resnr=resnr, restype=restype, reschain=reschain, resnr_l=resnr_l,
                        restype_l=restype_l, reschain_l=rechain_l, sidechain=is_sidechain_hbond,
                        atype=acc.a.type, dtype=don.d.type)
         pairings.append(contact)
+    
     return filter_contacts(pairings)
 
 
