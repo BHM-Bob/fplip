@@ -44,23 +44,52 @@ def filter_contacts(pairings):
 def hydrophobic_interactions(atom_set_a, atom_set_b):
     """Detection of hydrophobic pliprofiler between atom_set_a (binding site) and atom_set_b (ligand).
     Definition: All pairs of qualified carbon atoms within a distance of HYDROPH_DIST_MAX
+    
+    Optimized: Uses vectorized numpy operations for distance calculations.
     """
     data = namedtuple('hydroph_interaction', 'bsatom bsatom_orig_idx ligatom ligatom_orig_idx '
                                              'distance restype resnr reschain restype_l, resnr_l, reschain_l')
+    
+    n_a = len(atom_set_a)
+    n_b = len(atom_set_b)
+    
+    if n_a == 0 or n_b == 0:
+        return []
+    
+    # Pre-extract coordinates for vectorized computation
+    coords_a = np.array([a.coords for a in atom_set_a])  # [n_a, 3]
+    coords_b = np.array([b.coords for b in atom_set_b])  # [n_b, 3]
+    
+    # Compute all pairwise distances using broadcasting
+    diff = coords_a[:, np.newaxis, :] - coords_b[np.newaxis, :, :]  # [n_a, n_b, 3]
+    dist_matrix = np.sqrt(np.sum(diff ** 2, axis=2))  # [n_a, n_b]
+    
+    # Filter by distance criteria
+    dist_mask = (dist_matrix > config.MIN_DIST) & (dist_matrix < config.HYDROPH_DIST_MAX)
+    
+    # Get indices of valid pairs
+    valid_indices = np.argwhere(dist_mask)  # [N, 2] where each row is [idx_a, idx_b]
+    
+    # Process only valid pairs
     pairings = []
-    for a, b in itertools.product(atom_set_a, atom_set_b):
+    for idx_a, idx_b in valid_indices:
+        a = atom_set_a[idx_a]
+        b = atom_set_b[idx_b]
+        
+        # Skip if same original index
         if a.orig_idx == b.orig_idx:
             continue
-        e = euclidean3d(a.atom.coords, b.atom.coords)
-        if not config.MIN_DIST < e < config.HYDROPH_DIST_MAX:
-            continue
+        
+        e = dist_matrix[idx_a, idx_b]
         restype, resnr, reschain = whichrestype(a.atom), whichresnumber(a.atom), whichchain(a.atom)
         restype_l, resnr_l, reschain_l = whichrestype(b.orig_atom), whichresnumber(b.orig_atom), whichchain(b.orig_atom)
+        
         contact = data(bsatom=a.atom, bsatom_orig_idx=a.orig_idx, ligatom=b.atom, ligatom_orig_idx=b.orig_idx,
                        distance=e, restype=restype, resnr=resnr,
                        reschain=reschain, restype_l=restype_l,
                        resnr_l=resnr_l, reschain_l=reschain_l)
         pairings.append(contact)
+    
     return filter_contacts(pairings)
 
 

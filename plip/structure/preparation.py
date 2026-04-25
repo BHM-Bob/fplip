@@ -562,14 +562,13 @@ class Mol:
         """Select all carbon atoms which have only carbons and/or hydrogens as direct neighbors."""
         atom_set = []
         data = namedtuple('hydrophobic', 'atom orig_atom orig_idx coords')
-        atm = [a for a in all_atoms if a.atomicnum == 6 and set([natom.GetAtomicNum() for natom
-                                                                 in pybel.ob.OBAtomAtomIter(a.OBAtom)]).issubset(
-            {1, 6})]
-        for i, atom in enumerate(atm):
-            orig_idx = self.Mapper.mapid(atom.idx, mtype=self.mtype, bsid=self.bsid)
-            orig_atom = self.Mapper.id_to_atom(orig_idx)
-            if atom.idx not in self.altconf:
-                atom_set.append(data(atom=atom, orig_atom=orig_atom, orig_idx=orig_idx, coords=self.all_coords[i]))
+        for i, atom in enumerate(all_atoms):
+            if atom.atomicnum == 6 and set([natom.GetAtomicNum() for natom
+                                            in pybel.ob.OBAtomAtomIter(atom.OBAtom)]).issubset({1, 6}):
+                if atom.idx not in self.altconf:
+                    orig_idx = self.Mapper.mapid(atom.idx, mtype=self.mtype, bsid=self.bsid)
+                    orig_atom = self.Mapper.id_to_atom(orig_idx)
+                    atom_set.append(data(atom=atom, orig_atom=orig_atom, orig_idx=orig_idx, coords=self.all_coords[i]))
         return atom_set
 
     def find_hba(self, all_atoms):
