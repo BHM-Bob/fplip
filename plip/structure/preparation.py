@@ -1162,10 +1162,22 @@ class BindingSite(Mol):
         metal_set = []
         
         # Precompute sets for faster lookup
-        positive_res = {'ARG', 'HIS', 'LYS'}
-        negative_res = {'GLU', 'ASP'}
-        metal_oxy_res = {'ASP', 'GLU', 'SER', 'THR', 'TYR'}
-        dna_rna_set = set(config.DNA + config.RNA)
+        # Charged detection config: (charge_type, atom_type_prefix, AtomProperty)
+        # AtomProperty: 8=sidechain, 9=backbone
+        charged_config = {}
+        charged_config.update({k: ('positive', 'N', 8) for k in ['ARG', 'HIS', 'LYS']})
+        charged_config.update({k: ('negative', 'O', 8) for k in ['GLU', 'ASP']})
+        if config.DNARECEPTOR:
+            charged_config.update({k: ('negative', 'P', 9) for k in set(config.DNA + config.RNA)})
+        
+        # Metal binding sidechain config: (atom_type, residue_property)
+        # Maps residue -> (atom_type, property) for sidechain metal binding
+        metal_sidechain_config = {
+            'ASP': ('O', 8), 'GLU': ('O', 8), 'SER': ('O', 8),
+            'THR': ('O', 8), 'TYR': ('O', 8),
+            'HIS': ('N', 8),
+            'CYS': ('S', 8),
+        }
         
         # Iterate through all residues once
         for res_name, res_v in self.all_res_dict.items():
@@ -1182,12 +1194,8 @@ class BindingSite(Mol):
                 continue
             
             # Determine what we need to detect for this residue
-            need_charged = belongs_to_receptor and (
-                restype in positive_res or 
-                restype in negative_res or 
-                (restype in dna_rna_set and config.DNARECEPTOR)
-            )
-            need_metal_sidechain = restype in metal_oxy_res or restype in ('HIS', 'CYS')
+            need_charged = belongs_to_receptor and restype in charged_config
+            need_metal_sidechain = restype in metal_sidechain_config
             need_metal_mainchain = restype != 'HOH'
             
             # If nothing to detect, skip this residue
@@ -1195,17 +1203,9 @@ class BindingSite(Mol):
                 continue
             
             # Prepare for charged detection
+            charge_type = None
             a_contributing = []
             a_contributing_orig_idx = []
-            charge_type = None
-            
-            if need_charged:
-                if restype in positive_res:
-                    charge_type = 'positive'
-                elif restype in negative_res:
-                    charge_type = 'negative'
-                elif restype in dna_rna_set and config.DNARECEPTOR:
-                    charge_type = 'negative'
             
             # Single pass through all atoms in the residue
             for a in pybel.ob.OBResidueAtomIter(res):
@@ -1217,46 +1217,22 @@ class BindingSite(Mol):
                     continue
                 
                 # ===== Charged detection =====
-                if need_charged and charge_type:
-                    if restype in positive_res:  # Look for N in sidechain
-                        if atom_type.startswith('N') and res.GetAtomProperty(a, 8):
-                            a_contributing.append(pybel.Atom(a))
-                            a_contributing_orig_idx.append(self.Mapper.mapid(idx, mtype='protein'))
-                    elif restype in negative_res:  # Look for O in sidechain
-                        if atom_type.startswith('O') and res.GetAtomProperty(a, 8):
-                            a_contributing.append(pybel.Atom(a))
-                            a_contributing_orig_idx.append(self.Mapper.mapid(idx, mtype='protein'))
-                    elif restype in dna_rna_set and config.DNARECEPTOR:  # Look for P
-                        if atom_type.startswith('P') and res.GetAtomProperty(a, 9):
-                            a_contributing.append(pybel.Atom(a))
-                            a_contributing_orig_idx.append(self.Mapper.mapid(idx, mtype='protein'))
+                if need_charged and restype in charged_config:
+                    charge_type, target_type, target_prop = charged_config[restype]
+                    if atom_type.startswith(target_type) and res.GetAtomProperty(a, target_prop):
+                        a_contributing.append(pybel.Atom(a))
+                        a_contributing_orig_idx.append(self.Mapper.mapid(idx, mtype='protein'))
                 
                 # ===== Metal binding detection - side chain =====
                 if need_metal_sidechain:
-                    if restype in metal_oxy_res:  # O in ASP, GLU, SER, THR, TYR
-                        if atom_type.startswith('O') and res.GetAtomProperty(a, 8):
-                            atom_orig_idx = self.Mapper.mapid(idx, mtype=self.mtype, bsid=self.bsid)
-                            metal_set.append(metal_data(
-                                atom=pybel.Atom(a), atom_orig_idx=atom_orig_idx, type='O',
-                                restype=restype, resnr=resnr, reschain=reschain,
-                                location='protein.sidechain'
-                            ))
-                    elif restype == 'HIS':  # N in HIS
-                        if atom_type.startswith('N') and res.GetAtomProperty(a, 8):
-                            atom_orig_idx = self.Mapper.mapid(idx, mtype=self.mtype, bsid=self.bsid)
-                            metal_set.append(metal_data(
-                                atom=pybel.Atom(a), atom_orig_idx=atom_orig_idx, type='N',
-                                restype=restype, resnr=resnr, reschain=reschain,
-                                location='protein.sidechain'
-                            ))
-                    elif restype == 'CYS':  # S in CYS
-                        if atom_type.startswith('S') and res.GetAtomProperty(a, 8):
-                            atom_orig_idx = self.Mapper.mapid(idx, mtype=self.mtype, bsid=self.bsid)
-                            metal_set.append(metal_data(
-                                atom=pybel.Atom(a), atom_orig_idx=atom_orig_idx, type='S',
-                                restype=restype, resnr=resnr, reschain=reschain,
-                                location='protein.sidechain'
-                            ))
+                    target_type, target_prop = metal_sidechain_config[restype]
+                    if atom_type.startswith(target_type) and res.GetAtomProperty(a, target_prop):
+                        atom_orig_idx = self.Mapper.mapid(idx, mtype=self.mtype, bsid=self.bsid)
+                        metal_set.append(metal_data(
+                            atom=pybel.Atom(a), atom_orig_idx=atom_orig_idx, type=target_type,
+                            restype=restype, resnr=resnr, reschain=reschain,
+                            location='protein.sidechain'
+                        ))
                 
                 # ===== Metal binding detection - main chain =====
                 if need_metal_mainchain:
