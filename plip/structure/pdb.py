@@ -1,7 +1,8 @@
 import re
 from collections import namedtuple
 
-from plip.basic import config, logger
+from plip.basic import config
+from plip.basic.logger import logger
 from plip.basic.supplemental import read
 
 # Try to import Cython-optimized parser

@@ -19,3 +19,5 @@ def get_logger():
         logger = logging.getLogger('plip')
 
     return logger
+
+logger = get_logger()

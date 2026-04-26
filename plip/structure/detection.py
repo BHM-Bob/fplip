@@ -1,15 +1,14 @@
 import itertools
-from collections import defaultdict
-from collections import namedtuple
+from collections import defaultdict, namedtuple
 
 import numpy as np
 from openbabel.openbabel import OBAtomAtomIter
 
-from plip.basic import config, logger
-from plip.basic.supplemental import vecangle, vector, euclidean3d, projection
-from plip.basic.supplemental import whichresnumber, whichrestype, whichchain
+from plip.basic import config
+from plip.basic.logger import logger
+from plip.basic.supplemental import (euclidean3d, projection, vecangle, vector,
+                                     whichchain, whichresnumber, whichrestype)
 
-logger = logger.get_logger()
 
 def filter_contacts(pairings):
     """Filter interactions by two criteria:

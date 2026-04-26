@@ -9,7 +9,9 @@ import numpy as np
 import scipy
 from openbabel import pybel
 
-from plip.basic import config, logger
+
+from plip.basic import config
+from plip.basic.logger import logger
 from plip.basic.supplemental import (canonicalize, centroid, classify_by_name,
                                      cluster_doubles,
                                      create_folder_if_not_exists, euclidean3d,
