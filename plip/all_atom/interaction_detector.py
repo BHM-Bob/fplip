@@ -157,91 +157,111 @@ class UnifiedInteractionDetector:
         This method is called once before processing all residues to cache
         expensive-to-compute data structures.
         """
+        # Get the array-based index mapping from atom_container
+        self._idx_array = self.atom_container.idx_to_array_pos_array
+        
         # Cache hydrophobic atoms for _detect_hydrophobic
         all_hydrophobic = self.atom_props.get_hydrophobic()
         self._hydrophobic_atoms_list = all_hydrophobic
         self._hydrophobic_coords = np.array([atom.coords for atom in all_hydrophobic])
+        # Pre-compute hydrophobic mask using array-based indexing
+        self._hydrophobic_mask = self._create_atom_mask(
+            [atom.idx for atom in all_hydrophobic]
+        )
+        
+        # Cache H-bond donors and acceptors for _detect_hbonds
+        self._all_hba = self.atom_props.get_hba()
+        self._all_hbd = self.atom_props.get_hbd()
+        # Pre-compute whether we have explicit hydrogens
+        self._has_explicit_h = any(len(h_atoms) > 0 for _, h_atoms in self._all_hbd)
+        
+        # Pre-compute H-bond related coordinates for vectorized operations
+        if self._has_explicit_h:
+            # Cache all_hba coordinates for Case 1
+            self._all_hba_coords = np.array([hba.coords for hba in self._all_hba])
+            # Pre-compute HBA mask
+            self._hba_mask = self._create_atom_mask([atom.idx for atom in self._all_hba])
+            
+            # Flatten and cache all_hbd pairs for Case 2
+            self._all_hbd_pairs = []
+            for donor, h_atoms in self._all_hbd:
+                for h_atom in h_atoms:
+                    self._all_hbd_pairs.append((donor, h_atom))
+            
+            if self._all_hbd_pairs:
+                self._all_hbd_don_coords = np.array([pair[0].coords for pair in self._all_hbd_pairs])
+                self._all_hbd_h_coords = np.array([pair[1].coords for pair in self._all_hbd_pairs])
+            else:
+                self._all_hbd_don_coords = np.array([]).reshape(0, 3)
+                self._all_hbd_h_coords = np.array([]).reshape(0, 3)
+        
+        # Pre-compute salt bridge atom masks
+        all_pos = self.atom_props.get_pos_charged()
+        all_neg = self.atom_props.get_neg_charged()
+        self._pos_charged_mask = self._create_atom_mask([atom.idx for atom in all_pos])
+        self._neg_charged_mask = self._create_atom_mask([atom.idx for atom in all_neg])
+        
+        # Pre-compute metal and metal-binding atom masks
+        all_metals = self.atom_props.get_metals()
+        all_metal_binding = self.atom_props.get_metal_binding()
+        self._metal_mask = self._create_atom_mask([atom.idx for atom in all_metals])
+        self._metal_binding_mask = self._create_atom_mask([atom.idx for atom in all_metal_binding])
+    
+    def _create_atom_mask(self, atom_idxs: List[int]) -> np.ndarray:
+        """Create a boolean mask for specified atom indices using array-based indexing.
+        
+        Args:
+            atom_idxs: List of OpenBabel atom indices
+            
+        Returns:
+            Boolean array where True indicates the atom is in the list
+        """
+        if self._idx_array is None or len(atom_idxs) == 0:
+            return np.array([], dtype=bool)
+        
+        mask = np.zeros(len(self._idx_array), dtype=bool)
+        # Filter valid indices
+        valid_idxs = [idx for idx in atom_idxs if idx < len(self._idx_array)]
+        if valid_idxs:
+            mask[valid_idxs] = True
+        return mask
     
     def _detect_for_residue(self, residue: Residue):
         """Detect all interactions for a single residue"""
         if not residue.atoms:
             return
         
-        # Build MxN distance matrix
+        # Get residue coordinates
         res_coords = np.array([a.coords for a in residue.atoms])
-        dist_matrix = self._build_distance_matrix(res_coords)
         
-        # Apply self-filtering if needed
-        if residue.should_filter_self():
-            self._apply_self_filter(dist_matrix, residue)
-        
-        # Detect each interaction type
-        self._detect_hydrophobic(residue, dist_matrix)
-        self._detect_hbonds(residue, dist_matrix)
-        self._detect_saltbridges(residue, dist_matrix)
-        self._detect_pistacking(residue, dist_matrix)
-        self._detect_pication(residue, dist_matrix)
-        self._detect_halogen(residue, dist_matrix)
-        self._detect_metal(residue, dist_matrix)
+        # Detect each interaction type using vectorized operations
+        self._detect_hydrophobic(residue, res_coords)
+        self._detect_hbonds(residue, res_coords)
+        self._detect_saltbridges(residue, res_coords)
+        self._detect_pistacking(residue, res_coords)
+        self._detect_pication(residue, res_coords)
+        self._detect_halogen(residue, res_coords)
+        self._detect_metal(residue, res_coords)
     
-    def _build_distance_matrix(self, res_coords: np.ndarray) -> np.ndarray:
-        """Build MxN distance matrix"""
-        return np.sqrt(
-            np.sum((res_coords[:, np.newaxis, :] - self.all_coords[np.newaxis, :, :]) ** 2, axis=2)
-        )
+    def _is_same_residue(self, atom_a, atom_b) -> bool:
+        """Check if two atoms belong to the same residue"""
+        return (atom_a.resname == atom_b.resname and 
+                atom_a.chain == atom_b.chain and 
+                atom_a.resnum == atom_b.resnum)
     
-    def _apply_self_filter(self, dist_matrix: np.ndarray, residue: Residue):
-        """Set distances to self atoms to infinity"""
-        for atom in residue.atoms:
-            if atom.idx in self.idx_to_pos:
-                pos = self.idx_to_pos[atom.idx]
-                dist_matrix[:, pos] = np.inf
+    def _should_skip_interaction(self, residue: Residue, atom_a, atom_b) -> bool:
+        """Determine if an interaction should be skipped due to self-filtering"""
+        if not residue.should_filter_self():
+            return False  # Ligands don't filter self
+        return self._is_same_residue(atom_a, atom_b)
     
-    def _get_close_atoms(self, residue: Residue, target_atoms: List, 
-                         dist_matrix: np.ndarray, max_dist: float) -> List[Tuple]:
-        """Get close atom pairs within distance threshold"""
-        result = []
-        
-        # Get positions of target atoms in the global array
-        target_positions = []
-        target_atom_map = {}
-        for atom in target_atoms:
-            if atom.idx in self.idx_to_pos:
-                pos = self.idx_to_pos[atom.idx]
-                target_positions.append(pos)
-                target_atom_map[pos] = atom
-        
-        if not target_positions:
-            return result
-        
-        # Find close pairs
-        for i, res_atom in enumerate(residue.atoms):
-            distances = dist_matrix[i, target_positions]
-            close_mask = (distances < max_dist) & (distances > config.MIN_DIST)
-            
-            for j, is_close in enumerate(close_mask):
-                if is_close:
-                    target_atom = target_atom_map[target_positions[j]]
-                    result.append((res_atom, target_atom, distances[j]))
-        
-        return result
-    
-    def _detect_hydrophobic(self, residue: Residue, dist_matrix: np.ndarray):
+    def _detect_hydrophobic(self, residue: Residue, res_coords: np.ndarray):
         """Detect hydrophobic interactions
         
-        Optimized: Uses pre-computed hydrophobic atom data from _precompute_cached_data
-        and vectorized operations to avoid repeated list building and Python loops.
+        Optimized: Uses vectorized numpy operations and pre-computed masks
+        for fast distance calculations without euclidean3d calls.
         """
         if not residue.hydrophobic_atoms:
-            return
-        
-        # Get positions for residue's hydrophobic atoms
-        res_hydrophobic_positions = np.array([
-            self.idx_to_pos[atom.idx] for atom in residue.hydrophobic_atoms
-            if atom.idx in self.idx_to_pos
-        ], dtype=np.int32)
-        
-        if len(res_hydrophobic_positions) == 0:
             return
         
         # Get coordinates for residue's hydrophobic atoms
@@ -266,10 +286,7 @@ class UnifiedInteractionDetector:
             atom_b = self._hydrophobic_atoms_list[j]
             
             # Skip if same residue (unless it's a ligand)
-            if (atom_a.resname == atom_b.resname and 
-                atom_a.chain == atom_b.chain and 
-                atom_a.resnum == atom_b.resnum and
-                residue.should_filter_self()):
+            if self._should_skip_interaction(residue, atom_a, atom_b):
                 continue
             
             interaction = Interaction(
@@ -290,19 +307,16 @@ class UnifiedInteractionDetector:
             )
             self.interactions['hydrophobic'].append(interaction)
     
-    def _detect_hbonds(self, residue: Residue, dist_matrix: np.ndarray):
+    def _detect_hbonds(self, residue: Residue, res_coords: np.ndarray):
         """Detect hydrogen bonds"""
         if not (residue.hbond_acceptors or residue.hbond_donors):
             return
 
-        # Get all H-bond donors and acceptors
-        all_hba = self.atom_props.get_hba()
-        all_hbd = self.atom_props.get_hbd()  # List of (donor, [h_atoms])
+        # Use cached H-bond donors and acceptors (pre-computed in _precompute_cached_data)
+        all_hba = self._all_hba
+        all_hbd = self._all_hbd
 
-        # Check if we have explicit hydrogens
-        has_explicit_h = any(len(h_atoms) > 0 for _, h_atoms in all_hbd)
-
-        if has_explicit_h:
+        if self._has_explicit_h:
             # Use explicit hydrogen geometry
             self._detect_hbonds_with_h(residue, all_hba, all_hbd)
         else:
@@ -310,90 +324,200 @@ class UnifiedInteractionDetector:
             self._detect_hbonds_without_h(residue, all_hba, all_hbd)
 
     def _detect_hbonds_with_h(self, residue: Residue, all_hba: List, all_hbd: List):
-        """Detect H-bonds using explicit hydrogen coordinates"""
+        """Detect H-bonds using explicit hydrogen coordinates.
+        
+        Optimized: Uses vectorized numpy operations for distance and angle calculations
+        instead of individual euclidean3d and vecangle calls.
+        """
         # Case 1: Residue is donor, other is acceptor
         if residue.hbond_donors:
-            for donor, h_atoms in residue.hbond_donors:
-                for hba in all_hba:
-                    for h_atom in h_atoms:
-                        # Calculate distances
-                        dist_ad = euclidean3d(donor.coords, hba.coords)
-                        dist_ah = euclidean3d(h_atom.coords, hba.coords)
-
-                        if dist_ad > config.HBOND_DIST_MAX:
-                            continue
-
-                        # Calculate angle
-                        vec_hd = vector(h_atom.coords, donor.coords)
-                        vec_ha = vector(h_atom.coords, hba.coords)
-                        angle = vecangle(vec_hd, vec_ha)
-
-                        if angle < config.HBOND_DON_ANGLE_MIN:
-                            continue
-
-                        interaction = Interaction(
-                            type='hbond',
-                            res_a_name=donor.resname,
-                            res_a_chain=donor.chain,
-                            res_a_num=donor.resnum,
-                            res_b_name=hba.resname,
-                            res_b_chain=hba.chain,
-                            res_b_num=hba.resnum,
-                            atom_a_name=self._get_atom_name(donor),
-                            atom_a_idx=donor.idx,
-                            atom_b_name=self._get_atom_name(hba),
-                            atom_b_idx=hba.idx,
-                            distance=dist_ad,
-                            angle=angle,
-                            details={
-                                'h_atom': self._get_atom_name(h_atom),
-                                'h_idx': h_atom.idx,
-                                'dist_ah': dist_ah,
-                                'type': 'strong' if dist_ad < 3.2 and angle > 140 else 'weak'
-                            }
-                        )
-                        self.interactions['hbond'].append(interaction)
-
+            self._detect_hbonds_case1_vectorized(residue, all_hba)
+        
         # Case 2: Residue is acceptor, other is donor
         if residue.hbond_acceptors:
-            for acc in residue.hbond_acceptors:
-                for donor, h_atoms in all_hbd:
-                    for h_atom in h_atoms:
-                        dist_ad = euclidean3d(acc.coords, donor.coords)
-                        dist_ah = euclidean3d(acc.coords, h_atom.coords)
-
-                        if dist_ad > config.HBOND_DIST_MAX:
-                            continue
-
-                        vec_hd = vector(h_atom.coords, donor.coords)
-                        vec_ha = vector(h_atom.coords, acc.coords)
-                        angle = vecangle(vec_hd, vec_ha)
-
-                        if angle < config.HBOND_DON_ANGLE_MIN:
-                            continue
-
-                        interaction = Interaction(
-                            type='hbond',
-                            res_a_name=acc.resname,
-                            res_a_chain=acc.chain,
-                            res_a_num=acc.resnum,
-                            res_b_name=donor.resname,
-                            res_b_chain=donor.chain,
-                            res_b_num=donor.resnum,
-                            atom_a_name=self._get_atom_name(acc),
-                            atom_a_idx=acc.idx,
-                            atom_b_name=self._get_atom_name(donor),
-                            atom_b_idx=donor.idx,
-                            distance=dist_ad,
-                            angle=angle,
-                            details={
-                                'h_atom': self._get_atom_name(h_atom),
-                                'h_idx': h_atom.idx,
-                                'dist_ah': dist_ah,
-                                'type': 'strong' if dist_ad < 3.2 and angle > 140 else 'weak'
-                            }
-                        )
-                        self.interactions['hbond'].append(interaction)
+            self._detect_hbonds_case2_vectorized(residue, all_hbd)
+    
+    def _detect_hbonds_case1_vectorized(self, residue: Residue, all_hba: List):
+        """Case 1: Residue is donor, other is acceptor (vectorized)"""
+        # Flatten all (donor, h_atom) pairs from residue
+        donor_h_pairs = []
+        for donor, h_atoms in residue.hbond_donors:
+            for h_atom in h_atoms:
+                donor_h_pairs.append((donor, h_atom))
+        
+        if not donor_h_pairs or not all_hba:
+            return
+        
+        # Pre-extract coordinates as numpy arrays (residue-specific)
+        don_coords = np.array([pair[0].coords for pair in donor_h_pairs])  # [n_pairs, 3]
+        h_coords = np.array([pair[1].coords for pair in donor_h_pairs])    # [n_pairs, 3]
+        # Use cached all_hba coordinates (global, pre-computed)
+        acc_coords = self._all_hba_coords  # [n_acc, 3]
+        
+        # Vectorized distance calculation using broadcasting
+        # dist_ad[i, j] = distance between donor i and acceptor j
+        diff_ad = don_coords[:, np.newaxis, :] - acc_coords[np.newaxis, :, :]  # [n_pairs, n_acc, 3]
+        dist_ad_matrix = np.sqrt(np.sum(diff_ad ** 2, axis=2))  # [n_pairs, n_acc]
+        
+        # dist_ah[i, j] = distance between hydrogen i and acceptor j
+        diff_ah = h_coords[:, np.newaxis, :] - acc_coords[np.newaxis, :, :]  # [n_pairs, n_acc, 3]
+        dist_ah_matrix = np.sqrt(np.sum(diff_ah ** 2, axis=2))  # [n_pairs, n_acc]
+        
+        # Filter by distance criteria
+        dist_mask = (dist_ad_matrix > config.MIN_DIST) & (dist_ad_matrix < config.HBOND_DIST_MAX)
+        
+        # Vectorized angle calculation
+        # Vector from H to D: don_coords - h_coords
+        vec_hd = don_coords - h_coords  # [n_pairs, 3]
+        # Vector from H to A: acc_coords - h_coords (for each pair)
+        vec_ha = acc_coords[np.newaxis, :, :] - h_coords[:, np.newaxis, :]  # [n_pairs, n_acc, 3]
+        
+        # Compute angles using dot product
+        norm_hd = np.linalg.norm(vec_hd, axis=1)  # [n_pairs]
+        norm_ha = np.linalg.norm(vec_ha, axis=2)  # [n_pairs, n_acc]
+        
+        # Avoid division by zero
+        norm_hd_safe = np.where(norm_hd == 0, 1, norm_hd)
+        norm_ha_safe = np.where(norm_ha == 0, 1, norm_ha)
+        
+        # Dot product
+        dot_product = np.sum(vec_ha * vec_hd[:, np.newaxis, :], axis=2)  # [n_pairs, n_acc]
+        
+        cos_angle = dot_product / (norm_hd_safe[:, np.newaxis] * norm_ha_safe)
+        cos_angle = np.clip(cos_angle, -1.0, 1.0)  # Clip to avoid numerical errors
+        angle_matrix = np.degrees(np.arccos(cos_angle))  # [n_pairs, n_acc]
+        
+        # Filter by angle criteria
+        angle_mask = angle_matrix > config.HBOND_DON_ANGLE_MIN
+        
+        # Combine masks
+        valid_mask = dist_mask & angle_mask
+        
+        # Get indices of valid pairs
+        valid_indices = np.argwhere(valid_mask)  # [N, 2] where each row is [pair_idx, acc_idx]
+        
+        # Process only valid pairs
+        for pair_idx, acc_idx in valid_indices:
+            donor, h_atom = donor_h_pairs[pair_idx]
+            hba = all_hba[acc_idx]
+            
+            # Skip if same residue (unless it's a ligand)
+            if self._should_skip_interaction(residue, donor, hba):
+                continue
+            
+            dist_ad = dist_ad_matrix[pair_idx, acc_idx]
+            dist_ah = dist_ah_matrix[pair_idx, acc_idx]
+            angle = angle_matrix[pair_idx, acc_idx]
+            
+            interaction = Interaction(
+                type='hbond',
+                res_a_name=donor.resname,
+                res_a_chain=donor.chain,
+                res_a_num=donor.resnum,
+                res_b_name=hba.resname,
+                res_b_chain=hba.chain,
+                res_b_num=hba.resnum,
+                atom_a_name=self._get_atom_name(donor),
+                atom_a_idx=donor.idx,
+                atom_b_name=self._get_atom_name(hba),
+                atom_b_idx=hba.idx,
+                distance=dist_ad,
+                angle=angle,
+                details={
+                    'h_atom': self._get_atom_name(h_atom),
+                    'h_idx': h_atom.idx,
+                    'dist_ah': dist_ah,
+                    'type': 'strong' if dist_ad < 3.2 and angle > 140 else 'weak'
+                }
+            )
+            self.interactions['hbond'].append(interaction)
+    
+    def _detect_hbonds_case2_vectorized(self, residue: Residue, all_hbd: List):
+        """Case 2: Residue is acceptor, other is donor (vectorized)"""
+        # Use cached global donor-hydrogen pairs (pre-computed in _precompute_cached_data)
+        donor_h_pairs = self._all_hbd_pairs
+        
+        if not donor_h_pairs or not residue.hbond_acceptors:
+            return
+        
+        # Use cached global donor/hydrogen coordinates (pre-computed)
+        don_coords = self._all_hbd_don_coords  # [n_pairs, 3]
+        h_coords = self._all_hbd_h_coords      # [n_pairs, 3]
+        # Extract residue-specific acceptor coordinates
+        acc_coords = np.array([acc.coords for acc in residue.hbond_acceptors])  # [n_acc, 3]
+        
+        # Vectorized distance calculation
+        # dist_ad[i, j] = distance between donor i and acceptor j
+        diff_ad = don_coords[:, np.newaxis, :] - acc_coords[np.newaxis, :, :]  # [n_pairs, n_acc, 3]
+        dist_ad_matrix = np.sqrt(np.sum(diff_ad ** 2, axis=2))  # [n_pairs, n_acc]
+        
+        # dist_ah[i, j] = distance between hydrogen i and acceptor j
+        diff_ah = h_coords[:, np.newaxis, :] - acc_coords[np.newaxis, :, :]  # [n_pairs, n_acc, 3]
+        dist_ah_matrix = np.sqrt(np.sum(diff_ah ** 2, axis=2))  # [n_pairs, n_acc]
+        
+        # Filter by distance criteria
+        dist_mask = (dist_ad_matrix > config.MIN_DIST) & (dist_ad_matrix < config.HBOND_DIST_MAX)
+        
+        # Vectorized angle calculation
+        vec_hd = don_coords - h_coords  # [n_pairs, 3]
+        vec_ha = acc_coords[np.newaxis, :, :] - h_coords[:, np.newaxis, :]  # [n_pairs, n_acc, 3]
+        
+        norm_hd = np.linalg.norm(vec_hd, axis=1)  # [n_pairs]
+        norm_ha = np.linalg.norm(vec_ha, axis=2)  # [n_pairs, n_acc]
+        
+        norm_hd_safe = np.where(norm_hd == 0, 1, norm_hd)
+        norm_ha_safe = np.where(norm_ha == 0, 1, norm_ha)
+        
+        dot_product = np.sum(vec_ha * vec_hd[:, np.newaxis, :], axis=2)  # [n_pairs, n_acc]
+        
+        cos_angle = dot_product / (norm_hd_safe[:, np.newaxis] * norm_ha_safe)
+        cos_angle = np.clip(cos_angle, -1.0, 1.0)
+        angle_matrix = np.degrees(np.arccos(cos_angle))  # [n_pairs, n_acc]
+        
+        # Filter by angle criteria
+        angle_mask = angle_matrix > config.HBOND_DON_ANGLE_MIN
+        
+        # Combine masks
+        valid_mask = dist_mask & angle_mask
+        
+        # Get indices of valid pairs
+        valid_indices = np.argwhere(valid_mask)
+        
+        # Process only valid pairs
+        for pair_idx, acc_idx in valid_indices:
+            donor, h_atom = donor_h_pairs[pair_idx]
+            acc = residue.hbond_acceptors[acc_idx]
+            
+            # Skip if same residue (unless it's a ligand)
+            if self._should_skip_interaction(residue, acc, donor):
+                continue
+            
+            dist_ad = dist_ad_matrix[pair_idx, acc_idx]
+            dist_ah = dist_ah_matrix[pair_idx, acc_idx]
+            angle = angle_matrix[pair_idx, acc_idx]
+            
+            interaction = Interaction(
+                type='hbond',
+                res_a_name=acc.resname,
+                res_a_chain=acc.chain,
+                res_a_num=acc.resnum,
+                res_b_name=donor.resname,
+                res_b_chain=donor.chain,
+                res_b_num=donor.resnum,
+                atom_a_name=self._get_atom_name(acc),
+                atom_a_idx=acc.idx,
+                atom_b_name=self._get_atom_name(donor),
+                atom_b_idx=donor.idx,
+                distance=dist_ad,
+                angle=angle,
+                details={
+                    'h_atom': self._get_atom_name(h_atom),
+                    'h_idx': h_atom.idx,
+                    'dist_ah': dist_ah,
+                    'type': 'strong' if dist_ad < 3.2 and angle > 140 else 'weak'
+                }
+            )
+            self.interactions['hbond'].append(interaction)
 
     def _detect_hbonds_without_h(self, residue: Residue, all_hba: List, all_hbd: List):
         """
@@ -406,6 +530,10 @@ class UnifiedInteractionDetector:
                 for hba in all_hba:
                     # Skip if same atom
                     if donor.idx == hba.idx:
+                        continue
+                    
+                    # Skip if same residue (unless it's a ligand)
+                    if self._should_skip_interaction(residue, donor, hba):
                         continue
 
                     dist_ad = euclidean3d(donor.coords, hba.coords)
@@ -444,6 +572,10 @@ class UnifiedInteractionDetector:
                     # Skip if same atom
                     if acc.idx == donor.idx:
                         continue
+                    
+                    # Skip if same residue (unless it's a ligand)
+                    if self._should_skip_interaction(residue, acc, donor):
+                        continue
 
                     dist_ad = euclidean3d(acc.coords, donor.coords)
 
@@ -471,7 +603,7 @@ class UnifiedInteractionDetector:
                     )
                     self.interactions['hbond'].append(interaction)
     
-    def _detect_saltbridges(self, residue: Residue, dist_matrix: np.ndarray):
+    def _detect_saltbridges(self, residue: Residue, res_coords: np.ndarray):
         """Detect salt bridges"""
         if not (residue.pos_charged or residue.neg_charged):
             return
@@ -483,6 +615,10 @@ class UnifiedInteractionDetector:
         if residue.pos_charged:
             for pos_atom in residue.pos_charged:
                 for neg_atom in all_neg:
+                    # Skip if same residue (unless it's a ligand)
+                    if self._should_skip_interaction(residue, pos_atom, neg_atom):
+                        continue
+                    
                     distance = euclidean3d(pos_atom.coords, neg_atom.coords)
                     
                     if distance < config.SALTBRIDGE_DIST_MAX:
@@ -508,6 +644,10 @@ class UnifiedInteractionDetector:
         if residue.neg_charged:
             for neg_atom in residue.neg_charged:
                 for pos_atom in all_pos:
+                    # Skip if same residue (unless it's a ligand)
+                    if self._should_skip_interaction(residue, neg_atom, pos_atom):
+                        continue
+                    
                     distance = euclidean3d(neg_atom.coords, pos_atom.coords)
                     
                     if distance < config.SALTBRIDGE_DIST_MAX:
@@ -529,7 +669,7 @@ class UnifiedInteractionDetector:
                         )
                         self.interactions['saltbridge'].append(interaction)
     
-    def _detect_pistacking(self, residue: Residue, dist_matrix: np.ndarray):
+    def _detect_pistacking(self, residue: Residue, res_coords: np.ndarray):
         """Detect pi-stacking interactions"""
         if not residue.rings:
             return
@@ -540,6 +680,14 @@ class UnifiedInteractionDetector:
             for ring_b in all_rings:
                 # Skip same ring (compare first atom index)
                 if ring_a['indices'][0] == ring_b['indices'][0]:
+                    continue
+                
+                # Get representative atoms for residue info and self-filtering
+                atom_a = self.atom_container[ring_a['indices'][0]]
+                atom_b = self.atom_container[ring_b['indices'][0]]
+                
+                # Skip if same residue (unless it's a ligand)
+                if self._should_skip_interaction(residue, atom_a, atom_b):
                     continue
 
                 # Calculate distance between centers
@@ -569,10 +717,6 @@ class UnifiedInteractionDetector:
                 if offset > config.PISTACK_OFFSET_MAX:
                     continue
                 
-                # Get representative atoms for residue info
-                atom_a = self.atom_container[ring_a['indices'][0]]
-                atom_b = self.atom_container[ring_b['indices'][0]]
-                
                 interaction = Interaction(
                     type='pistacking',
                     res_a_name=atom_a.resname,
@@ -596,7 +740,7 @@ class UnifiedInteractionDetector:
                 )
                 self.interactions['pistacking'].append(interaction)
     
-    def _detect_pication(self, residue: Residue, dist_matrix: np.ndarray):
+    def _detect_pication(self, residue: Residue, res_coords: np.ndarray):
         """Detect pi-cation interactions"""
         if not (residue.rings or residue.pos_charged):
             return
@@ -608,11 +752,14 @@ class UnifiedInteractionDetector:
         if residue.rings:
             for ring in residue.rings:
                 for pos_atom in all_pos:
+                    # Skip if same residue (unless it's a ligand)
+                    atom_a = self.atom_container[ring['indices'][0]]
+                    if self._should_skip_interaction(residue, atom_a, pos_atom):
+                        continue
+                    
                     distance = euclidean3d(ring['center'], pos_atom.coords)
                     
                     if distance < config.PICATION_DIST_MAX:
-                        atom_a = self.atom_container[ring['indices'][0]]
-                        
                         interaction = Interaction(
                             type='pication',
                             res_a_name=atom_a.resname,
@@ -635,11 +782,14 @@ class UnifiedInteractionDetector:
         if residue.pos_charged:
             for pos_atom in residue.pos_charged:
                 for ring in all_rings:
+                    # Skip if same residue (unless it's a ligand)
+                    atom_b = self.atom_container[ring['indices'][0]]
+                    if self._should_skip_interaction(residue, pos_atom, atom_b):
+                        continue
+                    
                     distance = euclidean3d(pos_atom.coords, ring['center'])
                     
                     if distance < config.PICATION_DIST_MAX:
-                        atom_b = self.atom_container[ring['indices'][0]]
-                        
                         interaction = Interaction(
                             type='pication',
                             res_a_name=pos_atom.resname,
@@ -658,7 +808,7 @@ class UnifiedInteractionDetector:
                         )
                         self.interactions['pication'].append(interaction)
     
-    def _detect_halogen(self, residue: Residue, dist_matrix: np.ndarray):
+    def _detect_halogen(self, residue: Residue, res_coords: np.ndarray):
         """Detect halogen bonds"""
         if not (residue.halogen_donors or residue.halogen_acceptors):
             return
@@ -670,6 +820,10 @@ class UnifiedInteractionDetector:
         if residue.halogen_donors:
             for donor, htype in residue.halogen_donors:
                 for acc in all_acceptors:
+                    # Skip if same residue (unless it's a ligand)
+                    if self._should_skip_interaction(residue, donor, acc):
+                        continue
+                    
                     distance = euclidean3d(donor.coords, acc.coords)
                     
                     if distance > config.HALOGEN_DIST_MAX:
@@ -718,6 +872,10 @@ class UnifiedInteractionDetector:
         if residue.halogen_acceptors:
             for acc in residue.halogen_acceptors:
                 for donor, htype in all_donors:
+                    # Skip if same residue (unless it's a ligand)
+                    if self._should_skip_interaction(residue, acc, donor):
+                        continue
+                    
                     distance = euclidean3d(acc.coords, donor.coords)
                     
                     if distance > config.HALOGEN_DIST_MAX:
@@ -761,7 +919,7 @@ class UnifiedInteractionDetector:
                     )
                     self.interactions['halogen'].append(interaction)
     
-    def _detect_metal(self, residue: Residue, dist_matrix: np.ndarray):
+    def _detect_metal(self, residue: Residue, res_coords: np.ndarray):
         """Detect metal complexation"""
         if not (residue.metal_atoms or residue.metal_binding_atoms):
             return
@@ -773,6 +931,10 @@ class UnifiedInteractionDetector:
         if residue.metal_atoms:
             for metal in residue.metal_atoms:
                 for binding in all_binding:
+                    # Skip if same residue (unless it's a ligand)
+                    if self._should_skip_interaction(residue, metal, binding):
+                        continue
+                    
                     distance = euclidean3d(metal.coords, binding.coords)
                     
                     if distance < config.METAL_DIST_MAX:
@@ -798,6 +960,10 @@ class UnifiedInteractionDetector:
         if residue.metal_binding_atoms:
             for binding in residue.metal_binding_atoms:
                 for metal in all_metals:
+                    # Skip if same residue (unless it's a ligand)
+                    if self._should_skip_interaction(residue, binding, metal):
+                        continue
+                    
                     distance = euclidean3d(binding.coords, metal.coords)
                     
                     if distance < config.METAL_DIST_MAX:
