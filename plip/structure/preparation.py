@@ -1132,8 +1132,29 @@ class Ligand(Mol):
 
         self.inverse_mapping = {v: k for k, v in self.Mapper.ligandmaps[self.bsid].items()}
         self.pdb_to_idx_mapping = {v: k for k, v in self.Mapper.proteinmap.items()}
-        self.hbond_don_atom_pairs = self.find_hbd(self.all_atoms, self.hydroph_atoms)
+        # self.hbond_don_atom_pairs = self.find_hbd(self.all_atoms, self.hydroph_atoms)
 
+        ######
+        # Special handling for hydrogen bond donors: use atoms from the original complex
+        # which may have hydrogen atoms added by OpenBabel
+        donor_pairs = []
+        data = namedtuple('hbonddonor', 'd d_orig_atom d_orig_idx h type coords h_coords')
+        for donor in self.all_atoms:
+            pdbidx = self.Mapper.mapid(donor.idx, mtype='ligand', bsid=self.bsid, to='original')
+            if pdbidx in self.pdb_to_idx_mapping:
+                idx = self.pdb_to_idx_mapping[pdbidx]
+                d = self.complex.atoms[idx]
+                if d.OBAtom.IsHbondDonor():
+                    for adj_atom in [a for a in pybel.ob.OBAtomAtomIter(d.OBAtom) if a.IsHbondDonorH()]:
+                        d_orig_atom = self.Mapper.id_to_atom(pdbidx)
+                        h_atom = pybel.Atom(adj_atom)
+                        # Find the index of donor in all_atoms to get coords
+                        donor_idx = next((i for i, a in enumerate(self.all_atoms) if a.idx == donor.idx), None)
+                        coords = self.all_coords[donor_idx] if donor_idx is not None else np.array(donor.coords)
+                        donor_pairs.append(data(d=donor, d_orig_atom=d_orig_atom, d_orig_idx=pdbidx,
+                                                h=h_atom, type='regular', coords=coords,
+                                                h_coords=np.array(h_atom.coords)))
+        self.hbond_don_atom_pairs = donor_pairs
         #######
 
         self.charged = self.find_charged(self.all_atoms)
@@ -1477,11 +1498,13 @@ class PDBComplex:
 
         # 准备配体
         lig_obj = Ligand(self, ligand)
-        # 准备受体，排除配体原子
+        # 准备受体，排除配体原子和水分子
         rec_atoms_pack = [[atm.idx, atm] for atm in self.protcomplex.atoms]
         rec_atoms_pack = list(filter(lambda x: x[0] in self.Mapper.proteinmap, rec_atoms_pack))
+        # 只保留蛋白质残基的原子（排除水分子），通过检查残基属性
+        rec_atoms_pack = list(filter(lambda x: x[1].OBAtom.GetResidue().GetResidueProperty(0), rec_atoms_pack))
         if self.altconf:
-            rec_atoms_pack = list(filter(lambda x: self.mapper.mapid(x[0], mtype='protein') not in self.altconf, rec_atoms_pack))
+            rec_atoms_pack = list(filter(lambda x: self.Mapper.mapid(x[0], mtype='protein') not in self.altconf, rec_atoms_pack))
             
         if ligand.type == 'PEPTIDE' and not config.REGIONS:
             # If peptide, don't consider the peptide chain as part of the protein binding site
