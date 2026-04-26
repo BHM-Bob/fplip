@@ -130,20 +130,20 @@ class AtomContainer:
     
     def get_atoms_by_component(self, component_type: str) -> List[AtomInfo]:
         """Get all atoms of a specific component type"""
-        return [self.atoms[idx] for idx in self.component_atoms.get(component_type, set())]
+        return [self.atoms[idx] for idx in sorted(self.component_atoms.get(component_type, set()))]
     
     def get_atoms_by_residue(self, resname: str, chain: str, resnum: int) -> List[AtomInfo]:
         """Get all atoms in a specific residue"""
         res_key = (resname, chain, resnum)
-        return [self.atoms[idx] for idx in self.residue_atoms.get(res_key, set())]
+        return [self.atoms[idx] for idx in sorted(self.residue_atoms.get(res_key, set()))]
     
     def get_atoms_by_chain(self, chain: str) -> List[AtomInfo]:
         """Get all atoms in a specific chain"""
-        return [self.atoms[idx] for idx in self.chain_atoms.get(chain, set())]
+        return [self.atoms[idx] for idx in sorted(self.chain_atoms.get(chain, set()))]
     
     def get_heavy_atoms(self) -> List[AtomInfo]:
         """Get all non-hydrogen atoms"""
-        return [atom for atom in self.atoms.values() if not atom.is_hydrogen]
+        return [self.atoms[idx] for idx in sorted(self.atoms.keys()) if not self.atoms[idx].is_hydrogen]
     
     def get_atom_coords_array(self, indices: Optional[List[int]] = None) -> Optional[np.ndarray]:
         """Get coordinates array for specified atoms (or all atoms if None)"""
@@ -159,7 +159,7 @@ class AtomContainer:
         return len(self.atoms)
     
     def __iter__(self):
-        return iter(self.atoms.values())
+        return iter([self.atoms[idx] for idx in sorted(self.atoms.keys())])
     
     def __getitem__(self, idx: int) -> AtomInfo:
         return self.atoms[idx]

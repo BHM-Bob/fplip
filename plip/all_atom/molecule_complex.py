@@ -165,9 +165,10 @@ class MoleculeComplex:
             res_key = (atom.resname, atom.chain, atom.resnum)
             residue_groups[res_key].append(atom)
 
-        # Create Residue objects
+        # Create Residue objects (sorted by residue key for determinism)
         self.residues = []
-        for res_key, atoms in residue_groups.items():
+        for res_key in sorted(residue_groups.keys()):
+            atoms = residue_groups[res_key]
             resname, chain, resnum = res_key
             residue = Residue(resname, chain, resnum)
 
@@ -182,7 +183,8 @@ class MoleculeComplex:
     def _get_component_summary(self) -> Dict[str, int]:
         """Get summary of component types"""
         summary = {}
-        for comp_type, atom_set in self.atom_container.component_atoms.items():
+        for comp_type in sorted(self.atom_container.component_atoms.keys()):
+            atom_set = self.atom_container.component_atoms[comp_type]
             if len(atom_set) > 0:
                 summary[comp_type] = len(atom_set)
         return summary

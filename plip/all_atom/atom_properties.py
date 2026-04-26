@@ -92,7 +92,7 @@ class AtomProperties:
                     if neighbor.GetAtomicNum() == 1:  # Hydrogen
                         attached_h.append(neighbor.GetIdx())
                 if attached_h:
-                    self.hbond_donors[atom.idx] = attached_h
+                    self.hbond_donors[atom.idx] = sorted(attached_h)
             else:
                 # Fallback: For PDB files without hydrogens, identify potential donors
                 # N-H and O-H groups where hydrogens are not explicitly present
@@ -370,33 +370,34 @@ class AtomProperties:
     # Accessor methods
     def get_hba(self) -> List[AtomInfo]:
         """Get all hydrogen bond acceptors"""
-        return [self.atom_container[idx] for idx in self.hbond_acceptors]
+        return [self.atom_container[idx] for idx in sorted(self.hbond_acceptors)]
     
     def get_hbd(self) -> List[Tuple[AtomInfo, List[AtomInfo]]]:
         """Get all hydrogen bond donors with their attached hydrogens"""
         result = []
-        for donor_idx, h_indices in self.hbond_donors.items():
+        for donor_idx in sorted(self.hbond_donors.keys()):
+            h_indices = self.hbond_donors[donor_idx]
             donor = self.atom_container[donor_idx]
-            hydrogens = [self.atom_container[h_idx] for h_idx in h_indices]
+            hydrogens = [self.atom_container[h_idx] for h_idx in sorted(h_indices)]
             result.append((donor, hydrogens))
         return result
     
     def get_pos_charged(self) -> List[AtomInfo]:
         """Get all positively charged atoms"""
-        return [self.atom_container[idx] for idx in self.pos_charged]
+        return [self.atom_container[idx] for idx in sorted(self.pos_charged)]
     
     def get_neg_charged(self) -> List[AtomInfo]:
         """Get all negatively charged atoms"""
-        return [self.atom_container[idx] for idx in self.neg_charged]
+        return [self.atom_container[idx] for idx in sorted(self.neg_charged)]
     
     def get_hydrophobic(self) -> List[AtomInfo]:
         """Get all hydrophobic atoms"""
-        return [self.atom_container[idx] for idx in self.hydrophobic_atoms]
+        return [self.atom_container[idx] for idx in sorted(self.hydrophobic_atoms)]
     
     def get_metals(self) -> List[AtomInfo]:
         """Get all metal ions"""
-        return [self.atom_container[idx] for idx in self.metals]
+        return [self.atom_container[idx] for idx in sorted(self.metals)]
     
     def get_metal_binding(self) -> List[AtomInfo]:
         """Get all metal-binding atoms"""
-        return [self.atom_container[idx] for idx in self.metal_binding]
+        return [self.atom_container[idx] for idx in sorted(self.metal_binding)]
