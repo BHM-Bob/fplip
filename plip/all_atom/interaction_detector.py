@@ -84,6 +84,9 @@ class UnifiedInteractionDetector:
         # First, aggregate properties to residues
         self._aggregate_properties_to_residues()
         
+        # Pre-compute cached data for performance
+        self._precompute_cached_data()
+        
         # Detect interactions for each residue
         for residue in tqdm(self.residues, desc='Processing residues', disable=not verbose):            
             self._detect_for_residue(residue)
@@ -147,6 +150,17 @@ class UnifiedInteractionDetector:
                     residue.halogen_donors.append((atom, halogen_type))
                 if atom_idx in self.atom_props.halogen_acceptors:
                     residue.halogen_acceptors.append(atom)
+    
+    def _precompute_cached_data(self):
+        """Pre-compute and cache data for performance optimization.
+        
+        This method is called once before processing all residues to cache
+        expensive-to-compute data structures.
+        """
+        # Cache hydrophobic atoms for _detect_hydrophobic
+        all_hydrophobic = self.atom_props.get_hydrophobic()
+        self._hydrophobic_atoms_list = all_hydrophobic
+        self._hydrophobic_coords = np.array([atom.coords for atom in all_hydrophobic])
     
     def _detect_for_residue(self, residue: Residue):
         """Detect all interactions for a single residue"""
@@ -213,18 +227,44 @@ class UnifiedInteractionDetector:
         return result
     
     def _detect_hydrophobic(self, residue: Residue, dist_matrix: np.ndarray):
-        """Detect hydrophobic interactions"""
+        """Detect hydrophobic interactions
+        
+        Optimized: Uses pre-computed hydrophobic atom data from _precompute_cached_data
+        and vectorized operations to avoid repeated list building and Python loops.
+        """
         if not residue.hydrophobic_atoms:
             return
         
-        # Get all hydrophobic atoms
-        all_hydrophobic = self.atom_props.get_hydrophobic()
+        # Get positions for residue's hydrophobic atoms
+        res_hydrophobic_positions = np.array([
+            self.idx_to_pos[atom.idx] for atom in residue.hydrophobic_atoms
+            if atom.idx in self.idx_to_pos
+        ], dtype=np.int32)
         
-        pairs = self._get_close_atoms(
-            residue, all_hydrophobic, dist_matrix, config.HYDROPH_DIST_MAX
+        if len(res_hydrophobic_positions) == 0:
+            return
+        
+        # Get coordinates for residue's hydrophobic atoms
+        res_hydrophobic_coords = np.array([atom.coords for atom in residue.hydrophobic_atoms])
+        
+        # Compute distances: vectorized operation [n_res_hydrophobic, n_all_hydrophobic]
+        dist_matrix_hydrophobic = np.sqrt(
+            np.sum((res_hydrophobic_coords[:, np.newaxis, :] - 
+                   self._hydrophobic_coords[np.newaxis, :, :]) ** 2, axis=2)
         )
         
-        for atom_a, atom_b, distance in pairs:
+        # Apply distance filter using vectorized operations
+        valid_mask = (dist_matrix_hydrophobic < config.HYDROPH_DIST_MAX) & \
+                     (dist_matrix_hydrophobic > config.MIN_DIST)
+        
+        # Get indices of valid pairs
+        valid_pairs = np.argwhere(valid_mask)
+        
+        # Process valid pairs
+        for i, j in valid_pairs:
+            atom_a = residue.hydrophobic_atoms[i]
+            atom_b = self._hydrophobic_atoms_list[j]
+            
             # Skip if same residue (unless it's a ligand)
             if (atom_a.resname == atom_b.resname and 
                 atom_a.chain == atom_b.chain and 
@@ -244,7 +284,7 @@ class UnifiedInteractionDetector:
                 atom_a_idx=atom_a.idx,
                 atom_b_name=self._get_atom_name(atom_b),
                 atom_b_idx=atom_b.idx,
-                distance=distance,
+                distance=dist_matrix_hydrophobic[i, j],
                 angle=None,
                 details={}
             )
@@ -623,8 +663,8 @@ class UnifiedInteractionDetector:
         if not (residue.halogen_donors or residue.halogen_acceptors):
             return
         
-        all_donors = [(self.atom_container[idx], htype) for idx, htype in self.atom_props.halogen_donors.items()]
-        all_acceptors = [self.atom_container[idx] for idx in self.atom_props.halogen_acceptors]
+        all_donors = [(self.atom_container[idx], htype) for idx, htype in sorted(self.atom_props.halogen_donors.items())]
+        all_acceptors = [self.atom_container[idx] for idx in sorted(self.atom_props.halogen_acceptors)]
         
         # Case 1: Residue is donor
         if residue.halogen_donors:
@@ -635,15 +675,17 @@ class UnifiedInteractionDetector:
                     if distance > config.HALOGEN_DIST_MAX:
                         continue
                     
-                    # Find carbon bonded to halogen
-                    c_atom = None
+                    # Find carbon bonded to halogen (sort by index for determinism)
+                    c_atoms = []
                     for neighbor in pybel.ob.OBAtomAtomIter(donor.obatom):
                         if neighbor.GetAtomicNum() == 6:
-                            c_atom = neighbor
-                            break
+                            c_atoms.append(neighbor)
                     
-                    if c_atom is None:
+                    if not c_atoms:
                         continue
+                    
+                    # Use the carbon with lowest index for determinism
+                    c_atom = min(c_atoms, key=lambda x: x.GetIdx())
                     
                     # Calculate angle
                     c_coords = np.array([c_atom.GetX(), c_atom.GetY(), c_atom.GetZ()])
@@ -681,15 +723,17 @@ class UnifiedInteractionDetector:
                     if distance > config.HALOGEN_DIST_MAX:
                         continue
                     
-                    # Find carbon bonded to halogen
-                    c_atom = None
+                    # Find carbon bonded to halogen (sort by index for determinism)
+                    c_atoms = []
                     for neighbor in pybel.ob.OBAtomAtomIter(donor.obatom):
                         if neighbor.GetAtomicNum() == 6:
-                            c_atom = neighbor
-                            break
+                            c_atoms.append(neighbor)
                     
-                    if c_atom is None:
+                    if not c_atoms:
                         continue
+                    
+                    # Use the carbon with lowest index for determinism
+                    c_atom = min(c_atoms, key=lambda x: x.GetIdx())
                     
                     c_coords = np.array([c_atom.GetX(), c_atom.GetY(), c_atom.GetZ()])
                     vec_cd = vector(c_coords, donor.coords)
