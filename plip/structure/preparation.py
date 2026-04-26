@@ -155,7 +155,7 @@ class LigandFinder:
 
     def extract_ligand(self, kmer, regions=None):
         """Extract the ligand by copying atoms and bonds and assign all information necessary for later steps."""
-        data = namedtuple('ligand', 'mol hetid chain position water members longname type atomorder can_to_pdb regions newidx')
+        data = namedtuple('ligand', 'mol hetid chain position water members longname type atomorder can_to_pdb regions all_atoms')
         members = [(res.GetName(), res.GetChain(), int32_to_negative(res.GetNum())) for res in kmer]
         members = sort_members_by_importance(members)
         rname, rchain, rnum = members[0]
@@ -172,9 +172,11 @@ class LigandFinder:
             ligtype = classify_by_name(names)
         logger.debug(f'ligand classified as {ligtype}')
 
-        hetatoms = dict()
+        all_atoms, hetatoms = dict(), dict()
         for obresidue in kmer:
-            cur_hetatoms = {obatom.GetIdx(): obatom for obatom in pybel.ob.OBResidueAtomIter(obresidue)}
+            resi_atoms = {obatom.GetIdx(): obatom for obatom in pybel.ob.OBResidueAtomIter(obresidue)}
+            all_atoms.update(resi_atoms)
+            cur_hetatoms = {i: obatom for i, obatom in resi_atoms.items() if obatom.GetAtomicNum() != 1}
             if not config.ALTLOC:
                 # remove alternative conformations (standard -> True)
                 ids_to_remove = [atom_id for atom_id in cur_hetatoms.keys() if
@@ -229,7 +231,7 @@ class LigandFinder:
 
         ligand = data(mol=lig, hetid=rname, chain=rchain, position=rnum, water=self.water,
                       members=members, longname=longname, type=ligtype, atomorder=atomorder,
-                      can_to_pdb=can_to_pdb, regions=regions, newidx=newidx)
+                      can_to_pdb=can_to_pdb, regions=regions, all_atoms=all_atoms)
         return ligand
 
     @staticmethod
@@ -1508,7 +1510,7 @@ class PDBComplex:
             
         if ligand.type == 'PEPTIDE' and not config.REGIONS:
             # If peptide, don't consider the peptide chain as part of the protein binding site
-            rec_atoms_pack = list(filter(lambda x: x[0] not in ligand.newidx, rec_atoms_pack))
+            rec_atoms_pack = list(filter(lambda x: x[0] not in ligand.all_atoms, rec_atoms_pack))
         if ligand.type == 'INTRA':
             # Interactions within the chain
             rec_atoms_pack = list(filter(lambda x: x[1].OBAtom.GetResidue().GetChain() == lig_obj.chain, rec_atoms_pack))
