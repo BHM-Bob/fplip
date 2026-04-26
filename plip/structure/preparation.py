@@ -1335,7 +1335,7 @@ class PDBComplex:
         return "Protein structure %s with ligands:\n" % (self.pymol_name) + "\n".join(
             [lig for lig in formatted_lig_names])
 
-    def load_pdb(self, pdbpath, as_string=False):
+    def load_pdb(self, pdbpath, as_string=False, output_path=None):
         """Loads a pdb file with protein AND ligand(s), separates and prepares them.
         If specified 'as_string', the input is a PDB string instead of a path."""
         if as_string:
@@ -1405,9 +1405,9 @@ class PDBComplex:
             else:
                 basename = "from_stdin"
             self.protcomplex.OBMol.AddPolarHydrogens()
-            output_path = os.path.join(self._output_path, f'{basename}_protonated.pdb')
-            self.protcomplex.write('pdb', output_path, overwrite=True)
-            logger.info(f'protonated structure written to {output_path}')
+            if output_path:
+                self.protcomplex.write('pdb', output_path, overwrite=True)
+                logger.info(f'protonated structure written to {output_path}')
         else:
             logger.warning('no polar hydrogens will be assigned (make sure your structure contains hydrogens)')
 
