@@ -311,6 +311,9 @@ cpdef tuple fix_pdbline(bytes pdbline_bytes, int lastnum):
                 fixed = 1
     
     # Add newline if modified
+    # For non-ATOM/HETATM/TER records, return lastnum to maintain correct atom numbering
+    if new_num == 0:
+        return pdbline_bytes + b'\n', lastnum
     if fixed:
         return pdbline_bytes + b'\n', new_num
     else:
