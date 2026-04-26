@@ -113,7 +113,9 @@ def vecangle(v1, v2, deg=True):
         return 0.0
     dm = np.dot(v1, v2)
     cm = np.linalg.norm(v1) * np.linalg.norm(v2)
-    angle = np.arccos(dm / cm)  # Round here to prevent floating point errors
+    # Clip to [-1, 1] to prevent floating point errors
+    cos_angle = np.clip(dm / cm, -1.0, 1.0)
+    angle = np.arccos(cos_angle)
     return np.degrees([angle, ])[0] if deg else angle
 
 
