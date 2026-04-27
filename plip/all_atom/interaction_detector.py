@@ -69,6 +69,7 @@ class UnifiedInteractionDetector:
         self.interactions: Dict[str, List[Interaction]] = {
             'hydrophobic': [],
             'hbond': [],
+            'hbond_possible': [],  # H-bonds filtered by refinement (salt bridge, duplicate donors)
             'saltbridge': [],
             'pistacking': [],
             'pication': [],
@@ -93,12 +94,15 @@ class UnifiedInteractionDetector:
         
         # Remove duplicates (each interaction detected twice: A-B and B-A)
         self._remove_duplicates()
-        
+
+        # Refine hydrogen bonds (filter by salt bridges and duplicate donors)
+        self._refine_hbonds()
+
         # Detect water bridges
         self._detect_water_bridges()
-        
+
         self._log_summary()
-        
+
         return self.interactions
     
     def _aggregate_properties_to_residues(self):
@@ -427,7 +431,9 @@ class UnifiedInteractionDetector:
                     'h_atom': self._get_atom_name(h_atom),
                     'h_idx': h_atom.idx,
                     'dist_ah': dist_ah,
-                    'type': 'strong' if dist_ad < 3.2 and angle > 140 else 'weak'
+                    'type': 'strong' if dist_ad < 3.2 and angle > 140 else 'weak',
+                    'donor_idx': donor.idx,
+                    'acceptor_idx': hba.idx
                 }
             )
             self.interactions['hbond'].append(interaction)
@@ -514,7 +520,9 @@ class UnifiedInteractionDetector:
                     'h_atom': self._get_atom_name(h_atom),
                     'h_idx': h_atom.idx,
                     'dist_ah': dist_ah,
-                    'type': 'strong' if dist_ad < 3.2 and angle > 140 else 'weak'
+                    'type': 'strong' if dist_ad < 3.2 and angle > 140 else 'weak',
+                    'donor_idx': donor.idx,
+                    'acceptor_idx': acc.idx
                 }
             )
             self.interactions['hbond'].append(interaction)
@@ -604,24 +612,52 @@ class UnifiedInteractionDetector:
                     self.interactions['hbond'].append(interaction)
     
     def _detect_saltbridges(self, residue: Residue, res_coords: np.ndarray):
-        """Detect salt bridges"""
+        """Detect salt bridges between charged residues.
+        
+        Stores complete lists of positive and negative atoms for each salt bridge
+        to enable atom-level filtering during H-bond refinement (matching PLIP behavior).
+        """
         if not (residue.pos_charged or residue.neg_charged):
             return
         
         all_pos = self.atom_props.get_pos_charged()
         all_neg = self.atom_props.get_neg_charged()
         
+        # Group charged atoms by residue for proper salt bridge detection
+        # This matches PLIP's charge center approach
+        def group_by_residue(atoms):
+            """Group atoms by (resname, chain, resnum)"""
+            groups = {}
+            for atom in atoms:
+                key = (atom.resname, atom.chain, atom.resnum)
+                if key not in groups:
+                    groups[key] = []
+                groups[key].append(atom)
+            return groups
+        
+        res_pos_charged = group_by_residue(residue.pos_charged)
+        res_neg_charged = group_by_residue(residue.neg_charged)
+        all_pos_grouped = group_by_residue(all_pos)
+        all_neg_grouped = group_by_residue(all_neg)
+        
         # Case 1: Residue is positive, other is negative
-        if residue.pos_charged:
-            for pos_atom in residue.pos_charged:
-                for neg_atom in all_neg:
-                    # Skip if same residue (unless it's a ligand)
-                    if self._should_skip_interaction(residue, pos_atom, neg_atom):
+        if res_pos_charged:
+            for res_key, pos_atoms in res_pos_charged.items():
+                for other_key, neg_atoms in all_neg_grouped.items():
+                    # Skip if same residue
+                    if res_key == other_key:
                         continue
                     
-                    distance = euclidean3d(pos_atom.coords, neg_atom.coords)
+                    # Calculate distance between charge centers
+                    pos_center = np.mean([a.coords for a in pos_atoms], axis=0)
+                    neg_center = np.mean([a.coords for a in neg_atoms], axis=0)
+                    distance = np.linalg.norm(pos_center - neg_center)
                     
                     if distance < config.SALTBRIDGE_DIST_MAX:
+                        # Get representative atoms for residue info
+                        pos_atom = pos_atoms[0]
+                        neg_atom = neg_atoms[0]
+                        
                         interaction = Interaction(
                             type='saltbridge',
                             res_a_name=pos_atom.resname,
@@ -636,21 +672,32 @@ class UnifiedInteractionDetector:
                             atom_b_idx=neg_atom.idx,
                             distance=distance,
                             angle=None,
-                            details={'charge_type': 'pos-neg'}
+                            details={
+                                'charge_type': 'pos-neg',
+                                'positive_atoms': [a.idx for a in pos_atoms],
+                                'negative_atoms': [a.idx for a in neg_atoms]
+                            }
                         )
                         self.interactions['saltbridge'].append(interaction)
         
         # Case 2: Residue is negative, other is positive
-        if residue.neg_charged:
-            for neg_atom in residue.neg_charged:
-                for pos_atom in all_pos:
-                    # Skip if same residue (unless it's a ligand)
-                    if self._should_skip_interaction(residue, neg_atom, pos_atom):
+        if res_neg_charged:
+            for res_key, neg_atoms in res_neg_charged.items():
+                for other_key, pos_atoms in all_pos_grouped.items():
+                    # Skip if same residue
+                    if res_key == other_key:
                         continue
                     
-                    distance = euclidean3d(neg_atom.coords, pos_atom.coords)
+                    # Calculate distance between charge centers
+                    neg_center = np.mean([a.coords for a in neg_atoms], axis=0)
+                    pos_center = np.mean([a.coords for a in pos_atoms], axis=0)
+                    distance = np.linalg.norm(neg_center - pos_center)
                     
                     if distance < config.SALTBRIDGE_DIST_MAX:
+                        # Get representative atoms for residue info
+                        neg_atom = neg_atoms[0]
+                        pos_atom = pos_atoms[0]
+                        
                         interaction = Interaction(
                             type='saltbridge',
                             res_a_name=neg_atom.resname,
@@ -665,7 +712,11 @@ class UnifiedInteractionDetector:
                             atom_b_idx=pos_atom.idx,
                             distance=distance,
                             angle=None,
-                            details={'charge_type': 'neg-pos'}
+                            details={
+                                'charge_type': 'neg-pos',
+                                'positive_atoms': [a.idx for a in pos_atoms],
+                                'negative_atoms': [a.idx for a in neg_atoms]
+                            }
                         )
                         self.interactions['saltbridge'].append(interaction)
     
@@ -1045,7 +1096,86 @@ class UnifiedInteractionDetector:
                     seen.add(key)
                     unique.append(inter)
             self.interactions[itype] = unique
-    
+
+    def _refine_hbonds(self):
+        """Refine hydrogen bonds by filtering out those involved in salt bridges and duplicate donors.
+
+        This implements all-atom's unified approach to H-bond refinement:
+        1. Filter out H-bonds where donor/acceptor atoms are involved in salt bridges
+           - If donor is in a salt bridge's positive atoms AND acceptor is in the same
+             salt bridge's negative atoms (or vice versa), filter it out
+        2. Keep only one H-bond per donor (the one with largest angle)
+
+        Unlike PLIP, all-atom does NOT distinguish between ligand and protein.
+        It treats all residues uniformly, filtering H-bonds based on whether the
+        donor/acceptor pair forms a salt bridge, regardless of residue type.
+
+        Filtered H-bonds are moved to 'hbond_possible' instead of being deleted.
+        """
+        if not self.interactions['hbond']:
+            return
+
+        # Build salt bridge lookup: atom_idx -> (partner_residue_atoms, is_positive)
+        # For each atom in a salt bridge, store the partner's atoms and whether this atom is positive
+        saltbridge_lookup = {}  # atom_idx -> {'partner_neg': set(), 'partner_pos': set()}
+
+        for sb in self.interactions['saltbridge']:
+            pos_atoms = set(sb.details.get('positive_atoms', []))
+            neg_atoms = set(sb.details.get('negative_atoms', []))
+
+            # For each positive atom, the partner negative atoms are the other side
+            for pos_atom in pos_atoms:
+                if pos_atom not in saltbridge_lookup:
+                    saltbridge_lookup[pos_atom] = {'partner_neg': set(), 'partner_pos': set()}
+                saltbridge_lookup[pos_atom]['partner_neg'].update(neg_atoms)
+
+            # For each negative atom, the partner positive atoms are the other side
+            for neg_atom in neg_atoms:
+                if neg_atom not in saltbridge_lookup:
+                    saltbridge_lookup[neg_atom] = {'partner_neg': set(), 'partner_pos': set()}
+                saltbridge_lookup[neg_atom]['partner_pos'].update(pos_atoms)
+
+        # First pass: mark H-bonds involved in salt bridges
+        marked_hbonds = []
+        for hbond in self.interactions['hbond']:
+            is_filtered = False
+            donor_idx = hbond.details.get('donor_idx')
+            acceptor_idx = hbond.details.get('acceptor_idx')
+
+            # Check if donor is in a salt bridge
+            if donor_idx in saltbridge_lookup:
+                # If donor is positive and acceptor is in partner negative atoms -> filter
+                if acceptor_idx in saltbridge_lookup[donor_idx]['partner_neg']:
+                    is_filtered = True
+                # If donor is negative and acceptor is in partner positive atoms -> filter
+                elif acceptor_idx in saltbridge_lookup[donor_idx]['partner_pos']:
+                    is_filtered = True
+
+            marked_hbonds.append((hbond, is_filtered))
+
+        # Second pass: keep only one H-bond per donor (largest angle)
+        donor_best = {}  # donor_idx -> (angle, hbond)
+        for hbond, is_filtered in marked_hbonds:
+            if is_filtered:
+                continue
+            donor_idx = hbond.details.get('donor_idx')
+            if donor_idx not in donor_best:
+                donor_best[donor_idx] = (hbond.angle, hbond)
+            else:
+                if donor_best[donor_idx][0] < hbond.angle:
+                    donor_best[donor_idx] = (hbond.angle, hbond)
+
+        confirmed_hbonds = [hb[1] for hb in donor_best.values()]
+        possible_hbonds = [hb for hb, is_filtered in marked_hbonds if is_filtered or
+                          (hb not in confirmed_hbonds)]
+
+        # Update interactions
+        self.interactions['hbond'] = confirmed_hbonds
+        self.interactions['hbond_possible'] = possible_hbonds
+
+        if possible_hbonds:
+            logger.info(f'  Refined H-bonds: {len(confirmed_hbonds)} confirmed, {len(possible_hbonds)} possible')
+
     def _get_atom_name(self, atom_info) -> str:
         """Get atom name from OBAtom"""
         residue = atom_info.obatom.GetResidue()

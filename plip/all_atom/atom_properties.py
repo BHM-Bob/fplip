@@ -165,45 +165,123 @@ class AtomProperties:
             self._find_negative_charges(atoms, resname)
     
     def _find_positive_charges(self, atoms: List[AtomInfo], resname: str):
-        """Find positively charged groups in a residue"""
+        """Find positively charged groups in a residue.
         
-        # Check for standard positive groups
-        # Guanidinium (Arg)
-        if resname == 'ARG':
-            for atom in atoms:
-                if atom.atomic_num == 6:  # Carbon
-                    # Check if connected to 3 nitrogens
-                    neighbors = [n for n in pybel.ob.OBAtomAtomIter(atom.obatom)]
-                    n_neighbors = [n for n in neighbors if n.GetAtomicNum() == 7]
-                    if len(n_neighbors) == 3:
-                        self.pos_charged[atom.idx] = 'arginine_guanidinium'
-                        for n in n_neighbors:
-                            self.pos_charged[n.GetIdx()] = 'arginine_guanidinium'
+        All-atom design: Unified detection based on chemical topology.
+        Uses residue context for standard amino acids to ensure correct
+        protonation state detection even when H atoms are missing in PDB.
         
-        # Ammonium (Lys)
+        Detection priority:
+        1. Guanidinium: C connected to 3 N atoms (Arg, ligands)
+        2. Ammonium: N with 4 non-H neighbors OR standard Lys NZ
+        3. Tertamine: sp3 N with 3+ neighbors (can be protonated)
+        4. Sulfonium: S with 3 non-H neighbors
+        5. Imidazolium: Aromatic 5-membered ring with 2 N atoms (His)
+        """
+        # Group atoms by element for efficient processing
+        carbon_atoms = [a for a in atoms if a.atomic_num == 6]
+        nitrogen_atoms = [a for a in atoms if a.atomic_num == 7]
+        sulfur_atoms = [a for a in atoms if a.atomic_num == 16]
+        
+        # 1. Detect Guanidinium (C-centered)
+        # Chemical definition: C connected to 3 N atoms, at least one terminal N
+        for atom in carbon_atoms:
+            if atom.idx in self.pos_charged:
+                continue
+            neighbors = list(pybel.ob.OBAtomAtomIter(atom.obatom))
+            n_neighbors = [n for n in neighbors if n.GetAtomicNum() == 7]
+            if len(n_neighbors) == 3:
+                # Check for terminal N (only connected to this C, can pick up H)
+                has_terminal_n = any(
+                    len([nb for nb in pybel.ob.OBAtomAtomIter(n) 
+                         if nb.GetAtomicNum() != 1]) == 1
+                    for n in n_neighbors
+                )
+                if has_terminal_n:
+                    self.pos_charged[atom.idx] = 'guanidinium'
+                    for n in n_neighbors:
+                        self.pos_charged[n.GetIdx()] = 'guanidinium'
+        
+        # 2. Detect Ammonium (N-centered)
+        # For standard residues: Lys NZ is always ammonium (protonated at physiological pH)
+        # For non-standard: use topology-based detection
         if resname == 'LYS':
-            for atom in atoms:
-                if atom.atomic_num == 7:  # Nitrogen
-                    # Check if connected to 3 hydrogens or carbons
-                    neighbors = [n for n in pybel.ob.OBAtomAtomIter(atom.obatom)]
-                    h_count = sum(1 for n in neighbors if n.GetAtomicNum() == 1)
-                    c_count = sum(1 for n in neighbors if n.GetAtomicNum() == 6)
-                    if h_count >= 2 or (h_count + c_count == 4):
-                        self.pos_charged[atom.idx] = 'lysine_ammonium'
+            # In standard Lys, the NZ atom is the ammonium nitrogen
+            for atom in nitrogen_atoms:
+                if atom.atom_name == 'NZ' and atom.idx not in self.pos_charged:
+                    self.pos_charged[atom.idx] = 'ammonium'
         
-        # Imidazolium (His)
+        # Topology-based detection for all N atoms (including non-standard residues)
+        for atom in nitrogen_atoms:
+            if atom.idx in self.pos_charged:
+                continue
+            neighbors = list(pybel.ob.OBAtomAtomIter(atom.obatom))
+            non_h_neighbors = [n for n in neighbors if n.GetAtomicNum() != 1]
+            
+            if len(non_h_neighbors) == 4:
+                # Quaternary ammonium - permanently charged
+                self.pos_charged[atom.idx] = 'ammonium'
+            elif atom.obatom.GetHyb() == 3 and len(neighbors) >= 3:
+                # Tertiary amine - can pick up H to become ammonium
+                self.pos_charged[atom.idx] = 'tertamine'
+        
+        # 3. Detect Sulfonium (S-centered)
+        for atom in sulfur_atoms:
+            if atom.idx in self.pos_charged:
+                continue
+            neighbors = list(pybel.ob.OBAtomAtomIter(atom.obatom))
+            non_h_neighbors = [n for n in neighbors if n.GetAtomicNum() != 1]
+            if len(non_h_neighbors) == 3:
+                self.pos_charged[atom.idx] = 'sulfonium'
+        
+        # 4. Detect Imidazolium (ring-based)
+        # For standard His, only mark ND1 and NE2 (ring nitrogens) as imidazolium
         if resname == 'HIS':
-            # Find ring nitrogens
-            ring_nitrogens = []
-            for atom in atoms:
-                if atom.atomic_num == 7:
-                    ring_nitrogens.append(atom)
+            for atom in nitrogen_atoms:
+                if atom.idx not in self.pos_charged and atom.atom_name in ['ND1', 'NE2']:
+                    self.pos_charged[atom.idx] = 'imidazolium'
+        # For non-standard residues, use ring detection
+        elif self._is_imidazolium_ring(atoms):
+            ring_nitrogens = [a for a in atoms if a.atomic_num == 7 
+                              and a.idx not in self.pos_charged]
             if len(ring_nitrogens) >= 2:
                 for n in ring_nitrogens:
-                    self.pos_charged[n.idx] = 'histidine_imidazolium'
-        
-        # N-terminus
-        # (Simplified - would need more complex logic for full implementation)
+                    self.pos_charged[n.idx] = 'imidazolium'
+
+        # N-terminus detection would require additional context
+
+    def _is_imidazolium_ring(self, atoms: List[AtomInfo]) -> bool:
+        """Check if atoms form an imidazolium ring (5-membered, 2 N, aromatic).
+
+        Uses OpenBabel's ring detection for accurate identification.
+        """
+        # Get all atoms in this residue as OpenBabel atoms
+        ob_atoms = [a.obatom for a in atoms]
+        if not ob_atoms:
+            return False
+
+        # Get the OBMol from the first atom
+        obmol = ob_atoms[0].GetParent()
+        if not obmol:
+            return False
+
+        # Find rings in the molecule
+        ring_data = obmol.GetSSSR()  # Smallest Set of Smallest Rings
+
+        for ring in ring_data:
+            ring_size = ring.Size()
+            if ring_size != 5:
+                continue
+
+            # Count N atoms in this ring
+            ring_atom_indices = set(ring._path)
+            n_count = sum(1 for oba in ob_atoms if oba.GetIdx() in ring_atom_indices and oba.GetAtomicNum() == 7)
+
+            # Imidazolium has exactly 2 N atoms in a 5-membered ring
+            if n_count == 2:
+                return True
+
+        return False
     
     def _find_negative_charges(self, atoms: List[AtomInfo], resname: str):
         """Find negatively charged groups in a residue"""
