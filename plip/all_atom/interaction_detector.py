@@ -336,10 +336,12 @@ class UnifiedInteractionDetector:
         else:
             # Skip H-bond detection without explicit hydrogens (default behavior)
             # H-bond detection requires explicit hydrogens for scientific reliability
-            logger.warning("No explicit hydrogens found in structure. "
-                          "H-bond detection skipped. "
-                          "Please provide a protonated PDB file or use NOHYDRO=False for automatic protonation. "
-                          "Alternatively, set config.ALLOW_HEAVY_ATOM_HBOND=True for distance-only detection.")
+            # Use debug level to avoid spamming logs - this is expected behavior for many structures
+            logger.debug("No explicit hydrogens found in residue %s %s %s. "
+                        "H-bond detection skipped for this residue. "
+                        "Provide a protonated PDB or use NOHYDRO=False for automatic protonation. "
+                        "Set config.ALLOW_HEAVY_ATOM_HBOND=True for distance-only detection.",
+                        residue.resname, residue.chain, residue.resnum)
             return
 
     def _detect_hbonds_with_h(self, residue: Residue, all_hba: List, all_hbd: List):
