@@ -941,8 +941,67 @@ class UnifiedInteractionDetector:
                     )
                     self.interactions['pication'].append(interaction)
     
+    def _get_halogen_bond_angles(self, donor, acceptor):
+        """Calculate donor and acceptor angles for halogen bond.
+        
+        Following PLIP's approach:
+        - Donor angle: C-X···O (angle between X->C vector and X->O vector)
+        - Acceptor angle: Y-O···X (angle between O->Y vector and O->X vector)
+        
+        Returns:
+            (don_angle, acc_angle) or (None, None) if angles cannot be calculated
+        """
+        # Find carbon bonded to halogen (donor)
+        c_atoms = []
+        for neighbor in pybel.ob.OBAtomAtomIter(donor.obatom):
+            if neighbor.GetAtomicNum() == 6:
+                c_atoms.append(neighbor)
+        
+        if not c_atoms:
+            return None, None
+        
+        # Use the carbon with lowest index for determinism
+        c_atom = min(c_atoms, key=lambda x: x.GetIdx())
+        c_coords = np.array([c_atom.GetX(), c_atom.GetY(), c_atom.GetZ()])
+        
+        # Calculate donor angle (C-X···O)
+        # Vector from X to C (donor to carbon)
+        vec_xc = vector(donor.coords, c_coords)
+        # Vector from X to O (donor to acceptor)
+        vec_xo = vector(donor.coords, acceptor.coords)
+        don_angle = vecangle(vec_xc, vec_xo)
+        
+        # Find proximal atom Y bonded to acceptor (Y-O···X)
+        # Y can be C, N, P, or S
+        y_atoms = []
+        for neighbor in pybel.ob.OBAtomAtomIter(acceptor.obatom):
+            if neighbor.GetAtomicNum() in [6, 7, 15, 16]:  # C, N, P, S
+                y_atoms.append(neighbor)
+        
+        if not y_atoms:
+            return don_angle, None
+        
+        # Use the atom with lowest index for determinism
+        y_atom = min(y_atoms, key=lambda x: x.GetIdx())
+        y_coords = np.array([y_atom.GetX(), y_atom.GetY(), y_atom.GetZ()])
+        
+        # Calculate acceptor angle (Y-O···X)
+        # Vector from O to Y (acceptor to proximal)
+        vec_oy = vector(acceptor.coords, y_coords)
+        # Vector from O to X (acceptor to donor)
+        vec_ox = vector(acceptor.coords, donor.coords)
+        acc_angle = vecangle(vec_oy, vec_ox)
+        
+        return don_angle, acc_angle
+
     def _detect_halogen(self, residue: Residue, res_coords: np.ndarray):
-        """Detect halogen bonds"""
+        """Detect halogen bonds following PLIP's criteria.
+        
+        Halogen bond criteria:
+        - Distance: X···O < HALOGEN_DIST_MAX
+        - Donor angle: C-X···O > HALOGEN_DON_ANGLE - HALOGEN_ANGLE_DEV
+        - Acceptor angle: Y-O···X within HALOGEN_ACC_ANGLE ± HALOGEN_ANGLE_DEV
+        """
         if not (residue.halogen_donors or residue.halogen_acceptors):
             return
         
@@ -959,29 +1018,24 @@ class UnifiedInteractionDetector:
                     
                     distance = euclidean3d(donor.coords, acc.coords)
                     
-                    if distance > config.HALOGEN_DIST_MAX:
+                    if not config.MIN_DIST < distance < config.HALOGEN_DIST_MAX:
                         continue
                     
-                    # Find carbon bonded to halogen (sort by index for determinism)
-                    c_atoms = []
-                    for neighbor in pybel.ob.OBAtomAtomIter(donor.obatom):
-                        if neighbor.GetAtomicNum() == 6:
-                            c_atoms.append(neighbor)
+                    # Calculate both angles
+                    don_angle, acc_angle = self._get_halogen_bond_angles(donor, acc)
                     
-                    if not c_atoms:
+                    if don_angle is None:
                         continue
                     
-                    # Use the carbon with lowest index for determinism
-                    c_atom = min(c_atoms, key=lambda x: x.GetIdx())
-                    
-                    # Calculate angle
-                    c_coords = np.array([c_atom.GetX(), c_atom.GetY(), c_atom.GetZ()])
-                    vec_cd = vector(c_coords, donor.coords)
-                    vec_ca = vector(c_coords, acc.coords)
-                    angle = vecangle(vec_cd, vec_ca)
-                    
-                    if angle < (config.HALOGEN_DON_ANGLE - config.HALOGEN_ANGLE_DEV):
+                    # Check donor angle
+                    if not (config.HALOGEN_DON_ANGLE - config.HALOGEN_ANGLE_DEV < don_angle):
                         continue
+                    
+                    # Check acceptor angle (if available)
+                    if acc_angle is not None:
+                        if not (config.HALOGEN_ACC_ANGLE - config.HALOGEN_ANGLE_DEV < acc_angle <
+                                config.HALOGEN_ACC_ANGLE + config.HALOGEN_ANGLE_DEV):
+                            continue
                     
                     interaction = Interaction(
                         type='halogen',
@@ -996,8 +1050,12 @@ class UnifiedInteractionDetector:
                         atom_b_name=self._get_atom_name(acc),
                         atom_b_idx=acc.idx,
                         distance=distance,
-                        angle=angle,
-                        details={'halogen_type': htype}
+                        angle=don_angle,
+                        details={
+                            'halogen_type': htype,
+                            'don_angle': don_angle,
+                            'acc_angle': acc_angle
+                        }
                     )
                     self.interactions['halogen'].append(interaction)
         
@@ -1011,28 +1069,24 @@ class UnifiedInteractionDetector:
                     
                     distance = euclidean3d(acc.coords, donor.coords)
                     
-                    if distance > config.HALOGEN_DIST_MAX:
+                    if not config.MIN_DIST < distance < config.HALOGEN_DIST_MAX:
                         continue
                     
-                    # Find carbon bonded to halogen (sort by index for determinism)
-                    c_atoms = []
-                    for neighbor in pybel.ob.OBAtomAtomIter(donor.obatom):
-                        if neighbor.GetAtomicNum() == 6:
-                            c_atoms.append(neighbor)
+                    # Calculate both angles
+                    don_angle, acc_angle = self._get_halogen_bond_angles(donor, acc)
                     
-                    if not c_atoms:
+                    if don_angle is None:
                         continue
                     
-                    # Use the carbon with lowest index for determinism
-                    c_atom = min(c_atoms, key=lambda x: x.GetIdx())
-                    
-                    c_coords = np.array([c_atom.GetX(), c_atom.GetY(), c_atom.GetZ()])
-                    vec_cd = vector(c_coords, donor.coords)
-                    vec_ca = vector(c_coords, acc.coords)
-                    angle = vecangle(vec_cd, vec_ca)
-                    
-                    if angle < (config.HALOGEN_DON_ANGLE - config.HALOGEN_ANGLE_DEV):
+                    # Check donor angle
+                    if not (config.HALOGEN_DON_ANGLE - config.HALOGEN_ANGLE_DEV < don_angle):
                         continue
+                    
+                    # Check acceptor angle (if available)
+                    if acc_angle is not None:
+                        if not (config.HALOGEN_ACC_ANGLE - config.HALOGEN_ANGLE_DEV < acc_angle <
+                                config.HALOGEN_ACC_ANGLE + config.HALOGEN_ANGLE_DEV):
+                            continue
                     
                     interaction = Interaction(
                         type='halogen',
@@ -1047,8 +1101,12 @@ class UnifiedInteractionDetector:
                         atom_b_name=self._get_atom_name(donor),
                         atom_b_idx=donor.idx,
                         distance=distance,
-                        angle=angle,
-                        details={'halogen_type': htype}
+                        angle=don_angle,
+                        details={
+                            'halogen_type': htype,
+                            'don_angle': don_angle,
+                            'acc_angle': acc_angle
+                        }
                     )
                     self.interactions['halogen'].append(interaction)
     
@@ -1182,16 +1240,44 @@ class UnifiedInteractionDetector:
 
         Results are stored in 'water_bridge_possible' to distinguish from
         the stricter H-bond-based water_bridge detection.
+
+        Performance optimized using scipy.spatial.cKDTree for fast neighbor search.
         """
         from plip.basic.supplemental import euclidean3d, vecangle, vector
+        from scipy.spatial import cKDTree
 
         # Find water residues (sorted for deterministic ordering)
         water_residues = sorted([r for r in self.residues if r.is_water],
                                 key=lambda r: (r.chain, r.resnum))
 
-        # Get H-bond acceptors and donors
-        acceptors = self.atom_props.hbond_acceptors
-        donors = self.atom_props.hbond_donors
+        if not water_residues:
+            return
+
+        # Get H-bond acceptors and donors as sets for fast lookup
+        acceptors_set = set(self.atom_props.hbond_acceptors)
+        donors_set = set(self.atom_props.hbond_donors)
+
+        # Build KD-tree for fast distance queries
+        coords = self.atom_container.coords_array
+        kdtree = cKDTree(coords)
+
+        # Create reverse mapping: array_pos -> atom_idx
+        array_pos_to_idx = {pos: idx for idx, pos in self.atom_container.idx_to_array_pos.items()}
+
+        # Pre-compute donor hydrogen mapping for fast lookup
+        donor_h_map = {}
+        for don_idx in donors_set:
+            don_atom = self.atom_container[don_idx]
+            # Find hydrogen attached to donor
+            for atom in self.atom_container:
+                if (atom.is_hydrogen and
+                    atom.resname == don_atom.resname and
+                    atom.chain == don_atom.chain and
+                    atom.resnum == don_atom.resnum):
+                    # Check if this H is bonded to donor (distance < 1.2 Å)
+                    if euclidean3d(atom.coords, don_atom.coords) < 1.2:
+                        donor_h_map[don_idx] = atom
+                        break
 
         for water_res in water_residues:
             # Get water oxygen atom
@@ -1206,10 +1292,20 @@ class UnifiedInteractionDetector:
             if water_o is None:
                 continue
 
+            # Use KD-tree to find atoms within distance range
+            water_o_pos = self.atom_container.idx_to_array_pos[water_o.idx]
+            water_o_coords = coords[water_o_pos]
+
+            # Query KD-tree for neighbors within WATER_BRIDGE_MAXDIST
+            neighbor_indices = kdtree.query_ball_point(water_o_coords, config.WATER_BRIDGE_MAXDIST)
+
             # Find acceptor-water pairs (distance only)
             acc_water_pairs = []
-            for acc_idx in acceptors:
-                acc_atom = self.atom_container[acc_idx]
+            for array_pos in neighbor_indices:
+                atom_idx = array_pos_to_idx[array_pos]
+                if atom_idx not in acceptors_set:
+                    continue
+                acc_atom = self.atom_container[atom_idx]
                 # Skip if same residue
                 if (acc_atom.resname == water_res.resname and
                     acc_atom.chain == water_res.chain and
@@ -1221,26 +1317,19 @@ class UnifiedInteractionDetector:
 
             # Find donor-water pairs (distance + angle)
             don_water_pairs = []
-            for don_idx in donors:
-                don_atom = self.atom_container[don_idx]
+            for array_pos in neighbor_indices:
+                atom_idx = array_pos_to_idx[array_pos]
+                if atom_idx not in donors_set:
+                    continue
+                don_atom = self.atom_container[atom_idx]
                 # Skip if same residue
                 if (don_atom.resname == water_res.resname and
                     don_atom.chain == water_res.chain and
                     don_atom.resnum == water_res.resnum):
                     continue
 
-                # Find hydrogen attached to donor
-                don_h = None
-                for atom in self.atom_container:
-                    if (atom.is_hydrogen and
-                        atom.resname == don_atom.resname and
-                        atom.chain == don_atom.chain and
-                        atom.resnum == don_atom.resnum):
-                        # Check if this H is bonded to donor (distance < 1.2 Å)
-                        if euclidean3d(atom.coords, don_atom.coords) < 1.2:
-                            don_h = atom
-                            break
-
+                # Get pre-computed hydrogen
+                don_h = donor_h_map.get(atom_idx)
                 if don_h is None:
                     continue
 

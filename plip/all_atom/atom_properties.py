@@ -506,9 +506,17 @@ class AtomProperties:
                         self.halogen_donors[atom.idx] = halogen_type
                         break
 
-            # Halogen acceptors (O, N, S, aromatic systems)
+            # Halogen acceptors (Y-{O|P|N|S}, with Y=C,P,N,S)
+            # Following PLIP's definition: acceptor must have a neighboring C, P, N, or S atom
             if atomic_num in [7, 8, 16]:  # N, O, S
-                self.halogen_acceptors.add(atom.idx)
+                # Check for neighboring C, P, N, or S atom
+                has_proximal = False
+                for neighbor in pybel.ob.OBAtomAtomIter(atom.obatom):
+                    if neighbor.GetAtomicNum() in [6, 7, 15, 16]:  # C, N, P, S
+                        has_proximal = True
+                        break
+                if has_proximal:
+                    self.halogen_acceptors.add(atom.idx)
     
     # Accessor methods
     def get_hba(self) -> List[AtomInfo]:
