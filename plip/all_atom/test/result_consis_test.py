@@ -36,11 +36,36 @@ from plip.basic import config
 # Test Configuration
 # =============================================================================
 
-TEST_DATA_DIR = Path('/home/pcmd36/Desktop/BHM/My_Progs/fplip/test_data')
-RESULTS_DIR = TEST_DATA_DIR / "all_atom_test_results"
-BASELINE_DIR = TEST_DATA_DIR / "all_atom_baselines"
+# Test data directories
+# Standard PLIP test PDB files
+PLIP_TEST_DATA_DIR = Path('/home/pcmd36/Desktop/BHM/My_Progs/fplip/plip/test/pdb')
+# Custom test data (if available)
+CUSTOM_TEST_DATA_DIR = Path('/home/pcmd36/Desktop/BHM/My_Progs/fplip/test_data')
+
+RESULTS_DIR = CUSTOM_TEST_DATA_DIR / "all_atom_test_results"
+BASELINE_DIR = CUSTOM_TEST_DATA_DIR / "all_atom_baselines"
+
+
+def get_pdb_path(filename: str) -> Path:
+    """Get the full path to a PDB test file.
+    
+    First checks custom test data directory, then falls back to PLIP test data.
+    """
+    # Check custom directory first
+    custom_path = CUSTOM_TEST_DATA_DIR / filename
+    if custom_path.exists():
+        return custom_path
+    
+    # Fall back to PLIP test data directory
+    plip_path = PLIP_TEST_DATA_DIR / filename
+    if plip_path.exists():
+        return plip_path
+    
+    # Return the path anyway (will be checked later for existence)
+    return plip_path
 
 # Test cases with expected characteristics
+# Selected to cover various interaction types for comprehensive testing
 TEST_CASES = {
     "GPCR_pep": {
         "file": "GPCR_pep.pdb",
@@ -49,7 +74,48 @@ TEST_CASES = {
             "hbond": ">=3",
             "hydrophobic": ">=2",
             "saltbridge": ">=1"
-        }
+        },
+        "categories": ["peptide", "medium"]
+    },
+    "2w0s": {
+        "file": "2w0s.pdb",
+        "description": "Vacc-TK to TDP complex - halogen bond, pi-stacking, salt bridge",
+        "expected_interactions": {
+            "hbond": ">=2",
+            "halogen": ">=1",
+            "pistacking": ">=1",
+            "saltbridge": ">=2"
+        },
+        "categories": ["halogen", "pistacking", "saltbridge", "small"]
+    },
+    "4kya": {
+        "file": "4kya.pdb",
+        "description": "TS inhibitor with hydrophobic, pi-stacking, salt bridge",
+        "expected_interactions": {
+            "hbond": ">=1",
+            "saltbridge": ">=1",
+            "hydrophobic": ">=4",
+            "pistacking": ">=2"
+        },
+        "categories": ["hydrophobic", "pistacking", "saltbridge", "medium"]
+    },
+    "1rmd": {
+        "file": "1rmd.pdb",
+        "description": "Zinc coordination in RAG1 dimerization domain",
+        "expected_interactions": {
+            "metal": ">=4"
+        },
+        "categories": ["metal", "small"]
+    },
+    "2zoz": {
+        "file": "2zoz.pdb",
+        "description": "Cyclophilin A complex - extensive water bridges (357 waters, 100+ water bridges)",
+        "expected_interactions": {
+            "hbond": ">=5",
+            "water_bridge": ">=50",
+            "water_bridge_possible": ">=300"
+        },
+        "categories": ["water_bridge", "large"]
     }
 }
 
@@ -306,7 +372,7 @@ class ConsistencyTester:
         
         # Run analysis
         print(f"  Running analysis...")
-        current_result, metrics = process_pdb_detailed(str(pdb_path))
+        current_result, _ = process_pdb_detailed(str(pdb_path))
         
         # Compare with baseline
         print(f"  Comparing with baseline...")
@@ -321,16 +387,31 @@ class ConsistencyTester:
                 print(f"    - {detail}")
             return False
     
-    def run_all_tests(self, generate_baselines: bool = False) -> bool:
-        """Run all consistency tests"""
+    def run_all_tests(self, generate_baselines: bool = False, 
+                      test_cases: Optional[List[str]] = None) -> bool:
+        """Run all consistency tests
+        
+        Args:
+            generate_baselines: Whether to generate new baselines
+            test_cases: Optional list of specific test case names to run. 
+                       If None, runs all test cases.
+        """
         print("\n" + "="*60)
         print("ALL-ATOM MODULE CONSISTENCY TESTS")
         print("="*60)
         
         all_passed = True
         
-        for test_name, test_info in TEST_CASES.items():
-            pdb_file = TEST_DATA_DIR / test_info["file"]
+        # Filter test cases if specified
+        cases_to_run = TEST_CASES
+        if test_cases is not None:
+            cases_to_run = {k: v for k, v in TEST_CASES.items() if k in test_cases}
+            if not cases_to_run:
+                print(f"\nWARNING: No matching test cases found for: {test_cases}")
+                return False
+        
+        for test_name, test_info in cases_to_run.items():
+            pdb_file = get_pdb_path(test_info["file"])
             if not pdb_file.exists():
                 print(f"\nWARNING: Test file not found: {pdb_file}")
                 continue
@@ -369,7 +450,7 @@ class PerformanceTester:
         
         for i in range(num_runs):
             print(f"  Run {i+1}/{num_runs}...")
-            result, metrics = process_pdb_detailed(str(pdb_path))
+            _, metrics = process_pdb_detailed(str(pdb_path))
             metrics_list.append(metrics)
             print(f"    {metrics.total_time:.2f}s")
         
@@ -446,16 +527,31 @@ class PerformanceTester:
         else:
             print(f"    Performance: SLOW (> {threshold}s for {category} structure)")
     
-    def run_all_benchmarks(self, num_runs: int = 3) -> List[Dict]:
-        """Run all performance benchmarks"""
+    def run_all_benchmarks(self, num_runs: int = 3,
+                           test_cases: Optional[List[str]] = None) -> List[Dict]:
+        """Run all performance benchmarks
+        
+        Args:
+            num_runs: Number of runs for each benchmark
+            test_cases: Optional list of specific test case names to run.
+                       If None, runs all test cases.
+        """
         print("\n" + "="*60)
         print("ALL-ATOM MODULE PERFORMANCE BENCHMARKS")
         print("="*60)
         
         results = []
         
-        for test_name, test_info in TEST_CASES.items():
-            pdb_file = TEST_DATA_DIR / test_info["file"]
+        # Filter test cases if specified
+        cases_to_run = TEST_CASES
+        if test_cases is not None:
+            cases_to_run = {k: v for k, v in TEST_CASES.items() if k in test_cases}
+            if not cases_to_run:
+                print(f"\nWARNING: No matching test cases found for: {test_cases}")
+                return []
+        
+        for test_name, test_info in cases_to_run.items():
+            pdb_file = get_pdb_path(test_info["file"])
             if not pdb_file.exists():
                 print(f"\nWARNING: Test file not found: {pdb_file}")
                 continue
@@ -502,28 +598,67 @@ def main():
         action='store_true',
         help='Enable verbose output'
     )
+    parser.add_argument(
+        '--test-cases',
+        nargs='+',
+        choices=list(TEST_CASES.keys()),
+        default=None,
+        help='Specific test case(s) to run. If not specified, runs all test cases.'
+    )
+    parser.add_argument(
+        '--list-cases',
+        action='store_true',
+        help='List all available test cases and exit'
+    )
     
     args = parser.parse_args()
+    
+    # List test cases if requested
+    if args.list_cases:
+        print("\n" + "="*60)
+        print("AVAILABLE TEST CASES")
+        print("="*60)
+        for name, info in TEST_CASES.items():
+            print(f"\n{name}:")
+            print(f"  File: {info['file']}")
+            print(f"  Description: {info['description']}")
+            print(f"  Categories: {', '.join(info.get('categories', []))}")
+            print(f"  Expected Interactions: {info['expected_interactions']}")
+        print("\n" + "="*60)
+        return 0
     
     print("\n" + "="*60)
     print("ALL-ATOM MODULE TESTING FRAMEWORK")
     print("="*60)
-    print(f"Test Data Directory: {TEST_DATA_DIR}")
+    print(f"PLIP Test Data: {PLIP_TEST_DATA_DIR}")
+    print(f"Custom Test Data: {CUSTOM_TEST_DATA_DIR}")
     print(f"Results Directory: {RESULTS_DIR}")
     print(f"Baseline Directory: {BASELINE_DIR}")
+    
+    # Show which test cases will be run
+    if args.test_cases:
+        print(f"\nSelected Test Cases: {', '.join(args.test_cases)}")
+    else:
+        print(f"\nRunning All Test Cases: {', '.join(TEST_CASES.keys())}")
     
     success = True
     
     # Run consistency tests
     if args.test_type in ['consistency', 'all']:
         consistency_tester = ConsistencyTester()
-        consistency_passed = consistency_tester.run_all_tests(args.generate_baselines)
+        consistency_passed = consistency_tester.run_all_tests(
+            args.generate_baselines, 
+            test_cases=args.test_cases
+        )
         success = success and consistency_passed
     
     # Run performance tests
     if args.test_type in ['performance', 'all']:
         performance_tester = PerformanceTester()
-        performance_tester.run_all_benchmarks(args.num_runs)
+        performance_tester.run_all_benchmarks(
+            args.num_runs,
+            test_cases=args.test_cases
+        )
     
     print("\n" + "="*60)
     if success:
