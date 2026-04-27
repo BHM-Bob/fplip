@@ -77,6 +77,7 @@ class UnifiedInteractionDetector:
             'halogen': [],
             'metal': [],
             'water_bridge': [],
+            'water_bridge_possible': [],  # PLIP-style water bridges (distance-based)
         }
     
     def detect_all(self, verbose: bool = False) -> Dict[str, List[Interaction]]:
@@ -99,8 +100,11 @@ class UnifiedInteractionDetector:
         # Refine hydrogen bonds (filter by salt bridges and duplicate donors)
         self._refine_hbonds()
 
-        # Detect water bridges
+        # Detect water bridges (H-bond based)
         self._detect_water_bridges()
+
+        # Detect PLIP-style water bridges (distance+angle based)
+        self._detect_water_bridges_plip_style()
 
         self._log_summary()
 
@@ -630,33 +634,58 @@ class UnifiedInteractionDetector:
     
     def _detect_saltbridges(self, residue: Residue, res_coords: np.ndarray):
         """Detect salt bridges between charged residues.
-        
+
         Stores complete lists of positive and negative atoms for each salt bridge
         to enable atom-level filtering during H-bond refinement (matching PLIP behavior).
         """
         if not (residue.pos_charged or residue.neg_charged):
             return
-        
+
         all_pos = self.atom_props.get_pos_charged()
         all_neg = self.atom_props.get_neg_charged()
-        
+
         # Group charged atoms by residue for proper salt bridge detection
-        # This matches PLIP's charge center approach
-        def group_by_residue(atoms):
-            """Group atoms by (resname, chain, resnum)"""
+        # For phosphate groups, group by P atom to match main PLIP's behavior
+        def group_by_residue_smart(atoms, charge_type='positive'):
+            """Group atoms by (resname, chain, resnum) with special handling for phosphate groups"""
             groups = {}
             for atom in atoms:
                 key = (atom.resname, atom.chain, atom.resnum)
+
+                # Special handling for phosphate groups: group by P atom
+                if charge_type == 'negative' and atom.atomic_num == 15:
+                    # This is a phosphorus atom - create a sub-group for this phosphate
+                    key = (atom.resname, atom.chain, atom.resnum, atom.idx)
+                elif charge_type == 'negative':
+                    # For oxygen atoms in phosphate groups, find their parent P atom
+                    # Check if this atom is connected to a P atom
+                    for neighbor in pybel.ob.OBAtomAtomIter(atom.obatom):
+                        if neighbor.GetAtomicNum() == 15:  # Phosphorus
+                            # Use the P atom's idx as part of the key
+                            key = (atom.resname, atom.chain, atom.resnum, neighbor.GetIdx())
+                            break
+
                 if key not in groups:
                     groups[key] = []
                 groups[key].append(atom)
             return groups
+
+        res_pos_charged = group_by_residue_smart(residue.pos_charged, 'positive')
+        res_neg_charged = group_by_residue_smart(residue.neg_charged, 'negative')
+        all_pos_grouped = group_by_residue_smart(all_pos, 'positive')
+        all_neg_grouped = group_by_residue_smart(all_neg, 'negative')
         
-        res_pos_charged = group_by_residue(residue.pos_charged)
-        res_neg_charged = group_by_residue(residue.neg_charged)
-        all_pos_grouped = group_by_residue(all_pos)
-        all_neg_grouped = group_by_residue(all_neg)
-        
+        # Helper function to calculate charge center
+        def calc_charge_center(atoms, charge_type='positive'):
+            """Calculate charge center, with special handling for phosphate groups"""
+            if charge_type == 'negative':
+                # For phosphate groups, use P atom's coordinates as center (matching main PLIP)
+                p_atoms = [a for a in atoms if a.atomic_num == 15]
+                if p_atoms:
+                    return p_atoms[0].coords
+            # Default: use mean of all atoms
+            return np.mean([a.coords for a in atoms], axis=0)
+
         # Case 1: Residue is positive, other is negative
         if res_pos_charged:
             for res_key, pos_atoms in res_pos_charged.items():
@@ -664,10 +693,10 @@ class UnifiedInteractionDetector:
                     # Skip if same residue
                     if res_key == other_key:
                         continue
-                    
+
                     # Calculate distance between charge centers
-                    pos_center = np.mean([a.coords for a in pos_atoms], axis=0)
-                    neg_center = np.mean([a.coords for a in neg_atoms], axis=0)
+                    pos_center = calc_charge_center(pos_atoms, 'positive')
+                    neg_center = calc_charge_center(neg_atoms, 'negative')
                     distance = np.linalg.norm(pos_center - neg_center)
                     
                     if distance < config.SALTBRIDGE_DIST_MAX:
@@ -704,10 +733,10 @@ class UnifiedInteractionDetector:
                     # Skip if same residue
                     if res_key == other_key:
                         continue
-                    
+
                     # Calculate distance between charge centers
-                    neg_center = np.mean([a.coords for a in neg_atoms], axis=0)
-                    pos_center = np.mean([a.coords for a in pos_atoms], axis=0)
+                    neg_center = calc_charge_center(neg_atoms, 'negative')
+                    pos_center = calc_charge_center(pos_atoms, 'positive')
                     distance = np.linalg.norm(neg_center - pos_center)
                     
                     if distance < config.SALTBRIDGE_DIST_MAX:
@@ -777,10 +806,15 @@ class UnifiedInteractionDetector:
                 else:
                     continue
                 
-                # Calculate offset (distance between ring centers projected onto ring A plane)
-                vec_centers = ring_b['center'] - ring_a['center']
-                # Offset is the distance from the center of ring B to the plane of ring A
-                offset = np.abs(np.dot(vec_centers, ring_a['normal'])) / np.linalg.norm(ring_a['normal'])
+                # Calculate offset (min of both projection directions)
+                # Project ring A center onto ring B plane and measure distance to ring B center
+                proj1 = projection(ring_b['normal'], ring_b['center'], ring_a['center'])
+                offset1 = euclidean3d(proj1, ring_b['center'])
+                # Project ring B center onto ring A plane and measure distance to ring A center
+                proj2 = projection(ring_a['normal'], ring_a['center'], ring_b['center'])
+                offset2 = euclidean3d(proj2, ring_a['center'])
+                # Use the minimum offset (symmetric measure)
+                offset = min(offset1, offset2)
                 
                 if offset > config.PISTACK_OFFSET_MAX:
                     continue
@@ -809,72 +843,103 @@ class UnifiedInteractionDetector:
                 self.interactions['pistacking'].append(interaction)
     
     def _detect_pication(self, residue: Residue, res_coords: np.ndarray):
-        """Detect pi-cation interactions"""
+        """Detect pi-cation interactions
+
+        Geometric criteria:
+        - Distance: < PICATION_DIST_MAX (6.0 Å)
+        - Offset: < PISTACK_OFFSET_MAX (2.0 Å)
+          Offset is the distance from the projection of the charge onto the ring plane
+          to the ring center. This ensures the charge is positioned above the ring face.
+        """
         if not (residue.rings or residue.pos_charged):
             return
-        
+
         all_rings = self.atom_props.rings
         all_pos = self.atom_props.get_pos_charged()
-        
+
         # Case 1: Residue has ring, other has positive charge
         if residue.rings:
             for ring in residue.rings:
+                # Only consider aromatic rings for pi-cation interactions
+                if not ring.get('is_aromatic', False):
+                    continue
                 for pos_atom in all_pos:
                     # Skip if same residue (unless it's a ligand)
                     atom_a = self.atom_container[ring['indices'][0]]
                     if self._should_skip_interaction(residue, atom_a, pos_atom):
                         continue
-                    
+
                     distance = euclidean3d(ring['center'], pos_atom.coords)
-                    
-                    if distance < config.PICATION_DIST_MAX:
-                        interaction = Interaction(
-                            type='pication',
-                            res_a_name=atom_a.resname,
-                            res_a_chain=atom_a.chain,
-                            res_a_num=atom_a.resnum,
-                            res_b_name=pos_atom.resname,
-                            res_b_chain=pos_atom.chain,
-                            res_b_num=pos_atom.resnum,
-                            atom_a_name='RING',
-                            atom_a_idx=ring['indices'][0],
-                            atom_b_name=self._get_atom_name(pos_atom),
-                            atom_b_idx=pos_atom.idx,
-                            distance=distance,
-                            angle=None,
-                            details={'ring_center': ring['center']}
-                        )
-                        self.interactions['pication'].append(interaction)
-        
+
+                    if distance >= config.PICATION_DIST_MAX:
+                        continue
+
+                    # Calculate offset: projection of charge onto ring plane to ring center
+                    proj = projection(ring['normal'], ring['center'], pos_atom.coords)
+                    offset = euclidean3d(proj, ring['center'])
+
+                    if offset >= config.PISTACK_OFFSET_MAX:
+                        continue
+
+                    interaction = Interaction(
+                        type='pication',
+                        res_a_name=atom_a.resname,
+                        res_a_chain=atom_a.chain,
+                        res_a_num=atom_a.resnum,
+                        res_b_name=pos_atom.resname,
+                        res_b_chain=pos_atom.chain,
+                        res_b_num=pos_atom.resnum,
+                        atom_a_name='RING',
+                        atom_a_idx=ring['indices'][0],
+                        atom_b_name=self._get_atom_name(pos_atom),
+                        atom_b_idx=pos_atom.idx,
+                        distance=distance,
+                        angle=None,
+                        details={'ring_center': ring['center'], 'offset': offset}
+                    )
+                    self.interactions['pication'].append(interaction)
+
         # Case 2: Residue has positive charge, other has ring
         if residue.pos_charged:
             for pos_atom in residue.pos_charged:
                 for ring in all_rings:
+                    # Only consider aromatic rings for pi-cation interactions
+                    if not ring.get('is_aromatic', False):
+                        continue
                     # Skip if same residue (unless it's a ligand)
                     atom_b = self.atom_container[ring['indices'][0]]
                     if self._should_skip_interaction(residue, pos_atom, atom_b):
                         continue
-                    
+
                     distance = euclidean3d(pos_atom.coords, ring['center'])
-                    
-                    if distance < config.PICATION_DIST_MAX:
-                        interaction = Interaction(
-                            type='pication',
-                            res_a_name=pos_atom.resname,
-                            res_a_chain=pos_atom.chain,
-                            res_a_num=pos_atom.resnum,
-                            res_b_name=atom_b.resname,
-                            res_b_chain=atom_b.chain,
-                            res_b_num=atom_b.resnum,
-                            atom_a_name=self._get_atom_name(pos_atom),
-                            atom_a_idx=pos_atom.idx,
-                            atom_b_name='RING',
-                            atom_b_idx=ring['indices'][0],
-                            distance=distance,
-                            angle=None,
-                            details={'ring_center': ring['center']}
-                        )
-                        self.interactions['pication'].append(interaction)
+
+                    if distance >= config.PICATION_DIST_MAX:
+                        continue
+
+                    # Calculate offset: projection of charge onto ring plane to ring center
+                    proj = projection(ring['normal'], ring['center'], pos_atom.coords)
+                    offset = euclidean3d(proj, ring['center'])
+
+                    if offset >= config.PISTACK_OFFSET_MAX:
+                        continue
+
+                    interaction = Interaction(
+                        type='pication',
+                        res_a_name=pos_atom.resname,
+                        res_a_chain=pos_atom.chain,
+                        res_a_num=pos_atom.resnum,
+                        res_b_name=atom_b.resname,
+                        res_b_chain=atom_b.chain,
+                        res_b_num=atom_b.resnum,
+                        atom_a_name=self._get_atom_name(pos_atom),
+                        atom_a_idx=pos_atom.idx,
+                        atom_b_name='RING',
+                        atom_b_idx=ring['indices'][0],
+                        distance=distance,
+                        angle=None,
+                        details={'ring_center': ring['center'], 'offset': offset}
+                    )
+                    self.interactions['pication'].append(interaction)
     
     def _detect_halogen(self, residue: Residue, res_coords: np.ndarray):
         """Detect halogen bonds"""
@@ -1106,7 +1171,132 @@ class UnifiedInteractionDetector:
                             details={**hb.details, 'water_residue': water_res.resid}
                         )
                         self.interactions['water_bridge'].append(interaction)
-    
+
+    def _detect_water_bridges_plip_style(self):
+        """Detect water bridges using PLIP-style distance+angle criteria
+
+        This method implements the PLIP water bridge detection approach:
+        - Acceptor-water: distance check only (2.5-4.1 Å)
+        - Donor-water: distance + angle check
+        - Water bridge: same water molecule mediates between two residues
+
+        Results are stored in 'water_bridge_possible' to distinguish from
+        the stricter H-bond-based water_bridge detection.
+        """
+        from plip.basic.supplemental import euclidean3d, vecangle, vector
+
+        # Find water residues (sorted for deterministic ordering)
+        water_residues = sorted([r for r in self.residues if r.is_water],
+                                key=lambda r: (r.chain, r.resnum))
+
+        # Get H-bond acceptors and donors
+        acceptors = self.atom_props.hbond_acceptors
+        donors = self.atom_props.hbond_donors
+
+        for water_res in water_residues:
+            # Get water oxygen atom
+            water_o = None
+            water_h = []
+            for atom in water_res.atoms:
+                if atom.atomic_num == 8:  # Oxygen
+                    water_o = atom
+                elif atom.is_hydrogen:
+                    water_h.append(atom)
+
+            if water_o is None:
+                continue
+
+            # Find acceptor-water pairs (distance only)
+            acc_water_pairs = []
+            for acc_idx in acceptors:
+                acc_atom = self.atom_container[acc_idx]
+                # Skip if same residue
+                if (acc_atom.resname == water_res.resname and
+                    acc_atom.chain == water_res.chain and
+                    acc_atom.resnum == water_res.resnum):
+                    continue
+                dist = euclidean3d(acc_atom.coords, water_o.coords)
+                if config.WATER_BRIDGE_MINDIST <= dist <= config.WATER_BRIDGE_MAXDIST:
+                    acc_water_pairs.append((acc_atom, dist))
+
+            # Find donor-water pairs (distance + angle)
+            don_water_pairs = []
+            for don_idx in donors:
+                don_atom = self.atom_container[don_idx]
+                # Skip if same residue
+                if (don_atom.resname == water_res.resname and
+                    don_atom.chain == water_res.chain and
+                    don_atom.resnum == water_res.resnum):
+                    continue
+
+                # Find hydrogen attached to donor
+                don_h = None
+                for atom in self.atom_container:
+                    if (atom.is_hydrogen and
+                        atom.resname == don_atom.resname and
+                        atom.chain == don_atom.chain and
+                        atom.resnum == don_atom.resnum):
+                        # Check if this H is bonded to donor (distance < 1.2 Å)
+                        if euclidean3d(atom.coords, don_atom.coords) < 1.2:
+                            don_h = atom
+                            break
+
+                if don_h is None:
+                    continue
+
+                dist = euclidean3d(don_atom.coords, water_o.coords)
+                if dist < config.WATER_BRIDGE_MINDIST or dist > config.WATER_BRIDGE_MAXDIST:
+                    continue
+
+                # Calculate donor angle (D-H···O)
+                d_angle = vecangle(vector(don_h.coords, don_atom.coords),
+                                  vector(don_h.coords, water_o.coords))
+                if d_angle > config.WATER_BRIDGE_THETA_MIN:
+                    don_water_pairs.append((don_atom, don_h, dist, d_angle))
+
+            # Check for water bridges: acceptor-water-donor combinations
+            for acc, dist_aw in acc_water_pairs:
+                for don, don_h, dist_dw, d_angle in don_water_pairs:
+                    # Calculate water angle (A-O-H)
+                    if len(water_h) > 0:
+                        # Use the closest H to acceptor
+                        closest_h = min(water_h,
+                                       key=lambda h: euclidean3d(h.coords, acc.coords))
+                        w_angle = vecangle(vector(water_o.coords, acc.coords),
+                                          vector(water_o.coords, closest_h.coords))
+                    else:
+                        w_angle = 90.0  # Default if no H found
+
+                    # Check water angle criteria
+                    if not (config.WATER_BRIDGE_OMEGA_MIN < w_angle < config.WATER_BRIDGE_OMEGA_MAX):
+                        continue
+
+                    # Create interaction
+                    interaction = Interaction(
+                        type='water_bridge_possible',
+                        res_a_name=acc.resname,
+                        res_a_chain=acc.chain,
+                        res_a_num=acc.resnum,
+                        res_b_name=don.resname,
+                        res_b_chain=don.chain,
+                        res_b_num=don.resnum,
+                        atom_a_name=acc.atom_name,
+                        atom_a_idx=acc.idx,
+                        atom_b_name=don.atom_name,
+                        atom_b_idx=don.idx,
+                        distance=dist_aw + dist_dw,  # Total distance
+                        angle=w_angle,
+                        details={
+                            'distance_aw': dist_aw,
+                            'distance_dw': dist_dw,
+                            'd_angle': d_angle,
+                            'w_angle': w_angle,
+                            'water_residue': water_res.resid,
+                            'protisdon': True  # Protein is donor
+                        }
+                    )
+                    self.interactions['water_bridge_possible'].append(interaction)
+
     def _remove_duplicates(self):
         """Remove duplicate interactions (A-B and B-A)"""
         for itype in self.interactions:

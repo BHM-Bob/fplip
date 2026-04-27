@@ -185,6 +185,8 @@ class AtomProperties:
         
         # 1. Detect Guanidinium (C-centered)
         # Chemical definition: C connected to 3 N atoms, at least one terminal N
+        # Note: Only N atoms carry the positive charge (delocalized), not the C atom
+        # This matches main PLIP's behavior and chemical reality
         for atom in carbon_atoms:
             if atom.idx in self.pos_charged:
                 continue
@@ -193,12 +195,13 @@ class AtomProperties:
             if len(n_neighbors) == 3:
                 # Check for terminal N (only connected to this C, can pick up H)
                 has_terminal_n = any(
-                    len([nb for nb in pybel.ob.OBAtomAtomIter(n) 
+                    len([nb for nb in pybel.ob.OBAtomAtomIter(n)
                          if nb.GetAtomicNum() != 1]) == 1
                     for n in n_neighbors
                 )
                 if has_terminal_n:
-                    self.pos_charged[atom.idx] = 'guanidinium'
+                    # Only mark N atoms as charged (not the C atom)
+                    # The positive charge is delocalized over the 3 N atoms
                     for n in n_neighbors:
                         self.pos_charged[n.GetIdx()] = 'guanidinium'
         
@@ -251,9 +254,22 @@ class AtomProperties:
         # N-terminus detection would require additional context
 
     def _is_imidazolium_ring(self, atoms: List[AtomInfo]) -> bool:
-        """Check if atoms form an imidazolium ring (5-membered, 2 N, aromatic).
+        """Check if atoms form an imidazolium ring (5-membered, 2 N, aromatic, isolated).
 
         Uses OpenBabel's ring detection for accurate identification.
+        
+        Important: This method is conservative to avoid false positives.
+        - Adenine (in ATP, NADP+, etc.) has a 5-membered ring with 2 N atoms,
+          but it's part of a fused bicyclic system and is neutral, not imidazolium.
+        - True imidazolium (like His sidechain) is an isolated 5-membered ring
+          that can be protonated.
+        
+        Detection criteria:
+        1. 5-membered ring
+        2. Exactly 2 N atoms in the ring
+        3. Ring is isolated (not fused to another ring) - checked by ensuring
+           ring atoms don't share more than 2 atoms with any other ring
+        4. At least one N is not double-bonded within the ring (can accept H)
         """
         # Get all atoms in this residue as OpenBabel atoms
         ob_atoms = [a.obatom for a in atoms]
@@ -266,19 +282,67 @@ class AtomProperties:
             return False
 
         # Find rings in the molecule
-        ring_data = obmol.GetSSSR()  # Smallest Set of Smallest Rings
+        ring_data = list(obmol.GetSSSR())  # Smallest Set of Smallest Rings
+        
+        # Build set of atom indices for this residue
+        residue_atom_indices = set(oba.GetIdx() for oba in ob_atoms)
 
         for ring in ring_data:
             ring_size = ring.Size()
             if ring_size != 5:
                 continue
 
-            # Count N atoms in this ring
+            # Get atom indices in this ring
             ring_atom_indices = set(ring._path)
-            n_count = sum(1 for oba in ob_atoms if oba.GetIdx() in ring_atom_indices and oba.GetAtomicNum() == 7)
+            
+            # Check if ring belongs to this residue (at least some atoms)
+            if not ring_atom_indices.intersection(residue_atom_indices):
+                continue
 
-            # Imidazolium has exactly 2 N atoms in a 5-membered ring
-            if n_count == 2:
+            # Count N atoms in this ring
+            n_atoms_in_ring = [obmol.GetAtom(idx) for idx in ring_atom_indices 
+                               if obmol.GetAtom(idx).GetAtomicNum() == 7]
+            
+            if len(n_atoms_in_ring) != 2:
+                continue
+
+            # Check if ring is isolated (not fused)
+            # A fused ring shares 2 or more atoms with another ring
+            is_fused = False
+            for other_ring in ring_data:
+                if other_ring is ring:
+                    continue
+                other_indices = set(other_ring._path)
+                shared_atoms = ring_atom_indices.intersection(other_indices)
+                if len(shared_atoms) >= 2:
+                    is_fused = True
+                    break
+            
+            if is_fused:
+                continue
+
+            # Check if at least one N can be protonated (has available lone pair)
+            # In imidazolium, one N is protonated (NH), the other is neutral (=N-)
+            # For detection, we look for N atoms that are part of the ring
+            # and have appropriate bonding
+            has_protonatable_n = False
+            for n_atom in n_atoms_in_ring:
+                # Count non-H neighbors
+                neighbors = list(pybel.ob.OBAtomAtomIter(n_atom))
+                non_h_neighbors = [n for n in neighbors if n.GetAtomicNum() != 1]
+                
+                # In imidazolium ring:
+                # - One N has 2 ring neighbors (the other N and a C) and 1 H -> 3 total
+                # - One N has 2 ring neighbors (the other N and a C) -> 2 total (with double bond)
+                # We look for N with at least 2 neighbors within the ring
+                ring_neighbors = [n for n in non_h_neighbors 
+                                  if n.GetIdx() in ring_atom_indices]
+                
+                if len(ring_neighbors) >= 2:
+                    has_protonatable_n = True
+                    break
+
+            if has_protonatable_n:
                 return True
 
         return False
