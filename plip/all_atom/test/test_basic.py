@@ -6,15 +6,14 @@ aligned with original PLIP test cases.
 """
 
 import random
-import sys
 import unittest
-sys.path.insert(0, '/home/pcmd36/Desktop/BHM/My_Progs/fplip/')
 
 import numpy
 
-from plip.basic.supplemental import euclidean3d, vector, vecangle, projection
-from plip.basic.supplemental import normalize_vector, cluster_doubles, centroid
 from plip.all_atom.molecule_complex import MoleculeComplex
+from plip.basic.supplemental import (centroid, cluster_doubles, euclidean3d,
+                                     normalize_vector, projection, vecangle,
+                                     vector)
 
 
 class TestLigandSupport(unittest.TestCase):
