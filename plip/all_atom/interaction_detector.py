@@ -70,6 +70,7 @@ class UnifiedInteractionDetector:
             'hydrophobic': [],
             'hbond': [],
             'hbond_possible': [],  # H-bonds filtered by refinement (salt bridge, duplicate donors)
+            'hbond_heavy_atom': [],  # H-bonds detected without explicit hydrogens (less reliable)
             'saltbridge': [],
             'pistacking': [],
             'pication': [],
@@ -323,9 +324,19 @@ class UnifiedInteractionDetector:
         if self._has_explicit_h:
             # Use explicit hydrogen geometry
             self._detect_hbonds_with_h(residue, all_hba, all_hbd)
-        else:
-            # Use hydrogen-free detection (distance-based only)
+        elif config.ALLOW_HEAVY_ATOM_HBOND:
+            # Use distance-only detection for heavy atom H-bonds (optional, less reliable)
+            logger.info("Using heavy atom H-bond detection (distance-only). "
+                       "Note: Results may be less reliable without explicit hydrogens.")
             self._detect_hbonds_without_h(residue, all_hba, all_hbd)
+        else:
+            # Skip H-bond detection without explicit hydrogens (default behavior)
+            # H-bond detection requires explicit hydrogens for scientific reliability
+            logger.warning("No explicit hydrogens found in structure. "
+                          "H-bond detection skipped. "
+                          "Please provide a protonated PDB file or use NOHYDRO=False for automatic protonation. "
+                          "Alternatively, set config.ALLOW_HEAVY_ATOM_HBOND=True for distance-only detection.")
+            return
 
     def _detect_hbonds_with_h(self, residue: Residue, all_hba: List, all_hbd: List):
         """Detect H-bonds using explicit hydrogen coordinates.
@@ -531,6 +542,8 @@ class UnifiedInteractionDetector:
         """
         Detect H-bonds without explicit hydrogens (for standard PDB files).
         Uses distance-only criteria between donor and acceptor heavy atoms.
+        Results are stored separately in 'hbond_heavy_atom' to distinguish from
+        standard H-bonds with explicit hydrogens.
         """
         # Case 1: Residue is donor, other is acceptor
         if residue.hbond_donors:
@@ -539,7 +552,7 @@ class UnifiedInteractionDetector:
                     # Skip if same atom
                     if donor.idx == hba.idx:
                         continue
-                    
+
                     # Skip if same residue (unless it's a ligand)
                     if self._should_skip_interaction(residue, donor, hba):
                         continue
@@ -553,7 +566,7 @@ class UnifiedInteractionDetector:
                         continue
 
                     interaction = Interaction(
-                        type='hbond',
+                        type='hbond_heavy_atom',
                         res_a_name=donor.resname,
                         res_a_chain=donor.chain,
                         res_a_num=donor.resnum,
@@ -568,10 +581,12 @@ class UnifiedInteractionDetector:
                         angle=None,
                         details={
                             'type': 'heavy_atom',
-                            'note': 'No explicit H, distance-only criteria'
+                            'note': 'No explicit H, distance-only criteria (less reliable)',
+                            'donor_idx': donor.idx,
+                            'acceptor_idx': hba.idx
                         }
                     )
-                    self.interactions['hbond'].append(interaction)
+                    self.interactions['hbond_heavy_atom'].append(interaction)
 
         # Case 2: Residue is acceptor, other is donor
         if residue.hbond_acceptors:
@@ -580,7 +595,7 @@ class UnifiedInteractionDetector:
                     # Skip if same atom
                     if acc.idx == donor.idx:
                         continue
-                    
+
                     # Skip if same residue (unless it's a ligand)
                     if self._should_skip_interaction(residue, acc, donor):
                         continue
@@ -591,7 +606,7 @@ class UnifiedInteractionDetector:
                         continue
 
                     interaction = Interaction(
-                        type='hbond',
+                        type='hbond_heavy_atom',
                         res_a_name=acc.resname,
                         res_a_chain=acc.chain,
                         res_a_num=acc.resnum,
@@ -606,10 +621,12 @@ class UnifiedInteractionDetector:
                         angle=None,
                         details={
                             'type': 'heavy_atom',
-                            'note': 'No explicit H, distance-only criteria'
+                            'note': 'No explicit H, distance-only criteria (less reliable)',
+                            'donor_idx': donor.idx,
+                            'acceptor_idx': acc.idx
                         }
                     )
-                    self.interactions['hbond'].append(interaction)
+                    self.interactions['hbond_heavy_atom'].append(interaction)
     
     def _detect_saltbridges(self, residue: Residue, res_coords: np.ndarray):
         """Detect salt bridges between charged residues.
@@ -1038,18 +1055,24 @@ class UnifiedInteractionDetector:
     
     def _detect_water_bridges(self):
         """Detect water bridges (water mediating between two molecules)"""
-        # Find water residues
-        water_residues = [r for r in self.residues if r.is_water]
-        
+        # Find water residues (sorted for deterministic ordering)
+        water_residues = sorted([r for r in self.residues if r.is_water],
+                                key=lambda r: (r.chain, r.resnum))
+
+        # Combine standard H-bonds and heavy atom H-bonds for water bridge detection
+        all_hbonds = self.interactions['hbond'] + self.interactions['hbond_heavy_atom']
+
         for water_res in water_residues:
             # Collect all H-bonds involving this water
+            # Sort by atom indices for deterministic ordering
             water_hbonds = []
-            for hbond in self.interactions['hbond']:
-                if (hbond.res_a_name == water_res.resname and 
+            for hbond in sorted(all_hbonds,
+                                key=lambda h: (h.atom_a_idx, h.atom_b_idx)):
+                if (hbond.res_a_name == water_res.resname and
                     hbond.res_a_chain == water_res.chain and
                     hbond.res_a_num == water_res.resnum):
                     water_hbonds.append(hbond)
-                elif (hbond.res_b_name == water_res.resname and 
+                elif (hbond.res_b_name == water_res.resname and
                       hbond.res_b_chain == water_res.chain and
                       hbond.res_b_num == water_res.resnum):
                     water_hbonds.append(hbond)
@@ -1154,20 +1177,30 @@ class UnifiedInteractionDetector:
             marked_hbonds.append((hbond, is_filtered))
 
         # Second pass: keep only one H-bond per donor (largest angle)
+        # Sort marked_hbonds by atom indices to ensure deterministic ordering
+        marked_hbonds_sorted = sorted(marked_hbonds, key=lambda x: (x[0].atom_a_idx, x[0].atom_b_idx))
+
         donor_best = {}  # donor_idx -> (angle, hbond)
-        for hbond, is_filtered in marked_hbonds:
+        for hbond, is_filtered in marked_hbonds_sorted:
             if is_filtered:
                 continue
             donor_idx = hbond.details.get('donor_idx')
+            if donor_idx is None:
+                # Skip H-bonds without donor_idx (heavy atom only H-bonds)
+                continue
+
+            current_angle = hbond.angle if hbond.angle is not None else 0.0
+
             if donor_idx not in donor_best:
-                donor_best[donor_idx] = (hbond.angle, hbond)
+                donor_best[donor_idx] = (current_angle, hbond)
             else:
-                if donor_best[donor_idx][0] < hbond.angle:
-                    donor_best[donor_idx] = (hbond.angle, hbond)
+                if donor_best[donor_idx][0] < current_angle:
+                    donor_best[donor_idx] = (current_angle, hbond)
 
         confirmed_hbonds = [hb[1] for hb in donor_best.values()]
-        possible_hbonds = [hb for hb, is_filtered in marked_hbonds if is_filtered or
-                          (hb not in confirmed_hbonds)]
+        confirmed_set = set(id(hb) for hb in confirmed_hbonds)
+        possible_hbonds = [hb for hb, is_filtered in marked_hbonds_sorted if is_filtered or
+                          (id(hb) not in confirmed_set)]
 
         # Update interactions
         self.interactions['hbond'] = confirmed_hbonds
