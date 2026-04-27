@@ -57,6 +57,11 @@ class Residue:
         self.metal_binding_atoms: List = []
         self.halogen_donors: List = []
         self.halogen_acceptors: List = []
+        
+        # Pre-computed charge groups for salt bridge detection (populated by finalize)
+        # Format: {residue_key: (atoms_list, charge_center)}
+        self.pos_charged_groups: Dict = {}
+        self.neg_charged_groups: Dict = {}
     
     def add_atom(self, atom_info):
         """Add an atom to this residue"""
@@ -67,6 +72,55 @@ class Residue:
         if self.atoms:
             self.center = np.mean([a.coords for a in self.atoms], axis=0)
             self._determine_residue_type()
+            self._precompute_charge_groups()
+    
+    def _precompute_charge_groups(self):
+        """Pre-compute charge groups for salt bridge detection.
+        
+        Groups charged atoms by residue key and pre-calculates charge centers.
+        This avoids repeated calculations during interaction detection.
+        """
+        from openbabel import pybel
+        
+        # Group positive charges
+        if self.pos_charged:
+            groups = defaultdict(list)
+            for atom in self.pos_charged:
+                key = (atom.resname, atom.chain, atom.resnum)
+                groups[key].append(atom)
+            
+            # Calculate charge centers
+            for key, atoms in groups.items():
+                center = np.mean([a.coords for a in atoms], axis=0)
+                self.pos_charged_groups[key] = (atoms, center)
+        
+        # Group negative charges (with special handling for phosphate groups)
+        if self.neg_charged:
+            groups = defaultdict(list)
+            for atom in self.neg_charged:
+                key = (atom.resname, atom.chain, atom.resnum)
+                
+                # Special handling for phosphate groups: group by P atom
+                if atom.atomic_num == 15:
+                    key = (atom.resname, atom.chain, atom.resnum, atom.idx)
+                else:
+                    # For oxygen atoms in phosphate groups, find their parent P atom
+                    for neighbor in pybel.ob.OBAtomAtomIter(atom.obatom):
+                        if neighbor.GetAtomicNum() == 15:
+                            key = (atom.resname, atom.chain, atom.resnum, neighbor.GetIdx())
+                            break
+                
+                groups[key].append(atom)
+            
+            # Calculate charge centers
+            for key, atoms in groups.items():
+                # For phosphate groups, use P atom's coordinates as center
+                p_atoms = [a for a in atoms if a.atomic_num == 15]
+                if p_atoms:
+                    center = p_atoms[0].coords
+                else:
+                    center = np.mean([a.coords for a in atoms], axis=0)
+                self.neg_charged_groups[key] = (atoms, center)
     
     def _determine_residue_type(self):
         """Determine the type of this residue"""
