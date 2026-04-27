@@ -50,6 +50,9 @@ class AtomProperties:
         
         # Initialize
         self._identify_all_properties()
+        
+        # Pre-compute atom lists for performance
+        self._precompute_atom_lists()
     
     def _identify_all_properties(self):
         """Identify all atom properties"""
@@ -70,6 +73,33 @@ class AtomProperties:
                    f'{len(self.hydrophobic_atoms)} hydrophobic, '
                    f'{len(self.rings)} rings, '
                    f'{len(self.metals)} metals')
+    
+    def _precompute_atom_lists(self):
+        """Pre-compute atom lists for fast access.
+        
+        This avoids repeatedly creating lists in get_* methods,
+        which is expensive when called many times.
+        """
+        # Pre-compute H-bond acceptors
+        self._hba_list = [self.atom_container[idx] for idx in sorted(self.hbond_acceptors)]
+        
+        # Pre-compute H-bond donors (as list of (donor, h_atoms) tuples)
+        self._hbd_list = []
+        for idx, h_indices in sorted(self.hbond_donors.items()):
+            donor = self.atom_container[idx]
+            h_atoms = [self.atom_container[h_idx] for h_idx in h_indices]
+            self._hbd_list.append((donor, h_atoms))
+        
+        # Pre-compute charged atoms
+        self._pos_charged_list = [self.atom_container[idx] for idx in sorted(self.pos_charged)]
+        self._neg_charged_list = [self.atom_container[idx] for idx in sorted(self.neg_charged)]
+        
+        # Pre-compute hydrophobic atoms
+        self._hydrophobic_list = [self.atom_container[idx] for idx in sorted(self.hydrophobic_atoms)]
+        
+        # Pre-compute metals and metal-binding atoms
+        self._metals_list = [self.atom_container[idx] for idx in sorted(self.metals)]
+        self._metal_binding_list = [self.atom_container[idx] for idx in sorted(self.metal_binding)]
     
     def _identify_hbond_properties(self):
         """Identify hydrogen bond donors and acceptors"""
@@ -518,37 +548,31 @@ class AtomProperties:
                 if has_proximal:
                     self.halogen_acceptors.add(atom.idx)
     
-    # Accessor methods
+    # Accessor methods - return pre-computed lists for performance
     def get_hba(self) -> List[AtomInfo]:
-        """Get all hydrogen bond acceptors"""
-        return [self.atom_container[idx] for idx in sorted(self.hbond_acceptors)]
+        """Get all hydrogen bond acceptors (pre-computed)"""
+        return self._hba_list
     
     def get_hbd(self) -> List[Tuple[AtomInfo, List[AtomInfo]]]:
-        """Get all hydrogen bond donors with their attached hydrogens"""
-        result = []
-        for donor_idx in sorted(self.hbond_donors.keys()):
-            h_indices = self.hbond_donors[donor_idx]
-            donor = self.atom_container[donor_idx]
-            hydrogens = [self.atom_container[h_idx] for h_idx in sorted(h_indices)]
-            result.append((donor, hydrogens))
-        return result
+        """Get all hydrogen bond donors with their attached hydrogens (pre-computed)"""
+        return self._hbd_list
     
     def get_pos_charged(self) -> List[AtomInfo]:
-        """Get all positively charged atoms"""
-        return [self.atom_container[idx] for idx in sorted(self.pos_charged)]
+        """Get all positively charged atoms (pre-computed)"""
+        return self._pos_charged_list
     
     def get_neg_charged(self) -> List[AtomInfo]:
-        """Get all negatively charged atoms"""
-        return [self.atom_container[idx] for idx in sorted(self.neg_charged)]
+        """Get all negatively charged atoms (pre-computed)"""
+        return self._neg_charged_list
     
     def get_hydrophobic(self) -> List[AtomInfo]:
-        """Get all hydrophobic atoms"""
-        return [self.atom_container[idx] for idx in sorted(self.hydrophobic_atoms)]
+        """Get all hydrophobic atoms (pre-computed)"""
+        return self._hydrophobic_list
     
     def get_metals(self) -> List[AtomInfo]:
-        """Get all metal ions"""
-        return [self.atom_container[idx] for idx in sorted(self.metals)]
+        """Get all metal ions (pre-computed)"""
+        return self._metals_list
     
     def get_metal_binding(self) -> List[AtomInfo]:
-        """Get all metal-binding atoms"""
-        return [self.atom_container[idx] for idx in sorted(self.metal_binding)]
+        """Get all metal-binding atoms (pre-computed)"""
+        return self._metal_binding_list
