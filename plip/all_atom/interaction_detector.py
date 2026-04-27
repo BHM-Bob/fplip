@@ -87,6 +87,9 @@ class UnifiedInteractionDetector:
         # First, aggregate properties to residues
         self._aggregate_properties_to_residues()
         
+        # Pre-compute charge groups for all residues (for salt bridge detection)
+        self._precompute_residue_charge_groups()
+        
         # Pre-compute cached data for performance
         self._precompute_cached_data()
         
@@ -160,6 +163,16 @@ class UnifiedInteractionDetector:
                 if atom_idx in self.atom_props.halogen_acceptors:
                     residue.halogen_acceptors.append(atom)
     
+    def _precompute_residue_charge_groups(self):
+        """Pre-compute charge groups for all residues.
+        
+        This must be called after _aggregate_properties_to_residues() 
+        so that residue.pos_charged and residue.neg_charged are populated.
+        """
+        for residue in self.residues:
+            if residue.pos_charged or residue.neg_charged:
+                residue._precompute_charge_groups()
+    
     def _precompute_cached_data(self):
         """Pre-compute and cache data for performance optimization.
         
@@ -204,17 +217,29 @@ class UnifiedInteractionDetector:
                 self._all_hbd_don_coords = np.array([]).reshape(0, 3)
                 self._all_hbd_h_coords = np.array([]).reshape(0, 3)
         
-        # Pre-compute salt bridge atom masks
+        # Pre-compute salt bridge data
         all_pos = self.atom_props.get_pos_charged()
         all_neg = self.atom_props.get_neg_charged()
         self._pos_charged_mask = self._create_atom_mask([atom.idx for atom in all_pos])
         self._neg_charged_mask = self._create_atom_mask([atom.idx for atom in all_neg])
+        
+        # Pre-compute grouped charged atoms and their centers for salt bridge detection
+        # This avoids recomputing these for every residue in _detect_saltbridges
+        self._all_pos_grouped = self._group_charged_atoms_by_residue(all_pos, 'positive')
+        self._all_neg_grouped = self._group_charged_atoms_by_residue(all_neg, 'negative')
         
         # Pre-compute metal and metal-binding atom masks
         all_metals = self.atom_props.get_metals()
         all_metal_binding = self.atom_props.get_metal_binding()
         self._metal_mask = self._create_atom_mask([atom.idx for atom in all_metals])
         self._metal_binding_mask = self._create_atom_mask([atom.idx for atom in all_metal_binding])
+        
+        # Pre-compute halogen bond donors and acceptors
+        # This avoids recomputing these for every residue in _detect_halogen
+        self._all_halogen_donors = [(self.atom_container[idx], htype) 
+                                     for idx, htype in self.atom_props.halogen_donors.items()]
+        self._all_halogen_acceptors = [self.atom_container[idx] 
+                                        for idx in self.atom_props.halogen_acceptors]
     
     def _create_atom_mask(self, atom_idxs: List[int]) -> np.ndarray:
         """Create a boolean mask for specified atom indices using array-based indexing.
@@ -234,6 +259,57 @@ class UnifiedInteractionDetector:
         if valid_idxs:
             mask[valid_idxs] = True
         return mask
+    
+    def _group_charged_atoms_by_residue(self, atoms: List, charge_type: str) -> Dict:
+        """Group charged atoms by residue with special handling for phosphate groups.
+        
+        Also pre-computes charge centers for each group to avoid repeated calculations.
+        
+        Args:
+            atoms: List of charged atoms
+            charge_type: 'positive' or 'negative'
+            
+        Returns:
+            Dictionary mapping residue key to (atoms_list, charge_center)
+        """
+        from collections import defaultdict
+        
+        # First pass: group atoms by residue key
+        groups = defaultdict(list)
+        for atom in atoms:
+            key = (atom.resname, atom.chain, atom.resnum)
+            
+            # Special handling for phosphate groups: group by P atom
+            if charge_type == 'negative' and atom.atomic_num == 15:
+                # This is a phosphorus atom - create a sub-group for this phosphate
+                key = (atom.resname, atom.chain, atom.resnum, atom.idx)
+            elif charge_type == 'negative':
+                # For oxygen atoms in phosphate groups, find their parent P atom
+                for neighbor in pybel.ob.OBAtomAtomIter(atom.obatom):
+                    if neighbor.GetAtomicNum() == 15:  # Phosphorus
+                        key = (atom.resname, atom.chain, atom.resnum, neighbor.GetIdx())
+                        break
+            
+            groups[key].append(atom)
+        
+        # Second pass: pre-compute charge centers for each group
+        result = {}
+        for key, atom_list in groups.items():
+            # Calculate charge center
+            if charge_type == 'negative':
+                # For phosphate groups, use P atom's coordinates as center
+                p_atoms = [a for a in atom_list if a.atomic_num == 15]
+                if p_atoms:
+                    center = p_atoms[0].coords
+                else:
+                    center = np.mean([a.coords for a in atom_list], axis=0)
+            else:
+                # Default: use mean of all atoms
+                center = np.mean([a.coords for a in atom_list], axis=0)
+            
+            result[key] = (atom_list, center)
+        
+        return result
     
     def _detect_for_residue(self, residue: Residue):
         """Detect all interactions for a single residue"""
@@ -635,138 +711,124 @@ class UnifiedInteractionDetector:
                     self.interactions['hbond_heavy_atom'].append(interaction)
     
     def _detect_saltbridges(self, residue: Residue, res_coords: np.ndarray):
-        """Detect salt bridges between charged residues.
+        """Detect salt bridges between charged residues using vectorized distance calculation.
 
-        Stores complete lists of positive and negative atoms for each salt bridge
-        to enable atom-level filtering during H-bond refinement (matching PLIP behavior).
+        Uses pre-computed grouped charged atoms and charge centers from:
+        1. Residue.pos_charged_groups / Residue.neg_charged_groups (per-residue, set in finalize)
+        2. self._all_pos_grouped / self._all_neg_grouped (global, set in _precompute_cached_data)
+        
+        Vectorized distance calculation: computes all distances at once using NumPy.
         """
         if not (residue.pos_charged or residue.neg_charged):
             return
 
-        all_pos = self.atom_props.get_pos_charged()
-        all_neg = self.atom_props.get_neg_charged()
-
-        # Group charged atoms by residue for proper salt bridge detection
-        # For phosphate groups, group by P atom to match main PLIP's behavior
-        def group_by_residue_smart(atoms, charge_type='positive'):
-            """Group atoms by (resname, chain, resnum) with special handling for phosphate groups"""
-            groups = {}
-            for atom in atoms:
-                key = (atom.resname, atom.chain, atom.resnum)
-
-                # Special handling for phosphate groups: group by P atom
-                if charge_type == 'negative' and atom.atomic_num == 15:
-                    # This is a phosphorus atom - create a sub-group for this phosphate
-                    key = (atom.resname, atom.chain, atom.resnum, atom.idx)
-                elif charge_type == 'negative':
-                    # For oxygen atoms in phosphate groups, find their parent P atom
-                    # Check if this atom is connected to a P atom
-                    for neighbor in pybel.ob.OBAtomAtomIter(atom.obatom):
-                        if neighbor.GetAtomicNum() == 15:  # Phosphorus
-                            # Use the P atom's idx as part of the key
-                            key = (atom.resname, atom.chain, atom.resnum, neighbor.GetIdx())
-                            break
-
-                if key not in groups:
-                    groups[key] = []
-                groups[key].append(atom)
-            return groups
-
-        res_pos_charged = group_by_residue_smart(residue.pos_charged, 'positive')
-        res_neg_charged = group_by_residue_smart(residue.neg_charged, 'negative')
-        all_pos_grouped = group_by_residue_smart(all_pos, 'positive')
-        all_neg_grouped = group_by_residue_smart(all_neg, 'negative')
-        
-        # Helper function to calculate charge center
-        def calc_charge_center(atoms, charge_type='positive'):
-            """Calculate charge center, with special handling for phosphate groups"""
-            if charge_type == 'negative':
-                # For phosphate groups, use P atom's coordinates as center (matching main PLIP)
-                p_atoms = [a for a in atoms if a.atomic_num == 15]
-                if p_atoms:
-                    return p_atoms[0].coords
-            # Default: use mean of all atoms
-            return np.mean([a.coords for a in atoms], axis=0)
-
         # Case 1: Residue is positive, other is negative
-        if res_pos_charged:
-            for res_key, pos_atoms in res_pos_charged.items():
-                for other_key, neg_atoms in all_neg_grouped.items():
+        if residue.pos_charged and residue.pos_charged_groups:
+            for res_key, (pos_atoms, pos_center) in residue.pos_charged_groups.items():
+                # Prepare arrays for vectorized distance calculation
+                neg_keys = []
+                neg_centers = []
+                neg_atoms_list = []
+                
+                for other_key, (neg_atoms, neg_center) in self._all_neg_grouped.items():
                     # Skip if same residue
                     if res_key == other_key:
                         continue
-
-                    # Calculate distance between charge centers
-                    pos_center = calc_charge_center(pos_atoms, 'positive')
-                    neg_center = calc_charge_center(neg_atoms, 'negative')
-                    distance = np.linalg.norm(pos_center - neg_center)
+                    neg_keys.append(other_key)
+                    neg_centers.append(neg_center)
+                    neg_atoms_list.append(neg_atoms)
+                
+                if not neg_centers:
+                    continue
+                
+                # Vectorized distance calculation
+                neg_centers_array = np.array(neg_centers)
+                distances = np.linalg.norm(neg_centers_array - pos_center, axis=1)
+                
+                # Find all pairs within distance threshold
+                valid_indices = np.where(distances < config.SALTBRIDGE_DIST_MAX)[0]
+                
+                for idx in valid_indices:
+                    neg_atoms = neg_atoms_list[idx]
+                    distance = distances[idx]
+                    pos_atom = pos_atoms[0]
+                    neg_atom = neg_atoms[0]
                     
-                    if distance < config.SALTBRIDGE_DIST_MAX:
-                        # Get representative atoms for residue info
-                        pos_atom = pos_atoms[0]
-                        neg_atom = neg_atoms[0]
-                        
-                        interaction = Interaction(
-                            type='saltbridge',
-                            res_a_name=pos_atom.resname,
-                            res_a_chain=pos_atom.chain,
-                            res_a_num=pos_atom.resnum,
-                            res_b_name=neg_atom.resname,
-                            res_b_chain=neg_atom.chain,
-                            res_b_num=neg_atom.resnum,
-                            atom_a_name=self._get_atom_name(pos_atom),
-                            atom_a_idx=pos_atom.idx,
-                            atom_b_name=self._get_atom_name(neg_atom),
-                            atom_b_idx=neg_atom.idx,
-                            distance=distance,
-                            angle=None,
-                            details={
-                                'charge_type': 'pos-neg',
-                                'positive_atoms': [a.idx for a in pos_atoms],
-                                'negative_atoms': [a.idx for a in neg_atoms]
-                            }
-                        )
-                        self.interactions['saltbridge'].append(interaction)
+                    interaction = Interaction(
+                        type='saltbridge',
+                        res_a_name=pos_atom.resname,
+                        res_a_chain=pos_atom.chain,
+                        res_a_num=pos_atom.resnum,
+                        res_b_name=neg_atom.resname,
+                        res_b_chain=neg_atom.chain,
+                        res_b_num=neg_atom.resnum,
+                        atom_a_name=self._get_atom_name(pos_atom),
+                        atom_a_idx=pos_atom.idx,
+                        atom_b_name=self._get_atom_name(neg_atom),
+                        atom_b_idx=neg_atom.idx,
+                        distance=float(distance),
+                        angle=None,
+                        details={
+                            'charge_type': 'pos-neg',
+                            'positive_atoms': [a.idx for a in pos_atoms],
+                            'negative_atoms': [a.idx for a in neg_atoms]
+                        }
+                    )
+                    self.interactions['saltbridge'].append(interaction)
         
         # Case 2: Residue is negative, other is positive
-        if res_neg_charged:
-            for res_key, neg_atoms in res_neg_charged.items():
-                for other_key, pos_atoms in all_pos_grouped.items():
+        if residue.neg_charged and residue.neg_charged_groups:
+            for res_key, (neg_atoms, neg_center) in residue.neg_charged_groups.items():
+                # Prepare arrays for vectorized distance calculation
+                pos_keys = []
+                pos_centers = []
+                pos_atoms_list = []
+                
+                for other_key, (pos_atoms, pos_center) in self._all_pos_grouped.items():
                     # Skip if same residue
                     if res_key == other_key:
                         continue
-
-                    # Calculate distance between charge centers
-                    neg_center = calc_charge_center(neg_atoms, 'negative')
-                    pos_center = calc_charge_center(pos_atoms, 'positive')
-                    distance = np.linalg.norm(neg_center - pos_center)
+                    pos_keys.append(other_key)
+                    pos_centers.append(pos_center)
+                    pos_atoms_list.append(pos_atoms)
+                
+                if not pos_centers:
+                    continue
+                
+                # Vectorized distance calculation
+                pos_centers_array = np.array(pos_centers)
+                distances = np.linalg.norm(pos_centers_array - neg_center, axis=1)
+                
+                # Find all pairs within distance threshold
+                valid_indices = np.where(distances < config.SALTBRIDGE_DIST_MAX)[0]
+                
+                for idx in valid_indices:
+                    pos_atoms = pos_atoms_list[idx]
+                    distance = distances[idx]
+                    neg_atom = neg_atoms[0]
+                    pos_atom = pos_atoms[0]
                     
-                    if distance < config.SALTBRIDGE_DIST_MAX:
-                        # Get representative atoms for residue info
-                        neg_atom = neg_atoms[0]
-                        pos_atom = pos_atoms[0]
-                        
-                        interaction = Interaction(
-                            type='saltbridge',
-                            res_a_name=neg_atom.resname,
-                            res_a_chain=neg_atom.chain,
-                            res_a_num=neg_atom.resnum,
-                            res_b_name=pos_atom.resname,
-                            res_b_chain=pos_atom.chain,
-                            res_b_num=pos_atom.resnum,
-                            atom_a_name=self._get_atom_name(neg_atom),
-                            atom_a_idx=neg_atom.idx,
-                            atom_b_name=self._get_atom_name(pos_atom),
-                            atom_b_idx=pos_atom.idx,
-                            distance=distance,
-                            angle=None,
-                            details={
-                                'charge_type': 'neg-pos',
-                                'positive_atoms': [a.idx for a in pos_atoms],
-                                'negative_atoms': [a.idx for a in neg_atoms]
-                            }
-                        )
-                        self.interactions['saltbridge'].append(interaction)
+                    interaction = Interaction(
+                        type='saltbridge',
+                        res_a_name=neg_atom.resname,
+                        res_a_chain=neg_atom.chain,
+                        res_a_num=neg_atom.resnum,
+                        res_b_name=pos_atom.resname,
+                        res_b_chain=pos_atom.chain,
+                        res_b_num=pos_atom.resnum,
+                        atom_a_name=self._get_atom_name(neg_atom),
+                        atom_a_idx=neg_atom.idx,
+                        atom_b_name=self._get_atom_name(pos_atom),
+                        atom_b_idx=pos_atom.idx,
+                        distance=float(distance),
+                        angle=None,
+                        details={
+                            'charge_type': 'neg-pos',
+                            'positive_atoms': [a.idx for a in pos_atoms],
+                            'negative_atoms': [a.idx for a in neg_atoms]
+                        }
+                    )
+                    self.interactions['saltbridge'].append(interaction)
     
     def _detect_pistacking(self, residue: Residue, res_coords: np.ndarray):
         """Detect pi-stacking interactions"""
@@ -999,6 +1061,8 @@ class UnifiedInteractionDetector:
     def _detect_halogen(self, residue: Residue, res_coords: np.ndarray):
         """Detect halogen bonds following PLIP's criteria.
         
+        Uses pre-computed halogen bond donors and acceptors from _precompute_cached_data.
+        
         Halogen bond criteria:
         - Distance: X···O < HALOGEN_DIST_MAX
         - Donor angle: C-X···O > HALOGEN_DON_ANGLE - HALOGEN_ANGLE_DEV
@@ -1007,8 +1071,9 @@ class UnifiedInteractionDetector:
         if not (residue.halogen_donors or residue.halogen_acceptors):
             return
         
-        all_donors = [(self.atom_container[idx], htype) for idx, htype in sorted(self.atom_props.halogen_donors.items())]
-        all_acceptors = [self.atom_container[idx] for idx in sorted(self.atom_props.halogen_acceptors)]
+        # Use pre-computed donors and acceptors
+        all_donors = self._all_halogen_donors
+        all_acceptors = self._all_halogen_acceptors
         
         # Case 1: Residue is donor
         if residue.halogen_donors:
