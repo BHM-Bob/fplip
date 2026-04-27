@@ -346,8 +346,9 @@ class AtomProperties:
         # Find all rings
         rings = []
         for ring in obmol.GetSSSR():
-            ring_atoms = [obmol.GetAtom(i + 1) for i in range(ring.Size())]
-            ring_indices = [atom.GetIdx() for atom in ring_atoms]
+            # Use ring._path to get the actual atom indices in the ring
+            ring_indices = list(ring._path)
+            ring_atoms = [obmol.GetAtom(idx) for idx in ring_indices]
             
             # Check if all atoms are in our container
             if not all(idx in self.atom_container.atoms for idx in ring_indices):
