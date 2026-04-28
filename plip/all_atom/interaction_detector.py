@@ -12,6 +12,7 @@ from collections import namedtuple
 from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
+from scipy.spatial.distance import cdist
 from tqdm import tqdm
 
 sys.path.insert(0, '/home/pcmd36/Desktop/BHM/My_Progs/fplip/')
@@ -427,12 +428,9 @@ class UnifiedInteractionDetector:
         
         # Get coordinates for residue's hydrophobic atoms
         res_hydrophobic_coords = np.array([atom.coords for atom in residue.hydrophobic_atoms])
-        
-        # Compute distances: vectorized operation [n_res_hydrophobic, n_all_hydrophobic]
-        dist_matrix_hydrophobic = np.sqrt(
-            np.sum((res_hydrophobic_coords[:, np.newaxis, :] - 
-                   self._hydrophobic_coords[np.newaxis, :, :]) ** 2, axis=2)
-        )
+
+        # Compute distances using cdist for better performance
+        dist_matrix_hydrophobic = cdist(res_hydrophobic_coords, self._hydrophobic_coords)
         
         # Apply distance filter using vectorized operations
         valid_mask = (dist_matrix_hydrophobic < config.HYDROPH_DIST_MAX) & \
@@ -527,14 +525,12 @@ class UnifiedInteractionDetector:
         # Use cached all_hba coordinates (global, pre-computed)
         acc_coords = self._all_hba_coords  # [n_acc, 3]
         
-        # Vectorized distance calculation using broadcasting
+        # Vectorized distance calculation using cdist
         # dist_ad[i, j] = distance between donor i and acceptor j
-        diff_ad = don_coords[:, np.newaxis, :] - acc_coords[np.newaxis, :, :]  # [n_pairs, n_acc, 3]
-        dist_ad_matrix = np.sqrt(np.sum(diff_ad ** 2, axis=2))  # [n_pairs, n_acc]
-        
+        dist_ad_matrix = cdist(don_coords, acc_coords)  # [n_pairs, n_acc]
+
         # dist_ah[i, j] = distance between hydrogen i and acceptor j
-        diff_ah = h_coords[:, np.newaxis, :] - acc_coords[np.newaxis, :, :]  # [n_pairs, n_acc, 3]
-        dist_ah_matrix = np.sqrt(np.sum(diff_ah ** 2, axis=2))  # [n_pairs, n_acc]
+        dist_ah_matrix = cdist(h_coords, acc_coords)  # [n_pairs, n_acc]
         
         # Filter by distance criteria
         dist_mask = (dist_ad_matrix > config.MIN_DIST) & (dist_ad_matrix < config.HBOND_DIST_MAX)
@@ -621,14 +617,12 @@ class UnifiedInteractionDetector:
         # Extract residue-specific acceptor coordinates
         acc_coords = np.array([acc.coords for acc in residue.hbond_acceptors])  # [n_acc, 3]
         
-        # Vectorized distance calculation
+        # Vectorized distance calculation using cdist
         # dist_ad[i, j] = distance between donor i and acceptor j
-        diff_ad = don_coords[:, np.newaxis, :] - acc_coords[np.newaxis, :, :]  # [n_pairs, n_acc, 3]
-        dist_ad_matrix = np.sqrt(np.sum(diff_ad ** 2, axis=2))  # [n_pairs, n_acc]
-        
+        dist_ad_matrix = cdist(don_coords, acc_coords)  # [n_pairs, n_acc]
+
         # dist_ah[i, j] = distance between hydrogen i and acceptor j
-        diff_ah = h_coords[:, np.newaxis, :] - acc_coords[np.newaxis, :, :]  # [n_pairs, n_acc, 3]
-        dist_ah_matrix = np.sqrt(np.sum(diff_ah ** 2, axis=2))  # [n_pairs, n_acc]
+        dist_ah_matrix = cdist(h_coords, acc_coords)  # [n_pairs, n_acc]
         
         # Filter by distance criteria
         dist_mask = (dist_ad_matrix > config.MIN_DIST) & (dist_ad_matrix < config.HBOND_DIST_MAX)
