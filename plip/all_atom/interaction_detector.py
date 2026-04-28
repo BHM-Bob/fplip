@@ -430,7 +430,17 @@ class UnifiedInteractionDetector:
         self._detect_metal(residue, res_coords)
     
     def _is_same_residue(self, atom_a, atom_b) -> bool:
-        """Check if two atoms belong to the same residue"""
+        """Check if two atoms belong to the same residue
+        
+        Optimization: Uses residue_obj reverse reference for O(1) comparison
+        instead of O(3) attribute comparisons (resname, chain, resnum).
+        Falls back to attribute comparison if residue_obj is not available.
+        """
+        # Fast path: use object identity if both atoms have residue_obj
+        if atom_a.residue_obj is not None and atom_b.residue_obj is not None:
+            return atom_a.residue_obj is atom_b.residue_obj
+        
+        # Fallback: compare by attributes (should not happen in practice)
         return (atom_a.resname == atom_b.resname and 
                 atom_a.chain == atom_b.chain and 
                 atom_a.resnum == atom_b.resnum)
