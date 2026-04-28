@@ -174,6 +174,8 @@ class MoleculeComplex:
 
             for atom in atoms:
                 residue.add_atom(atom)
+                # Set back-reference from atom to residue for efficient lookup
+                atom.residue_obj = residue
 
             residue.finalize()
             self.residues.append(residue)

@@ -13,19 +13,22 @@ import numpy as np
 
 class AtomInfo:
     """Lightweight class to store atom information"""
-    
+
     def __init__(self, idx: int, obatom, orig_idx: int):
         self.idx = idx
         self.obatom = obatom
         self.orig_idx = orig_idx
         self.coords = np.array([obatom.GetX(), obatom.GetY(), obatom.GetZ()])
-        
-        # Residue information
+
+        # Residue information (from OpenBabel)
         residue = obatom.GetResidue()
         self.residue = residue
         self.resname = residue.GetName() if residue else "UNK"
         self.resnum = residue.GetNum() if residue else 0
         self.chain = residue.GetChain() if residue else " "
+
+        # Back-reference to Residue object (set by InteractionDetector after residue creation)
+        self.residue_obj = None
         
         # Atom properties
         self.atom_type = obatom.GetType()
