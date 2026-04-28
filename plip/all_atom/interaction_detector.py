@@ -119,51 +119,72 @@ class UnifiedInteractionDetector:
         for residue in self.residues:
             for atom in residue.atoms:
                 atom_idx = atom.idx
-                
+
                 # H-bond acceptors
                 if atom_idx in self.atom_props.hbond_acceptors:
                     residue.hbond_acceptors.append(atom)
-                
+
                 # H-bond donors
                 if atom_idx in self.atom_props.hbond_donors:
                     h_atoms = [self.atom_container[h_idx] for h_idx in self.atom_props.hbond_donors[atom_idx]]
                     residue.hbond_donors.append((atom, h_atoms))
-                
+
                 # Charges
                 if atom_idx in self.atom_props.pos_charged:
                     residue.pos_charged.append(atom)
                 if atom_idx in self.atom_props.neg_charged:
                     residue.neg_charged.append(atom)
-                
+
                 # Hydrophobic
                 if atom_idx in self.atom_props.hydrophobic_atoms:
                     residue.hydrophobic_atoms.append(atom)
-                
-                # Rings (check if atom is part of a ring)
-                for ring in self.atom_props.rings:
-                    if atom_idx in ring['indices']:
-                        # Check if this ring is already added (compare by first atom index)
-                        ring_id = ring['indices'][0]
-                        existing_ids = [r['indices'][0] for r in residue.rings]
-                        if ring_id not in existing_ids:
-                            residue.rings.append(ring)
-                
+
                 # Metals
                 if atom_idx in self.atom_props.metals:
                     residue.metal_atoms.append(atom)
                     residue.is_ion = True
-                
+
                 # Metal binding
                 if atom_idx in self.atom_props.metal_binding:
                     residue.metal_binding_atoms.append(atom)
-                
+
                 # Halogen
                 if atom_idx in self.atom_props.halogen_donors:
                     halogen_type = self.atom_props.halogen_donors[atom_idx]
                     residue.halogen_donors.append((atom, halogen_type))
                 if atom_idx in self.atom_props.halogen_acceptors:
                     residue.halogen_acceptors.append(atom)
-    
+
+        # Aggregate rings using efficient reverse mapping via atom's back-reference
+        # This is O(N_rings) instead of O(N_atoms × N_rings)
+        self._aggregate_rings_to_residues()
+
+    def _aggregate_rings_to_residues(self):
+        """Aggregate rings to residues using atom's back-reference.
+
+        Instead of checking each atom against all rings (O(N_atoms × N_rings)),
+        we iterate over rings and assign them to residues containing their atoms.
+        A ring may belong to multiple residues if it spans across them.
+        """
+        # Track which rings have been added to each residue (by first atom index)
+        residue_ring_ids = {residue: set() for residue in self.residues}
+
+        for ring in self.atom_props.rings:
+            ring_id = ring['indices'][0]  # Use first atom as ring identifier
+
+            # Find all residues that contain atoms from this ring
+            ring_residues = set()
+            for atom_idx in ring['indices']:
+                atom = self.atom_container[atom_idx]
+                if atom.residue_obj:
+                    ring_residues.add(atom.residue_obj)
+
+            # Add ring to each residue that contains at least one of its atoms
+            for residue in ring_residues:
+                if ring_id not in residue_ring_ids[residue]:
+                    residue.rings.append(ring)
+                    residue_ring_ids[residue].add(ring_id)
+
     def _precompute_residue_charge_groups(self):
         """Pre-compute charge groups for all residues.
         
