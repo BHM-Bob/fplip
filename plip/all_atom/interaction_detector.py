@@ -196,20 +196,33 @@ class UnifiedInteractionDetector:
         self._all_hbd = self.atom_props.get_hbd()
         # Pre-compute whether we have explicit hydrogens
         self._has_explicit_h = any(len(h_atoms) > 0 for _, h_atoms in self._all_hbd)
-        
+
         # Pre-compute H-bond related coordinates for vectorized operations
-        if self._has_explicit_h:
-            # Cache all_hba coordinates for Case 1
+        # Cache all_hba coordinates (used by both _detect_hbonds_with_h and _detect_hbonds_without_h)
+        if self._all_hba:
             self._all_hba_coords = np.array([hba.coords for hba in self._all_hba])
-            # Pre-compute HBA mask
-            self._hba_mask = self._create_atom_mask([atom.idx for atom in self._all_hba])
-            
+        else:
+            self._all_hba_coords = np.array([]).reshape(0, 3)
+
+        # Pre-compute HBA mask
+        self._hba_mask = self._create_atom_mask([atom.idx for atom in self._all_hba])
+
+        # Pre-compute all_hbd donor coordinates for _detect_hbonds_without_h Case 2
+        # Extract donor atoms (first element of each tuple) from all_hbd
+        if self._all_hbd:
+            self._all_hbd_donor_atoms = [donor for donor, _ in self._all_hbd]
+            self._all_hbd_donor_coords = np.array([donor.coords for donor in self._all_hbd_donor_atoms])
+        else:
+            self._all_hbd_donor_atoms = []
+            self._all_hbd_donor_coords = np.array([]).reshape(0, 3)
+
+        if self._has_explicit_h:
             # Flatten and cache all_hbd pairs for Case 2
             self._all_hbd_pairs = []
             for donor, h_atoms in self._all_hbd:
                 for h_atom in h_atoms:
                     self._all_hbd_pairs.append((donor, h_atom))
-            
+
             if self._all_hbd_pairs:
                 self._all_hbd_don_coords = np.array([pair[0].coords for pair in self._all_hbd_pairs])
                 self._all_hbd_h_coords = np.array([pair[1].coords for pair in self._all_hbd_pairs])
@@ -240,6 +253,69 @@ class UnifiedInteractionDetector:
                                      for idx, htype in self.atom_props.halogen_donors.items()]
         self._all_halogen_acceptors = [self.atom_container[idx] 
                                         for idx in self.atom_props.halogen_acceptors]
+        
+        # Pre-compute halogen donor and acceptor coordinates for vectorized operations
+        if self._all_halogen_acceptors:
+            self._all_halogen_acceptor_coords = np.array([acc.coords for acc in self._all_halogen_acceptors])
+        else:
+            self._all_halogen_acceptor_coords = np.array([])
+        
+        if self._all_halogen_donors:
+            self._all_halogen_donor_coords = np.array([donor.coords for donor, _ in self._all_halogen_donors])
+        else:
+            self._all_halogen_donor_coords = np.array([])
+        
+        # Pre-compute metal and metal-binding atom coordinates
+        all_metals = self.atom_props.get_metals()
+        all_binding = self.atom_props.get_metal_binding()
+        if all_metals:
+            self._metals_coords = np.array([m.coords for m in all_metals])
+        else:
+            self._metals_coords = np.array([]).reshape(0, 3)
+        if all_binding:
+            self._binding_coords = np.array([b.coords for b in all_binding])
+        else:
+            self._binding_coords = np.array([]).reshape(0, 3)
+        
+        # Pre-compute ring data for pistacking and pication detection
+        all_rings = self.atom_props.rings
+        if all_rings:
+            self._all_ring_centers = np.array([r['center'] for r in all_rings])
+            self._all_ring_normals = np.array([r['normal'] for r in all_rings])
+            self._aromatic_ring_mask = np.array([r.get('is_aromatic', False) for r in all_rings])
+        else:
+            self._all_ring_centers = np.array([]).reshape(0, 3)
+            self._all_ring_normals = np.array([]).reshape(0, 3)
+            self._aromatic_ring_mask = np.array([])
+        
+        # Pre-compute positive charge coordinates for pication detection
+        all_pos = self.atom_props.get_pos_charged()
+        if all_pos:
+            self._pos_coords = np.array([p.coords for p in all_pos])
+        else:
+            self._pos_coords = np.array([]).reshape(0, 3)
+        
+        # Pre-compute salt bridge data as arrays for vectorized operations
+        # This avoids rebuilding arrays in _detect_saltbridges for each residue
+        # For negative charge groups: keys, centers, and atoms list
+        if self._all_neg_grouped:
+            self._neg_grouped_keys = list(self._all_neg_grouped.keys())
+            self._neg_grouped_centers = np.array([center for _, center in self._all_neg_grouped.values()])
+            self._neg_grouped_atoms = [atoms for atoms, _ in self._all_neg_grouped.values()]
+        else:
+            self._neg_grouped_keys = []
+            self._neg_grouped_centers = np.array([]).reshape(0, 3)
+            self._neg_grouped_atoms = []
+        
+        # For positive charge groups: keys, centers, and atoms list
+        if self._all_pos_grouped:
+            self._pos_grouped_keys = list(self._all_pos_grouped.keys())
+            self._pos_grouped_centers = np.array([center for _, center in self._all_pos_grouped.values()])
+            self._pos_grouped_atoms = [atoms for atoms, _ in self._all_pos_grouped.values()]
+        else:
+            self._pos_grouped_keys = []
+            self._pos_grouped_centers = np.array([]).reshape(0, 3)
+            self._pos_grouped_atoms = []
     
     def _create_atom_mask(self, atom_idxs: List[int]) -> np.ndarray:
         """Create a boolean mask for specified atom indices using array-based indexing.
@@ -626,89 +702,113 @@ class UnifiedInteractionDetector:
         Uses distance-only criteria between donor and acceptor heavy atoms.
         Results are stored separately in 'hbond_heavy_atom' to distinguish from
         standard H-bonds with explicit hydrogens.
+
+        Optimized: Uses vectorized distance calculation with scipy.spatial.distance.cdist
+        for efficient batch processing of all donor-acceptor pairs.
         """
         # Case 1: Residue is donor, other is acceptor
-        if residue.hbond_donors:
-            for donor, _ in residue.hbond_donors:
-                for hba in all_hba:
-                    # Skip if same atom
-                    if donor.idx == hba.idx:
-                        continue
+        if residue.hbond_donors and all_hba:
+            # Extract donor atoms (first element of each tuple)
+            residue_donors = [donor for donor, _ in residue.hbond_donors]
 
-                    # Skip if same residue (unless it's a ligand)
-                    if self._should_skip_interaction(residue, donor, hba):
-                        continue
+            # Get coordinates for vectorized calculation
+            donor_coords = np.array([d.coords for d in residue_donors])
+            # Use pre-computed HBA coordinates from _precompute_cached_data
+            hba_coords = self._all_hba_coords
 
-                    dist_ad = euclidean3d(donor.coords, hba.coords)
+            # Vectorized distance calculation using cdist
+            dist_matrix = cdist(donor_coords, hba_coords)
 
-                    # Use relaxed distance criteria for H-bond detection
-                    # Typical H-bond: D...A distance 2.5-3.5 Å
-                    # Without H: D...A distance 2.5-3.5 Å (slightly relaxed)
-                    if dist_ad < 2.5 or dist_ad > 3.5:
-                        continue
+            # Apply distance filter: 2.5-3.5 Å
+            valid_mask = (dist_matrix >= 2.5) & (dist_matrix <= 3.5)
+            valid_indices = np.argwhere(valid_mask)
 
-                    interaction = Interaction(
-                        type='hbond_heavy_atom',
-                        res_a_name=donor.resname,
-                        res_a_chain=donor.chain,
-                        res_a_num=donor.resnum,
-                        res_b_name=hba.resname,
-                        res_b_chain=hba.chain,
-                        res_b_num=hba.resnum,
-                        atom_a_name=self._get_atom_name(donor),
-                        atom_a_idx=donor.idx,
-                        atom_b_name=self._get_atom_name(hba),
-                        atom_b_idx=hba.idx,
-                        distance=dist_ad,
-                        angle=None,
-                        details={
-                            'type': 'heavy_atom',
-                            'note': 'No explicit H, distance-only criteria (less reliable)',
-                            'donor_idx': donor.idx,
-                            'acceptor_idx': hba.idx
-                        }
-                    )
-                    self.interactions['hbond_heavy_atom'].append(interaction)
+            for i, j in valid_indices:
+                donor = residue_donors[i]
+                hba = all_hba[j]
+
+                # Skip if same atom
+                if donor.idx == hba.idx:
+                    continue
+
+                # Skip if same residue (unless it's a ligand)
+                if self._should_skip_interaction(residue, donor, hba):
+                    continue
+
+                interaction = Interaction(
+                    type='hbond_heavy_atom',
+                    res_a_name=donor.resname,
+                    res_a_chain=donor.chain,
+                    res_a_num=donor.resnum,
+                    res_b_name=hba.resname,
+                    res_b_chain=hba.chain,
+                    res_b_num=hba.resnum,
+                    atom_a_name=self._get_atom_name(donor),
+                    atom_a_idx=donor.idx,
+                    atom_b_name=self._get_atom_name(hba),
+                    atom_b_idx=hba.idx,
+                    distance=float(dist_matrix[i, j]),
+                    angle=None,
+                    details={
+                        'type': 'heavy_atom',
+                        'note': 'No explicit H, distance-only criteria (less reliable)',
+                        'donor_idx': donor.idx,
+                        'acceptor_idx': hba.idx
+                    }
+                )
+                self.interactions['hbond_heavy_atom'].append(interaction)
 
         # Case 2: Residue is acceptor, other is donor
-        if residue.hbond_acceptors:
-            for acc in residue.hbond_acceptors:
-                for donor, _ in all_hbd:
-                    # Skip if same atom
-                    if acc.idx == donor.idx:
-                        continue
+        if residue.hbond_acceptors and all_hbd:
+            # Use pre-computed donor atoms and coordinates from _precompute_cached_data
+            all_donors = self._all_hbd_donor_atoms
 
-                    # Skip if same residue (unless it's a ligand)
-                    if self._should_skip_interaction(residue, acc, donor):
-                        continue
+            # Get coordinates for vectorized calculation
+            acc_coords = np.array([acc.coords for acc in residue.hbond_acceptors])
+            # Use pre-computed donor coordinates
+            donor_coords = self._all_hbd_donor_coords
 
-                    dist_ad = euclidean3d(acc.coords, donor.coords)
+            # Vectorized distance calculation using cdist
+            dist_matrix = cdist(acc_coords, donor_coords)
 
-                    if dist_ad < 2.5 or dist_ad > 3.5:
-                        continue
+            # Apply distance filter: 2.5-3.5 Å
+            valid_mask = (dist_matrix >= 2.5) & (dist_matrix <= 3.5)
+            valid_indices = np.argwhere(valid_mask)
 
-                    interaction = Interaction(
-                        type='hbond_heavy_atom',
-                        res_a_name=acc.resname,
-                        res_a_chain=acc.chain,
-                        res_a_num=acc.resnum,
-                        res_b_name=donor.resname,
-                        res_b_chain=donor.chain,
-                        res_b_num=donor.resnum,
-                        atom_a_name=self._get_atom_name(acc),
-                        atom_a_idx=acc.idx,
-                        atom_b_name=self._get_atom_name(donor),
-                        atom_b_idx=donor.idx,
-                        distance=dist_ad,
-                        angle=None,
-                        details={
-                            'type': 'heavy_atom',
-                            'note': 'No explicit H, distance-only criteria (less reliable)',
-                            'donor_idx': donor.idx,
-                            'acceptor_idx': acc.idx
-                        }
-                    )
-                    self.interactions['hbond_heavy_atom'].append(interaction)
+            for i, j in valid_indices:
+                acc = residue.hbond_acceptors[i]
+                donor = all_donors[j]
+
+                # Skip if same atom
+                if acc.idx == donor.idx:
+                    continue
+
+                # Skip if same residue (unless it's a ligand)
+                if self._should_skip_interaction(residue, acc, donor):
+                    continue
+
+                interaction = Interaction(
+                    type='hbond_heavy_atom',
+                    res_a_name=acc.resname,
+                    res_a_chain=acc.chain,
+                    res_a_num=acc.resnum,
+                    res_b_name=donor.resname,
+                    res_b_chain=donor.chain,
+                    res_b_num=donor.resnum,
+                    atom_a_name=self._get_atom_name(acc),
+                    atom_a_idx=acc.idx,
+                    atom_b_name=self._get_atom_name(donor),
+                    atom_b_idx=donor.idx,
+                    distance=float(dist_matrix[i, j]),
+                    angle=None,
+                    details={
+                        'type': 'heavy_atom',
+                        'note': 'No explicit H, distance-only criteria (less reliable)',
+                        'donor_idx': donor.idx,
+                        'acceptor_idx': acc.idx
+                    }
+                )
+                self.interactions['hbond_heavy_atom'].append(interaction)
     
     def _detect_saltbridges(self, residue: Residue, res_coords: np.ndarray):
         """Detect salt bridges between charged residues using vectorized distance calculation.
@@ -724,227 +824,272 @@ class UnifiedInteractionDetector:
 
         # Case 1: Residue is positive, other is negative
         if residue.pos_charged and residue.pos_charged_groups:
-            for res_key, (pos_atoms, pos_center) in residue.pos_charged_groups.items():
-                # Prepare arrays for vectorized distance calculation
-                neg_keys = []
-                neg_centers = []
-                neg_atoms_list = []
-                
-                for other_key, (neg_atoms, neg_center) in self._all_neg_grouped.items():
-                    # Skip if same residue
-                    if res_key == other_key:
-                        continue
-                    neg_keys.append(other_key)
-                    neg_centers.append(neg_center)
-                    neg_atoms_list.append(neg_atoms)
-                
-                if not neg_centers:
-                    continue
-                
-                # Vectorized distance calculation
-                neg_centers_array = np.array(neg_centers)
-                distances = np.linalg.norm(neg_centers_array - pos_center, axis=1)
-                
-                # Find all pairs within distance threshold
-                valid_indices = np.where(distances < config.SALTBRIDGE_DIST_MAX)[0]
-                
-                for idx in valid_indices:
-                    neg_atoms = neg_atoms_list[idx]
-                    distance = distances[idx]
-                    pos_atom = pos_atoms[0]
-                    neg_atom = neg_atoms[0]
+            # Use pre-computed negative charge group arrays (cached in _precompute_cached_data)
+            neg_keys = self._neg_grouped_keys
+            neg_centers_array = self._neg_grouped_centers
+            neg_atoms_list = self._neg_grouped_atoms
+            
+            if len(neg_centers_array) > 0:
+                for res_key, (pos_atoms, pos_center) in residue.pos_charged_groups.items():
+                    # Create mask to skip same residue
+                    skip_mask = np.array([key == res_key for key in neg_keys])
                     
-                    interaction = Interaction(
-                        type='saltbridge',
-                        res_a_name=pos_atom.resname,
-                        res_a_chain=pos_atom.chain,
-                        res_a_num=pos_atom.resnum,
-                        res_b_name=neg_atom.resname,
-                        res_b_chain=neg_atom.chain,
-                        res_b_num=neg_atom.resnum,
-                        atom_a_name=self._get_atom_name(pos_atom),
-                        atom_a_idx=pos_atom.idx,
-                        atom_b_name=self._get_atom_name(neg_atom),
-                        atom_b_idx=neg_atom.idx,
-                        distance=float(distance),
-                        angle=None,
-                        details={
-                            'charge_type': 'pos-neg',
-                            'positive_atoms': [a.idx for a in pos_atoms],
-                            'negative_atoms': [a.idx for a in neg_atoms]
-                        }
-                    )
-                    self.interactions['saltbridge'].append(interaction)
+                    # Vectorized distance calculation (all at once)
+                    distances = np.linalg.norm(neg_centers_array - pos_center, axis=1)
+                    
+                    # Find all pairs within distance threshold, excluding same residue
+                    valid_indices = np.where((distances < config.SALTBRIDGE_DIST_MAX) & ~skip_mask)[0]
+                    
+                    for idx in valid_indices:
+                        neg_atoms = neg_atoms_list[idx]
+                        distance = distances[idx]
+                        pos_atom = pos_atoms[0]
+                        neg_atom = neg_atoms[0]
+                        
+                        interaction = Interaction(
+                            type='saltbridge',
+                            res_a_name=pos_atom.resname,
+                            res_a_chain=pos_atom.chain,
+                            res_a_num=pos_atom.resnum,
+                            res_b_name=neg_atom.resname,
+                            res_b_chain=neg_atom.chain,
+                            res_b_num=neg_atom.resnum,
+                            atom_a_name=self._get_atom_name(pos_atom),
+                            atom_a_idx=pos_atom.idx,
+                            atom_b_name=self._get_atom_name(neg_atom),
+                            atom_b_idx=neg_atom.idx,
+                            distance=float(distance),
+                            angle=None,
+                            details={
+                                'charge_type': 'pos-neg',
+                                'positive_atoms': [a.idx for a in pos_atoms],
+                                'negative_atoms': [a.idx for a in neg_atoms]
+                            }
+                        )
+                        self.interactions['saltbridge'].append(interaction)
         
         # Case 2: Residue is negative, other is positive
         if residue.neg_charged and residue.neg_charged_groups:
-            for res_key, (neg_atoms, neg_center) in residue.neg_charged_groups.items():
-                # Prepare arrays for vectorized distance calculation
-                pos_keys = []
-                pos_centers = []
-                pos_atoms_list = []
-                
-                for other_key, (pos_atoms, pos_center) in self._all_pos_grouped.items():
-                    # Skip if same residue
-                    if res_key == other_key:
-                        continue
-                    pos_keys.append(other_key)
-                    pos_centers.append(pos_center)
-                    pos_atoms_list.append(pos_atoms)
-                
-                if not pos_centers:
-                    continue
-                
-                # Vectorized distance calculation
-                pos_centers_array = np.array(pos_centers)
-                distances = np.linalg.norm(pos_centers_array - neg_center, axis=1)
-                
-                # Find all pairs within distance threshold
-                valid_indices = np.where(distances < config.SALTBRIDGE_DIST_MAX)[0]
-                
-                for idx in valid_indices:
-                    pos_atoms = pos_atoms_list[idx]
-                    distance = distances[idx]
-                    neg_atom = neg_atoms[0]
-                    pos_atom = pos_atoms[0]
+            # Use pre-computed positive charge group arrays (cached in _precompute_cached_data)
+            pos_keys = self._pos_grouped_keys
+            pos_centers_array = self._pos_grouped_centers
+            pos_atoms_list = self._pos_grouped_atoms
+            
+            if len(pos_centers_array) > 0:
+                for res_key, (neg_atoms, neg_center) in residue.neg_charged_groups.items():
+                    # Create mask to skip same residue
+                    skip_mask = np.array([key == res_key for key in pos_keys])
                     
-                    interaction = Interaction(
-                        type='saltbridge',
-                        res_a_name=neg_atom.resname,
-                        res_a_chain=neg_atom.chain,
-                        res_a_num=neg_atom.resnum,
-                        res_b_name=pos_atom.resname,
-                        res_b_chain=pos_atom.chain,
-                        res_b_num=pos_atom.resnum,
-                        atom_a_name=self._get_atom_name(neg_atom),
-                        atom_a_idx=neg_atom.idx,
-                        atom_b_name=self._get_atom_name(pos_atom),
-                        atom_b_idx=pos_atom.idx,
-                        distance=float(distance),
-                        angle=None,
-                        details={
-                            'charge_type': 'neg-pos',
-                            'positive_atoms': [a.idx for a in pos_atoms],
-                            'negative_atoms': [a.idx for a in neg_atoms]
-                        }
-                    )
-                    self.interactions['saltbridge'].append(interaction)
+                    # Vectorized distance calculation (all at once)
+                    distances = np.linalg.norm(pos_centers_array - neg_center, axis=1)
+                    
+                    # Find all pairs within distance threshold, excluding same residue
+                    valid_indices = np.where((distances < config.SALTBRIDGE_DIST_MAX) & ~skip_mask)[0]
+                    
+                    for idx in valid_indices:
+                        pos_atoms = pos_atoms_list[idx]
+                        distance = distances[idx]
+                        neg_atom = neg_atoms[0]
+                        pos_atom = pos_atoms[0]
+                        
+                        interaction = Interaction(
+                            type='saltbridge',
+                            res_a_name=neg_atom.resname,
+                            res_a_chain=neg_atom.chain,
+                            res_a_num=neg_atom.resnum,
+                            res_b_name=pos_atom.resname,
+                            res_b_chain=pos_atom.chain,
+                            res_b_num=pos_atom.resnum,
+                            atom_a_name=self._get_atom_name(neg_atom),
+                            atom_a_idx=neg_atom.idx,
+                            atom_b_name=self._get_atom_name(pos_atom),
+                            atom_b_idx=pos_atom.idx,
+                            distance=float(distance),
+                            angle=None,
+                            details={
+                                'charge_type': 'neg-pos',
+                                'positive_atoms': [a.idx for a in pos_atoms],
+                                'negative_atoms': [a.idx for a in neg_atoms]
+                            }
+                        )
+                        self.interactions['saltbridge'].append(interaction)
     
     def _detect_pistacking(self, residue: Residue, res_coords: np.ndarray):
-        """Detect pi-stacking interactions"""
+        """Detect pi-stacking interactions using vectorized calculations.
+        
+        Optimized: Uses pre-computed ring data and vectorized numpy operations
+        for distance, angle, and offset calculations.
+        """
         if not residue.rings:
             return
 
         all_rings = self.atom_props.rings
+        if not all_rings:
+            return
 
-        for ring_a in residue.rings:
-            for ring_b in all_rings:
-                # Skip same ring (compare first atom index)
-                if ring_a['indices'][0] == ring_b['indices'][0]:
-                    continue
-                
-                # Get representative atoms for residue info and self-filtering
-                atom_a = self.atom_container[ring_a['indices'][0]]
-                atom_b = self.atom_container[ring_b['indices'][0]]
-                
-                # Skip if same residue (unless it's a ligand)
-                if self._should_skip_interaction(residue, atom_a, atom_b):
-                    continue
-
-                # Calculate distance between centers
-                distance = euclidean3d(ring_a['center'], ring_b['center'])
-                
-                if distance > config.PISTACK_DIST_MAX:
-                    continue
-                
-                # Calculate angle between normals
-                angle = np.arccos(np.clip(
-                    np.dot(ring_a['normal'], ring_b['normal']), -1.0, 1.0
-                )) * 180 / np.pi
-                
-                # Determine type
-                if angle < config.PISTACK_ANG_DEV or angle > (180 - config.PISTACK_ANG_DEV):
-                    ptype = 'parallel'
-                elif (90 - config.PISTACK_ANG_DEV) < angle < (90 + config.PISTACK_ANG_DEV):
-                    ptype = 'perpendicular'
-                else:
-                    continue
-                
-                # Calculate offset (min of both projection directions)
-                # Project ring A center onto ring B plane and measure distance to ring B center
-                proj1 = projection(ring_b['normal'], ring_b['center'], ring_a['center'])
-                offset1 = euclidean3d(proj1, ring_b['center'])
-                # Project ring B center onto ring A plane and measure distance to ring A center
-                proj2 = projection(ring_a['normal'], ring_a['center'], ring_b['center'])
-                offset2 = euclidean3d(proj2, ring_a['center'])
-                # Use the minimum offset (symmetric measure)
-                offset = min(offset1, offset2)
-                
-                if offset > config.PISTACK_OFFSET_MAX:
-                    continue
-                
-                interaction = Interaction(
-                    type='pistacking',
-                    res_a_name=atom_a.resname,
-                    res_a_chain=atom_a.chain,
-                    res_a_num=atom_a.resnum,
-                    res_b_name=atom_b.resname,
-                    res_b_chain=atom_b.chain,
-                    res_b_num=atom_b.resnum,
-                    atom_a_name='RING',
-                    atom_a_idx=ring_a['indices'][0],
-                    atom_b_name='RING',
-                    atom_b_idx=ring_b['indices'][0],
-                    distance=distance,
-                    angle=angle,
-                    details={
-                        'type': ptype,
-                        'offset': offset,
-                        'ring_a_atoms': ring_a['indices'],
-                        'ring_b_atoms': ring_b['indices']
-                    }
-                )
-                self.interactions['pistacking'].append(interaction)
+        # Pre-compute residue ring data
+        res_ring_centers = np.array([r['center'] for r in residue.rings])
+        res_ring_normals = np.array([r['normal'] for r in residue.rings])
+        
+        # Use pre-computed all rings data (cached in _precompute_cached_data)
+        all_ring_centers = self._all_ring_centers
+        all_ring_normals = self._all_ring_normals
+        
+        # Vectorized distance calculation using cdist
+        dist_matrix = cdist(res_ring_centers, all_ring_centers)
+        
+        # Filter by distance
+        valid_dist_mask = dist_matrix <= config.PISTACK_DIST_MAX
+        
+        # Vectorized angle calculation between normals
+        # dot_products[i, j] = dot(res_ring_normals[i], all_ring_normals[j])
+        dot_products = np.sum(res_ring_normals[:, np.newaxis, :] * 
+                              all_ring_normals[np.newaxis, :, :], axis=2)
+        angles = np.arccos(np.clip(dot_products, -1.0, 1.0)) * 180 / np.pi
+        
+        # Determine stacking type
+        parallel_mask = (angles < config.PISTACK_ANG_DEV) | (angles > (180 - config.PISTACK_ANG_DEV))
+        perp_mask = ((90 - config.PISTACK_ANG_DEV) < angles) & (angles < (90 + config.PISTACK_ANG_DEV))
+        valid_angle_mask = parallel_mask | perp_mask
+        
+        # Combined mask
+        valid_mask = valid_dist_mask & valid_angle_mask
+        
+        # Get valid pairs
+        valid_indices = np.argwhere(valid_mask)
+        
+        for i, j in valid_indices:
+            ring_a = residue.rings[i]
+            ring_b = all_rings[j]
+            
+            # Skip same ring
+            if ring_a['indices'][0] == ring_b['indices'][0]:
+                continue
+            
+            # Get representative atoms
+            atom_a = self.atom_container[ring_a['indices'][0]]
+            atom_b = self.atom_container[ring_b['indices'][0]]
+            
+            # Skip if same residue
+            if self._should_skip_interaction(residue, atom_a, atom_b):
+                continue
+            
+            distance = float(dist_matrix[i, j])
+            angle = float(angles[i, j])
+            
+            # Determine type
+            if angle < config.PISTACK_ANG_DEV or angle > (180 - config.PISTACK_ANG_DEV):
+                ptype = 'parallel'
+            else:
+                ptype = 'perpendicular'
+            
+            # Calculate offset (vectorized projection)
+            # Project ring A center onto ring B plane
+            vec_ab = ring_a['center'] - ring_b['center']
+            proj_dist = np.dot(vec_ab, ring_b['normal'])
+            proj1 = ring_a['center'] - proj_dist * ring_b['normal']
+            offset1 = np.linalg.norm(proj1 - ring_b['center'])
+            
+            # Project ring B center onto ring A plane
+            vec_ba = ring_b['center'] - ring_a['center']
+            proj_dist = np.dot(vec_ba, ring_a['normal'])
+            proj2 = ring_b['center'] - proj_dist * ring_a['normal']
+            offset2 = np.linalg.norm(proj2 - ring_a['center'])
+            
+            offset = min(offset1, offset2)
+            
+            if offset > config.PISTACK_OFFSET_MAX:
+                continue
+            
+            interaction = Interaction(
+                type='pistacking',
+                res_a_name=atom_a.resname,
+                res_a_chain=atom_a.chain,
+                res_a_num=atom_a.resnum,
+                res_b_name=atom_b.resname,
+                res_b_chain=atom_b.chain,
+                res_b_num=atom_b.resnum,
+                atom_a_name='RING',
+                atom_a_idx=ring_a['indices'][0],
+                atom_b_name='RING',
+                atom_b_idx=ring_b['indices'][0],
+                distance=distance,
+                angle=angle,
+                details={
+                    'type': ptype,
+                    'offset': float(offset),
+                    'ring_a_atoms': ring_a['indices'],
+                    'ring_b_atoms': ring_b['indices']
+                }
+            )
+            self.interactions['pistacking'].append(interaction)
     
     def _detect_pication(self, residue: Residue, res_coords: np.ndarray):
-        """Detect pi-cation interactions
+        """Detect pi-cation interactions using vectorized calculations.
 
         Geometric criteria:
         - Distance: < PICATION_DIST_MAX (6.0 Å)
         - Offset: < PISTACK_OFFSET_MAX (2.0 Å)
           Offset is the distance from the projection of the charge onto the ring plane
           to the ring center. This ensures the charge is positioned above the ring face.
+        
+        Optimized: Uses pre-computed data and vectorized numpy operations
+        for distance and offset calculations.
         """
         if not (residue.rings or residue.pos_charged):
             return
 
         all_rings = self.atom_props.rings
         all_pos = self.atom_props.get_pos_charged()
+        
+        if not all_rings or not all_pos:
+            return
+
+        # Use pre-computed aromatic ring data (cached in _precompute_cached_data)
+        aromatic_rings = [r for r in all_rings if r.get('is_aromatic', False)]
+        if not aromatic_rings:
+            return
+        
+        # Filter pre-computed ring centers to only aromatic ones
+        aromatic_mask = self._aromatic_ring_mask
+        ring_centers = self._all_ring_centers[aromatic_mask] if len(aromatic_mask) > 0 else np.array([]).reshape(0, 3)
 
         # Case 1: Residue has ring, other has positive charge
         if residue.rings:
-            for ring in residue.rings:
-                # Only consider aromatic rings for pi-cation interactions
-                if not ring.get('is_aromatic', False):
-                    continue
-                for pos_atom in all_pos:
-                    # Skip if same residue (unless it's a ligand)
+            res_aromatic_rings = [r for r in residue.rings if r.get('is_aromatic', False)]
+            if res_aromatic_rings and all_pos:
+                res_ring_centers = np.array([r['center'] for r in res_aromatic_rings])
+                
+                # Use pre-computed positive charge coordinates (cached in _precompute_cached_data)
+                pos_coords = self._pos_coords
+                
+                # Vectorized distance calculation using cdist
+                dist_matrix = cdist(res_ring_centers, pos_coords)
+                
+                # Filter by distance
+                valid_dist_mask = dist_matrix < config.PICATION_DIST_MAX
+                valid_indices = np.argwhere(valid_dist_mask)
+                
+                for i, j in valid_indices:
+                    ring = res_aromatic_rings[i]
+                    pos_atom = all_pos[j]
+                    
+                    # Skip if same residue
                     atom_a = self.atom_container[ring['indices'][0]]
                     if self._should_skip_interaction(residue, atom_a, pos_atom):
                         continue
-
-                    distance = euclidean3d(ring['center'], pos_atom.coords)
-
-                    if distance >= config.PICATION_DIST_MAX:
-                        continue
-
+                    
+                    distance = float(dist_matrix[i, j])
+                    
                     # Calculate offset: projection of charge onto ring plane to ring center
-                    proj = projection(ring['normal'], ring['center'], pos_atom.coords)
-                    offset = euclidean3d(proj, ring['center'])
-
+                    vec = pos_atom.coords - ring['center']
+                    proj_dist = np.dot(vec, ring['normal'])
+                    proj = pos_atom.coords - proj_dist * ring['normal']
+                    offset = np.linalg.norm(proj - ring['center'])
+                    
                     if offset >= config.PISTACK_OFFSET_MAX:
                         continue
-
+                    
                     interaction = Interaction(
                         type='pication',
                         res_a_name=atom_a.resname,
@@ -959,34 +1104,42 @@ class UnifiedInteractionDetector:
                         atom_b_idx=pos_atom.idx,
                         distance=distance,
                         angle=None,
-                        details={'ring_center': ring['center'], 'offset': offset}
+                        details={'ring_center': ring['center'], 'offset': float(offset)}
                     )
                     self.interactions['pication'].append(interaction)
 
         # Case 2: Residue has positive charge, other has ring
         if residue.pos_charged:
-            for pos_atom in residue.pos_charged:
-                for ring in all_rings:
-                    # Only consider aromatic rings for pi-cation interactions
-                    if not ring.get('is_aromatic', False):
-                        continue
-                    # Skip if same residue (unless it's a ligand)
+            if residue.pos_charged and aromatic_rings:
+                res_pos_coords = np.array([p.coords for p in residue.pos_charged])
+                
+                # Vectorized distance calculation using cdist
+                dist_matrix = cdist(res_pos_coords, ring_centers)
+                
+                # Filter by distance
+                valid_dist_mask = dist_matrix < config.PICATION_DIST_MAX
+                valid_indices = np.argwhere(valid_dist_mask)
+                
+                for i, j in valid_indices:
+                    pos_atom = residue.pos_charged[i]
+                    ring = aromatic_rings[j]
+                    
+                    # Skip if same residue
                     atom_b = self.atom_container[ring['indices'][0]]
                     if self._should_skip_interaction(residue, pos_atom, atom_b):
                         continue
-
-                    distance = euclidean3d(pos_atom.coords, ring['center'])
-
-                    if distance >= config.PICATION_DIST_MAX:
-                        continue
-
+                    
+                    distance = float(dist_matrix[i, j])
+                    
                     # Calculate offset: projection of charge onto ring plane to ring center
-                    proj = projection(ring['normal'], ring['center'], pos_atom.coords)
-                    offset = euclidean3d(proj, ring['center'])
-
+                    vec = pos_atom.coords - ring['center']
+                    proj_dist = np.dot(vec, ring['normal'])
+                    proj = pos_atom.coords - proj_dist * ring['normal']
+                    offset = np.linalg.norm(proj - ring['center'])
+                    
                     if offset >= config.PISTACK_OFFSET_MAX:
                         continue
-
+                    
                     interaction = Interaction(
                         type='pication',
                         res_a_name=pos_atom.resname,
@@ -1001,7 +1154,7 @@ class UnifiedInteractionDetector:
                         atom_b_idx=ring['indices'][0],
                         distance=distance,
                         angle=None,
-                        details={'ring_center': ring['center'], 'offset': offset}
+                        details={'ring_center': ring['center'], 'offset': float(offset)}
                     )
                     self.interactions['pication'].append(interaction)
     
@@ -1062,6 +1215,7 @@ class UnifiedInteractionDetector:
         """Detect halogen bonds following PLIP's criteria.
         
         Uses pre-computed halogen bond donors and acceptors from _precompute_cached_data.
+        Optimized: Uses vectorized distance calculation to filter pairs before angle calculation.
         
         Halogen bond criteria:
         - Distance: X···O < HALOGEN_DIST_MAX
@@ -1071,89 +1225,107 @@ class UnifiedInteractionDetector:
         if not (residue.halogen_donors or residue.halogen_acceptors):
             return
         
-        # Use pre-computed donors and acceptors
+        # Use pre-computed donors, acceptors, and their coordinates
         all_donors = self._all_halogen_donors
         all_acceptors = self._all_halogen_acceptors
+        acceptor_coords = self._all_halogen_acceptor_coords
+        donor_coords = self._all_halogen_donor_coords
         
         # Case 1: Residue is donor
-        if residue.halogen_donors:
-            for donor, htype in residue.halogen_donors:
-                for acc in all_acceptors:
-                    # Skip if same residue (unless it's a ligand)
-                    if self._should_skip_interaction(residue, donor, acc):
+        if residue.halogen_donors and all_acceptors and len(acceptor_coords) > 0:
+            res_donor_coords = np.array([donor.coords for donor, _ in residue.halogen_donors])
+            
+            # Vectorized distance calculation using cdist
+            dist_matrix = cdist(res_donor_coords, acceptor_coords)
+            
+            # Find pairs within distance threshold
+            valid_mask = (dist_matrix > config.MIN_DIST) & (dist_matrix < config.HALOGEN_DIST_MAX)
+            valid_indices = np.argwhere(valid_mask)
+            
+            for i, j in valid_indices:
+                donor, htype = residue.halogen_donors[i]
+                acc = all_acceptors[j]
+                
+                # Skip if same residue (unless it's a ligand)
+                if self._should_skip_interaction(residue, donor, acc):
+                    continue
+                
+                distance = float(dist_matrix[i, j])
+                
+                # Calculate both angles
+                don_angle, acc_angle = self._get_halogen_bond_angles(donor, acc)
+                
+                if don_angle is None:
+                    continue
+                
+                # Check donor angle
+                if not (config.HALOGEN_DON_ANGLE - config.HALOGEN_ANGLE_DEV < don_angle):
+                    continue
+                
+                # Check acceptor angle (if available)
+                if acc_angle is not None:
+                    if not (config.HALOGEN_ACC_ANGLE - config.HALOGEN_ANGLE_DEV < acc_angle <
+                            config.HALOGEN_ACC_ANGLE + config.HALOGEN_ANGLE_DEV):
                         continue
-                    
-                    distance = euclidean3d(donor.coords, acc.coords)
-                    
-                    if not config.MIN_DIST < distance < config.HALOGEN_DIST_MAX:
-                        continue
-                    
-                    # Calculate both angles
-                    don_angle, acc_angle = self._get_halogen_bond_angles(donor, acc)
-                    
-                    if don_angle is None:
-                        continue
-                    
-                    # Check donor angle
-                    if not (config.HALOGEN_DON_ANGLE - config.HALOGEN_ANGLE_DEV < don_angle):
-                        continue
-                    
-                    # Check acceptor angle (if available)
-                    if acc_angle is not None:
-                        if not (config.HALOGEN_ACC_ANGLE - config.HALOGEN_ANGLE_DEV < acc_angle <
-                                config.HALOGEN_ACC_ANGLE + config.HALOGEN_ANGLE_DEV):
-                            continue
-                    
-                    interaction = Interaction(
-                        type='halogen',
-                        res_a_name=donor.resname,
-                        res_a_chain=donor.chain,
-                        res_a_num=donor.resnum,
-                        res_b_name=acc.resname,
-                        res_b_chain=acc.chain,
-                        res_b_num=acc.resnum,
-                        atom_a_name=self._get_atom_name(donor),
-                        atom_a_idx=donor.idx,
-                        atom_b_name=self._get_atom_name(acc),
-                        atom_b_idx=acc.idx,
-                        distance=distance,
-                        angle=don_angle,
-                        details={
-                            'halogen_type': htype,
-                            'don_angle': don_angle,
-                            'acc_angle': acc_angle
-                        }
-                    )
-                    self.interactions['halogen'].append(interaction)
+                
+                interaction = Interaction(
+                    type='halogen',
+                    res_a_name=donor.resname,
+                    res_a_chain=donor.chain,
+                    res_a_num=donor.resnum,
+                    res_b_name=acc.resname,
+                    res_b_chain=acc.chain,
+                    res_b_num=acc.resnum,
+                    atom_a_name=self._get_atom_name(donor),
+                    atom_a_idx=donor.idx,
+                    atom_b_name=self._get_atom_name(acc),
+                    atom_b_idx=acc.idx,
+                    distance=distance,
+                    angle=don_angle,
+                    details={
+                        'halogen_type': htype,
+                        'don_angle': don_angle,
+                        'acc_angle': acc_angle
+                    }
+                )
+                self.interactions['halogen'].append(interaction)
         
         # Case 2: Residue is acceptor
-        if residue.halogen_acceptors:
-            for acc in residue.halogen_acceptors:
-                for donor, htype in all_donors:
-                    # Skip if same residue (unless it's a ligand)
-                    if self._should_skip_interaction(residue, acc, donor):
+        if residue.halogen_acceptors and all_donors and len(donor_coords) > 0:
+            res_acceptor_coords = np.array([acc.coords for acc in residue.halogen_acceptors])
+            
+            # Vectorized distance calculation using cdist
+            dist_matrix = cdist(res_acceptor_coords, donor_coords)
+            
+            # Find pairs within distance threshold
+            valid_mask = (dist_matrix > config.MIN_DIST) & (dist_matrix < config.HALOGEN_DIST_MAX)
+            valid_indices = np.argwhere(valid_mask)
+            
+            for i, j in valid_indices:
+                acc = residue.halogen_acceptors[i]
+                donor, htype = all_donors[j]
+                
+                # Skip if same residue (unless it's a ligand)
+                if self._should_skip_interaction(residue, acc, donor):
+                    continue
+                
+                distance = float(dist_matrix[i, j])
+                
+                # Calculate both angles
+                don_angle, acc_angle = self._get_halogen_bond_angles(donor, acc)
+                
+                if don_angle is None:
+                    continue
+                
+                # Check donor angle
+                if not (config.HALOGEN_DON_ANGLE - config.HALOGEN_ANGLE_DEV < don_angle):
+                    continue
+                
+                # Check acceptor angle (if available)
+                if acc_angle is not None:
+                    if not (config.HALOGEN_ACC_ANGLE - config.HALOGEN_ANGLE_DEV < acc_angle <
+                            config.HALOGEN_ACC_ANGLE + config.HALOGEN_ANGLE_DEV):
                         continue
-                    
-                    distance = euclidean3d(acc.coords, donor.coords)
-                    
-                    if not config.MIN_DIST < distance < config.HALOGEN_DIST_MAX:
-                        continue
-                    
-                    # Calculate both angles
-                    don_angle, acc_angle = self._get_halogen_bond_angles(donor, acc)
-                    
-                    if don_angle is None:
-                        continue
-                    
-                    # Check donor angle
-                    if not (config.HALOGEN_DON_ANGLE - config.HALOGEN_ANGLE_DEV < don_angle):
-                        continue
-                    
-                    # Check acceptor angle (if available)
-                    if acc_angle is not None:
-                        if not (config.HALOGEN_ACC_ANGLE - config.HALOGEN_ANGLE_DEV < acc_angle <
-                                config.HALOGEN_ACC_ANGLE + config.HALOGEN_ANGLE_DEV):
-                            continue
                     
                     interaction = Interaction(
                         type='halogen',
@@ -1178,70 +1350,98 @@ class UnifiedInteractionDetector:
                     self.interactions['halogen'].append(interaction)
     
     def _detect_metal(self, residue: Residue, res_coords: np.ndarray):
-        """Detect metal complexation"""
+        """Detect metal complexation using vectorized distance calculation.
+        
+        Optimized: Uses pre-computed coordinates and vectorized numpy operations
+        for distance calculations instead of individual euclidean3d calls.
+        """
         if not (residue.metal_atoms or residue.metal_binding_atoms):
             return
         
         all_metals = self.atom_props.get_metals()
         all_binding = self.atom_props.get_metal_binding()
         
+        # Early return if no metals or binding atoms in structure
+        if not all_metals or not all_binding:
+            return
+        
+        # Use pre-computed coordinates (cached in _precompute_cached_data)
+        metals_coords = self._metals_coords
+        binding_coords = self._binding_coords
+        
         # Case 1: Residue is metal
         if residue.metal_atoms:
-            for metal in residue.metal_atoms:
-                for binding in all_binding:
-                    # Skip if same residue (unless it's a ligand)
-                    if self._should_skip_interaction(residue, metal, binding):
-                        continue
-                    
-                    distance = euclidean3d(metal.coords, binding.coords)
-                    
-                    if distance < config.METAL_DIST_MAX:
-                        interaction = Interaction(
-                            type='metal',
-                            res_a_name=metal.resname,
-                            res_a_chain=metal.chain,
-                            res_a_num=metal.resnum,
-                            res_b_name=binding.resname,
-                            res_b_chain=binding.chain,
-                            res_b_num=binding.resnum,
-                            atom_a_name=self._get_atom_name(metal),
-                            atom_a_idx=metal.idx,
-                            atom_b_name=self._get_atom_name(binding),
-                            atom_b_idx=binding.idx,
-                            distance=distance,
-                            angle=None,
-                            details={}
-                        )
-                        self.interactions['metal'].append(interaction)
+            res_metals_coords = np.array([m.coords for m in residue.metal_atoms])
+            
+            # Vectorized distance calculation using cdist
+            dist_matrix = cdist(res_metals_coords, binding_coords)
+            
+            # Find valid pairs within distance threshold
+            valid_mask = dist_matrix < config.METAL_DIST_MAX
+            valid_indices = np.argwhere(valid_mask)
+            
+            for i, j in valid_indices:
+                metal = residue.metal_atoms[i]
+                binding = all_binding[j]
+                
+                # Skip if same residue (unless it's a ligand)
+                if self._should_skip_interaction(residue, metal, binding):
+                    continue
+                
+                interaction = Interaction(
+                    type='metal',
+                    res_a_name=metal.resname,
+                    res_a_chain=metal.chain,
+                    res_a_num=metal.resnum,
+                    res_b_name=binding.resname,
+                    res_b_chain=binding.chain,
+                    res_b_num=binding.resnum,
+                    atom_a_name=self._get_atom_name(metal),
+                    atom_a_idx=metal.idx,
+                    atom_b_name=self._get_atom_name(binding),
+                    atom_b_idx=binding.idx,
+                    distance=float(dist_matrix[i, j]),
+                    angle=None,
+                    details={}
+                )
+                self.interactions['metal'].append(interaction)
         
         # Case 2: Residue has metal-binding atoms
         if residue.metal_binding_atoms:
-            for binding in residue.metal_binding_atoms:
-                for metal in all_metals:
-                    # Skip if same residue (unless it's a ligand)
-                    if self._should_skip_interaction(residue, binding, metal):
-                        continue
-                    
-                    distance = euclidean3d(binding.coords, metal.coords)
-                    
-                    if distance < config.METAL_DIST_MAX:
-                        interaction = Interaction(
-                            type='metal',
-                            res_a_name=binding.resname,
-                            res_a_chain=binding.chain,
-                            res_a_num=binding.resnum,
-                            res_b_name=metal.resname,
-                            res_b_chain=metal.chain,
-                            res_b_num=metal.resnum,
-                            atom_a_name=self._get_atom_name(binding),
-                            atom_a_idx=binding.idx,
-                            atom_b_name=self._get_atom_name(metal),
-                            atom_b_idx=metal.idx,
-                            distance=distance,
-                            angle=None,
-                            details={}
-                        )
-                        self.interactions['metal'].append(interaction)
+            res_binding_coords = np.array([b.coords for b in residue.metal_binding_atoms])
+            
+            # Vectorized distance calculation using cdist
+            dist_matrix = cdist(res_binding_coords, metals_coords)
+            
+            # Find valid pairs within distance threshold
+            valid_mask = dist_matrix < config.METAL_DIST_MAX
+            valid_indices = np.argwhere(valid_mask)
+            
+            for i, j in valid_indices:
+                binding = residue.metal_binding_atoms[i]
+                metal = all_metals[j]
+                
+                # Skip if same residue (unless it's a ligand)
+                if self._should_skip_interaction(residue, binding, metal):
+                    continue
+                
+                interaction = Interaction(
+                    type='metal',
+                    res_a_name=binding.resname,
+                    res_a_chain=binding.chain,
+                    res_a_num=binding.resnum,
+                    res_b_name=metal.resname,
+                    res_b_chain=metal.chain,
+                    res_b_num=metal.resnum,
+                    atom_a_name=self._get_atom_name(binding),
+                    atom_a_idx=binding.idx,
+                    atom_b_name=self._get_atom_name(metal),
+                    atom_b_idx=metal.idx,
+                    distance=float(dist_matrix[i, j]),
+                    angle=None,
+                    details={}
+                )
+                self.interactions['metal'].append(interaction)
     
     def _detect_water_bridges(self):
         """Detect water bridges (water mediating between two molecules)"""
