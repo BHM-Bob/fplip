@@ -1,0 +1,74 @@
+{
+  "test_case": "2w0s",
+  "pdb_file": "/home/pcmd36/Desktop/BHM/My_Progs/fplip/plip/test/pdb/2w0s.pdb",
+  "num_runs": 5,
+  "timestamp": "2026-04-28T19:53:03.263476",
+  "statistics": {
+    "total_time": {
+      "mean": 0.43979692957364025,
+      "stdev": 0.052112491193625585,
+      "min": 0.3986925729550421,
+      "max": 0.5291588769759983
+    },
+    "load_time": {
+      "mean": 0.13634320320561527,
+      "stdev": 0.050677400572066274
+    },
+    "analysis_time": {
+      "mean": 0.3034457441419363,
+      "stdev": 0.0068937612659534745
+    }
+  },
+  "structure_info": {
+    "num_atoms": 3319,
+    "num_residues": 421,
+    "num_interactions": 427
+  },
+  "all_runs": [
+    {
+      "pdb_id": "2w0s",
+      "total_time": 0.5291588769759983,
+      "load_time": 0.2236417979001999,
+      "analysis_time": 0.3055096890311688,
+      "num_atoms": 3319,
+      "num_residues": 421,
+      "num_interactions": 427
+    },
+    {
+      "pdb_id": "2w0s",
+      "total_time": 0.4402107400819659,
+      "load_time": 0.13817472918890417,
+      "analysis_time": 0.3020281558856368,
+      "num_atoms": 3319,
+      "num_residues": 421,
+      "num_interactions": 427
+    },
+    {
+      "pdb_id": "2w0s",
+      "total_time": 0.414216784061864,
+      "load_time": 0.10632374393753707,
+      "analysis_time": 0.30788370594382286,
+      "num_atoms": 3319,
+      "num_residues": 421,
+      "num_interactions": 427
+    },
+    {
+      "pdb_id": "2w0s",
+      "total_time": 0.4167056737933308,
+      "load_time": 0.10709892795421183,
+      "analysis_time": 0.30959857488051057,
+      "num_atoms": 3319,
+      "num_residues": 421,
+      "num_interactions": 427
+    },
+    {
+      "pdb_id": "2w0s",
+      "total_time": 0.3986925729550421,
+      "load_time": 0.10647681704722345,
+      "analysis_time": 0.29220859496854246,
+      "num_atoms": 3319,
+      "num_residues": 421,
+      "num_interactions": 427
+    }
+  ]
+}

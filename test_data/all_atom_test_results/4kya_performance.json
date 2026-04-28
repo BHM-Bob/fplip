@@ -1,0 +1,38 @@
+{
+  "test_case": "4kya",
+  "pdb_file": "/home/pcmd36/Desktop/BHM/My_Progs/fplip/plip/test/pdb/4kya.pdb",
+  "num_runs": 1,
+  "timestamp": "2026-04-28T20:15:20.831326",
+  "statistics": {
+    "total_time": {
+      "mean": 11.354339063167572,
+      "stdev": 0,
+      "min": 11.354339063167572,
+      "max": 11.354339063167572
+    },
+    "load_time": {
+      "mean": 7.333633831935003,
+      "stdev": 0
+    },
+    "analysis_time": {
+      "mean": 4.02069423510693,
+      "stdev": 0
+    }
+  },
+  "structure_info": {
+    "num_atoms": 33184,
+    "num_residues": 4036,
+    "num_interactions": 5348
+  },
+  "all_runs": [
+    {
+      "pdb_id": "4kya",
+      "total_time": 11.354339063167572,
+      "load_time": 7.333633831935003,
+      "analysis_time": 4.02069423510693,
+      "num_atoms": 33184,
+      "num_residues": 4036,
+      "num_interactions": 5348
+    }
+  ]
+}

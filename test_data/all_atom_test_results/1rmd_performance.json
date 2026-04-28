@@ -1,0 +1,74 @@
+{
+  "test_case": "1rmd",
+  "pdb_file": "/home/pcmd36/Desktop/BHM/My_Progs/fplip/plip/test/pdb/1rmd.pdb",
+  "num_runs": 5,
+  "timestamp": "2026-04-28T19:53:48.274955",
+  "statistics": {
+    "total_time": {
+      "mean": 0.10445920559577644,
+      "stdev": 0.04154419884132672,
+      "min": 0.08487932803109288,
+      "max": 0.17875168891623616
+    },
+    "load_time": {
+      "mean": 0.04657680783420801,
+      "stdev": 0.0402155103842492
+    },
+    "analysis_time": {
+      "mean": 0.05787330311723053,
+      "stdev": 0.0018565947710536758
+    }
+  },
+  "structure_info": {
+    "num_atoms": 967,
+    "num_residues": 172,
+    "num_interactions": 123
+  },
+  "all_runs": [
+    {
+      "pdb_id": "1rmd",
+      "total_time": 0.08763950900174677,
+      "load_time": 0.02809194102883339,
+      "analysis_time": 0.059536967892199755,
+      "num_atoms": 967,
+      "num_residues": 172,
+      "num_interactions": 123
+    },
+    {
+      "pdb_id": "1rmd",
+      "total_time": 0.17875168891623616,
+      "load_time": 0.1185135601554066,
+      "analysis_time": 0.0602301899343729,
+      "num_atoms": 967,
+      "num_residues": 172,
+      "num_interactions": 123
+    },
+    {
+      "pdb_id": "1rmd",
+      "total_time": 0.08573486609384418,
+      "load_time": 0.028972672997042537,
+      "analysis_time": 0.05675268382765353,
+      "num_atoms": 967,
+      "num_residues": 172,
+      "num_interactions": 123
+    },
+    {
+      "pdb_id": "1rmd",
+      "total_time": 0.0852906359359622,
+      "load_time": 0.028904217993840575,
+      "analysis_time": 0.05637595895677805,
+      "num_atoms": 967,
+      "num_residues": 172,
+      "num_interactions": 123
+    },
+    {
+      "pdb_id": "1rmd",
+      "total_time": 0.08487932803109288,
+      "load_time": 0.028401646995916963,
+      "analysis_time": 0.05647071497514844,
+      "num_atoms": 967,
+      "num_residues": 172,
+      "num_interactions": 123
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "test_case": "GPCR_pep",
+  "pdb_file": "/home/pcmd36/Desktop/BHM/My_Progs/fplip/test_data/GPCR_pep.pdb",
+  "num_runs": 5,
+  "timestamp": "2026-04-28T19:53:01.050881",
+  "statistics": {
+    "total_time": {
+      "mean": 0.700315024657175,
+      "stdev": 0.036105927842540436,
+      "min": 0.6455577940214425,
+      "max": 0.7394229210913181
+    },
+    "load_time": {
+      "mean": 0.25279825516045096,
+      "stdev": 0.019252186838622547
+    },
+    "analysis_time": {
+      "mean": 0.4475051890593022,
+      "stdev": 0.02307533461458081
+    }
+  },
+  "structure_info": {
+    "num_atoms": 5974,
+    "num_residues": 373,
+    "num_interactions": 1003
+  },
+  "all_runs": [
+    {
+      "pdb_id": "GPCR_pep",
+      "total_time": 0.7255981271155179,
+      "load_time": 0.2605821010656655,
+      "analysis_time": 0.465003427118063,
+      "num_atoms": 5974,
+      "num_residues": 373,
+      "num_interactions": 1003
+    },
+    {
+      "pdb_id": "GPCR_pep",
+      "total_time": 0.696249877102673,
+      "load_time": 0.24161821301095188,
+      "analysis_time": 0.45461855200119317,
+      "num_atoms": 5974,
+      "num_residues": 373,
+      "num_interactions": 1003
+    },
+    {
+      "pdb_id": "GPCR_pep",
+      "total_time": 0.6947464039549232,
+      "load_time": 0.2399070798419416,
+      "analysis_time": 0.4548274800181389,
+      "num_atoms": 5974,
+      "num_residues": 373,
+      "num_interactions": 1003
+    },
+    {
+      "pdb_id": "GPCR_pep",
+      "total_time": 0.7394229210913181,
+      "load_time": 0.28328230301849544,
+      "analysis_time": 0.4561308571137488,
+      "num_atoms": 5974,
+      "num_residues": 373,
+      "num_interactions": 1003
+    },
+    {
+      "pdb_id": "GPCR_pep",
+      "total_time": 0.6455577940214425,
+      "load_time": 0.23860157886520028,
+      "analysis_time": 0.40694562904536724,
+      "num_atoms": 5974,
+      "num_residues": 373,
+      "num_interactions": 1003
+    }
+  ]
+}
