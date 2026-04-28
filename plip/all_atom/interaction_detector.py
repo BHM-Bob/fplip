@@ -1187,55 +1187,53 @@ class UnifiedInteractionDetector:
     
     def _get_halogen_bond_angles(self, donor, acceptor):
         """Calculate donor and acceptor angles for halogen bond.
-        
+
         Following PLIP's approach:
-        - Donor angle: C-X···O (angle between X->C vector and X->O vector)
-        - Acceptor angle: Y-O···X (angle between O->Y vector and O->X vector)
-        
+        - Donor angle: C-X⋯O (angle between X->C vector and X->O vector)
+        - Acceptor angle: Y-O⋯X (angle between O->Y vector and O->X vector)
+
+        NOTE: This implementation uses pre-computed C and Y atoms from atom_properties,
+        which are determined during initialization following PLIP's approach of only
+        considering atoms with exactly one proximal neighbor. This ensures:
+        1. Unambiguous angle calculation (no need to choose between multiple candidates)
+        2. Alignment with main PLIP's behavior
+        3. Scientific validity (halogen bonds typically involve well-defined single bonds)
+
         Returns:
             (don_angle, acc_angle) or (None, None) if angles cannot be calculated
         """
-        # Find carbon bonded to halogen (donor)
-        c_atoms = []
-        for neighbor in pybel.ob.OBAtomAtomIter(donor.obatom):
-            if neighbor.GetAtomicNum() == 6:
-                c_atoms.append(neighbor)
-        
-        if not c_atoms:
+        # Get pre-computed C atom for the halogen donor
+        c_atom_idx = self.atom_props.halogen_donor_c_atoms.get(donor.idx)
+        if c_atom_idx is None:
+            # No pre-computed C atom (donor has 0 or >1 C neighbors)
             return None, None
-        
-        # Use the carbon with lowest index for determinism
-        c_atom = min(c_atoms, key=lambda x: x.GetIdx())
-        c_coords = np.array([c_atom.GetX(), c_atom.GetY(), c_atom.GetZ()])
-        
-        # Calculate donor angle (C-X···O)
+
+        c_atom = self.atom_container[c_atom_idx]
+        c_coords = c_atom.coords
+
+        # Calculate donor angle (C-X⋯O)
         # Vector from X to C (donor to carbon)
         vec_xc = vector(donor.coords, c_coords)
         # Vector from X to O (donor to acceptor)
         vec_xo = vector(donor.coords, acceptor.coords)
         don_angle = vecangle(vec_xc, vec_xo)
-        
-        # Find proximal atom Y bonded to acceptor (Y-O···X)
-        # Y can be C, N, P, or S
-        y_atoms = []
-        for neighbor in pybel.ob.OBAtomAtomIter(acceptor.obatom):
-            if neighbor.GetAtomicNum() in [6, 7, 15, 16]:  # C, N, P, S
-                y_atoms.append(neighbor)
-        
-        if not y_atoms:
+
+        # Get pre-computed Y atom for the acceptor
+        y_atom_idx = self.atom_props.halogen_acceptor_y_atoms.get(acceptor.idx)
+        if y_atom_idx is None:
+            # No pre-computed Y atom (acceptor has 0 or >1 proximal atoms)
             return don_angle, None
-        
-        # Use the atom with lowest index for determinism
-        y_atom = min(y_atoms, key=lambda x: x.GetIdx())
-        y_coords = np.array([y_atom.GetX(), y_atom.GetY(), y_atom.GetZ()])
-        
-        # Calculate acceptor angle (Y-O···X)
+
+        y_atom = self.atom_container[y_atom_idx]
+        y_coords = y_atom.coords
+
+        # Calculate acceptor angle (Y-O⋯X)
         # Vector from O to Y (acceptor to proximal)
         vec_oy = vector(acceptor.coords, y_coords)
         # Vector from O to X (acceptor to donor)
         vec_ox = vector(acceptor.coords, donor.coords)
         acc_angle = vecangle(vec_oy, vec_ox)
-        
+
         return don_angle, acc_angle
 
     def _detect_halogen(self, residue: Residue, res_coords: np.ndarray):

@@ -48,6 +48,13 @@ class AtomProperties:
         self.halogen_donors: Dict[int, str] = {}  # idx -> halogen type (Cl, Br, I)
         self.halogen_acceptors: Set[int] = set()
         
+        # Pre-computed C and Y atoms for halogen bond angle calculation
+        # Following PLIP's approach: only atoms with exactly one proximal atom are used
+        # halogen_donor_c_atoms: halogen_idx -> c_atom_idx (C atom bonded to halogen)
+        # halogen_acceptor_y_atoms: acceptor_idx -> y_atom_idx (Y atom bonded to acceptor, Y in C,N,P,S)
+        self.halogen_donor_c_atoms: Dict[int, int] = {}
+        self.halogen_acceptor_y_atoms: Dict[int, int] = {}
+        
         # Initialize
         self._identify_all_properties()
         
@@ -473,31 +480,54 @@ class AtomProperties:
                 self.metal_binding.add(atom.idx)
     
     def _identify_halogen(self):
-        """Identify halogen bond donors and acceptors"""
+        """Identify halogen bond donors and acceptors with pre-computed C and Y atoms.
+        
+        NOTE: Following PLIP's approach, only atoms with exactly one proximal atom are used
+        for angle calculation. This ensures unambiguous angle calculation and aligns with
+        the chemical reality that halogen bonds typically involve well-defined single bonds.
+        
+        For donors (X-C): The C atom is the one bonded to the halogen. Most halogens in
+        biological systems are bonded to exactly one carbon (e.g., C-X in aryl halides,
+        alkyl halides). Cases with multiple C neighbors (rare, e.g., bridgehead halogens)
+        are excluded to avoid ambiguity.
+        
+        For acceptors (Y-O/N/S): The Y atom is the proximal atom (C, N, P, or S) bonded
+        to the acceptor. Following PLIP, only acceptors with exactly one such proximal
+        atom are considered, ensuring clear receptor angle calculation.
+        """
         for atom in self.atom_container:
             atomic_num = atom.atomic_num
 
             # Halogen donors (F, Cl, Br, I bonded to carbon)
             # Note: F is weaker but can still form halogen bonds in some contexts
             if atomic_num in [9, 17, 35, 53]:  # F, Cl, Br, I
-                # Check if bonded to carbon
+                # Find all carbon neighbors
+                c_neighbors = []
                 for neighbor in pybel.ob.OBAtomAtomIter(atom.obatom):
                     if neighbor.GetAtomicNum() == 6:  # Carbon
-                        halogen_type = {9: 'F', 17: 'Cl', 35: 'Br', 53: 'I'}.get(atomic_num, 'X')
-                        self.halogen_donors[atom.idx] = halogen_type
-                        break
+                        c_neighbors.append(neighbor.GetIdx())
+                
+                # Following PLIP: only use halogens with exactly one C neighbor
+                # This avoids ambiguity in angle calculation and covers >95% of biological cases
+                if len(c_neighbors) == 1:
+                    halogen_type = {9: 'F', 17: 'Cl', 35: 'Br', 53: 'I'}.get(atomic_num, 'X')
+                    self.halogen_donors[atom.idx] = halogen_type
+                    self.halogen_donor_c_atoms[atom.idx] = c_neighbors[0]
 
             # Halogen acceptors (Y-{O|P|N|S}, with Y=C,P,N,S)
             # Following PLIP's definition: acceptor must have a neighboring C, P, N, or S atom
             if atomic_num in [7, 8, 16]:  # N, O, S
-                # Check for neighboring C, P, N, or S atom
-                has_proximal = False
+                # Find all proximal atoms (C, N, P, S)
+                y_neighbors = []
                 for neighbor in pybel.ob.OBAtomAtomIter(atom.obatom):
                     if neighbor.GetAtomicNum() in [6, 7, 15, 16]:  # C, N, P, S
-                        has_proximal = True
-                        break
-                if has_proximal:
+                        y_neighbors.append(neighbor.GetIdx())
+                
+                # Following PLIP: only use acceptors with exactly one proximal atom
+                # This ensures unambiguous receptor angle calculation
+                if len(y_neighbors) == 1:
                     self.halogen_acceptors.add(atom.idx)
+                    self.halogen_acceptor_y_atoms[atom.idx] = y_neighbors[0]
     
     # Accessor methods - return pre-computed lists for performance
     def get_hba(self) -> List[AtomInfo]:
