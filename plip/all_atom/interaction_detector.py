@@ -846,18 +846,26 @@ class UnifiedInteractionDetector:
         2. self._all_pos_grouped / self._all_neg_grouped (global, set in _precompute_cached_data)
         
         Vectorized distance calculation: computes all distances at once using NumPy.
+        
+        NOTE: Each functional group pair generates only ONE salt bridge record.
+        For example, if ARG's guanidinium group interacts with ASP's carboxylate group,
+        only one salt bridge is recorded (not multiple atom-pair salt bridges).
+        This aligns with the chemical reality that salt bridges are interactions between
+        charge centers, not individual atoms.
         """
         if not (residue.pos_charged or residue.neg_charged):
             return
 
-        # Case 1: Residue is positive, other is negative
+        # Only detect from positive residues to avoid duplicates
+        # Each functional group pair should generate only one salt bridge
         if residue.pos_charged and residue.pos_charged_groups:
             # Use pre-computed negative charge group arrays (cached in _precompute_cached_data)
             neg_centers_array = self._neg_grouped_centers
             neg_atoms_list = self._neg_grouped_atoms
+            neg_keys_list = self._neg_grouped_keys
 
             if len(neg_centers_array) > 0:
-                for _, (pos_atoms, pos_center) in residue.pos_charged_groups.items():
+                for pos_key, (pos_atoms, pos_center) in residue.pos_charged_groups.items():
                     # Vectorized distance calculation (all at once)
                     distances = np.linalg.norm(neg_centers_array - pos_center, axis=1)
 
@@ -866,7 +874,10 @@ class UnifiedInteractionDetector:
 
                     for idx in valid_indices:
                         neg_atoms = neg_atoms_list[idx]
+                        neg_key = neg_keys_list[idx]
                         distance = distances[idx]
+                        
+                        # Get representative atoms for residue/atom identification
                         pos_atom = pos_atoms[0]
                         neg_atom = neg_atoms[0]
 
@@ -891,53 +902,9 @@ class UnifiedInteractionDetector:
                             details={
                                 'charge_type': 'pos-neg',
                                 'positive_atoms': [a.idx for a in pos_atoms],
-                                'negative_atoms': [a.idx for a in neg_atoms]
-                            }
-                        )
-                        self.interactions['saltbridge'].append(interaction)
-        
-        # Case 2: Residue is negative, other is positive
-        if residue.neg_charged and residue.neg_charged_groups:
-            # Use pre-computed positive charge group arrays (cached in _precompute_cached_data)
-            pos_centers_array = self._pos_grouped_centers
-            pos_atoms_list = self._pos_grouped_atoms
-
-            if len(pos_centers_array) > 0:
-                for _, (neg_atoms, neg_center) in residue.neg_charged_groups.items():
-                    # Vectorized distance calculation (all at once)
-                    distances = np.linalg.norm(pos_centers_array - neg_center, axis=1)
-
-                    # Find all pairs within distance threshold
-                    valid_indices = np.where(distances < config.SALTBRIDGE_DIST_MAX)[0]
-
-                    for idx in valid_indices:
-                        pos_atoms = pos_atoms_list[idx]
-                        distance = distances[idx]
-                        neg_atom = neg_atoms[0]
-                        pos_atom = pos_atoms[0]
-
-                        # Skip if same residue (unless it's a ligand) - consistent with other interaction types
-                        if self._should_skip_interaction(residue, neg_atom, pos_atom):
-                            continue
-
-                        interaction = Interaction(
-                            type='saltbridge',
-                            res_a_name=neg_atom.resname,
-                            res_a_chain=neg_atom.chain,
-                            res_a_num=neg_atom.resnum,
-                            res_b_name=pos_atom.resname,
-                            res_b_chain=pos_atom.chain,
-                            res_b_num=pos_atom.resnum,
-                            atom_a_name=self._get_atom_name(neg_atom),
-                            atom_a_idx=neg_atom.idx,
-                            atom_b_name=self._get_atom_name(pos_atom),
-                            atom_b_idx=pos_atom.idx,
-                            distance=float(distance),
-                            angle=None,
-                            details={
-                                'charge_type': 'neg-pos',
-                                'positive_atoms': [a.idx for a in pos_atoms],
-                                'negative_atoms': [a.idx for a in neg_atoms]
+                                'negative_atoms': [a.idx for a in neg_atoms],
+                                'positive_group_key': str(pos_key),
+                                'negative_group_key': str(neg_key)
                             }
                         )
                         self.interactions['saltbridge'].append(interaction)
