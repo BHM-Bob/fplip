@@ -217,23 +217,24 @@ class AtomProperties:
         # Chemical definition: C connected to 3 N atoms, at least one terminal N
         # Note: Only N atoms carry the positive charge (delocalized), not the C atom
         # This matches main PLIP's behavior and chemical reality
-        for atom in carbon_atoms:
-            if atom.idx in self.pos_charged:
-                continue
-            neighbors = list(pybel.ob.OBAtomAtomIter(atom.obatom))
-            n_neighbors = [n for n in neighbors if n.GetAtomicNum() == 7]
-            if len(n_neighbors) == 3:
-                # Check for terminal N (only connected to this C, can pick up H)
-                has_terminal_n = any(
-                    len([nb for nb in pybel.ob.OBAtomAtomIter(n)
-                         if nb.GetAtomicNum() != 1]) == 1
-                    for n in n_neighbors
-                )
-                if has_terminal_n:
-                    # Only mark N atoms as charged (not the C atom)
-                    # The positive charge is delocalized over the 3 N atoms
-                    for n in n_neighbors:
-                        self.pos_charged[n.GetIdx()] = 'guanidinium'
+        if len(nitrogen_atoms) >= 3:
+            for atom in carbon_atoms:
+                if atom.idx in self.pos_charged:
+                    continue
+                neighbors = list(pybel.ob.OBAtomAtomIter(atom.obatom))
+                n_neighbors = [n for n in neighbors if n.GetAtomicNum() == 7]
+                if len(n_neighbors) == 3:
+                    # Check for terminal N (only connected to this C, can pick up H)
+                    has_terminal_n = any(
+                        len([nb for nb in pybel.ob.OBAtomAtomIter(n)
+                            if nb.GetAtomicNum() != 1]) == 1
+                        for n in n_neighbors
+                    )
+                    if has_terminal_n:
+                        # Only mark N atoms as charged (not the C atom)
+                        # The positive charge is delocalized over the 3 N atoms
+                        for n in n_neighbors:
+                            self.pos_charged[n.GetIdx()] = 'guanidinium'
         
         # 2. Detect Ammonium (N-centered)
         # For standard residues: Lys NZ is always ammonium (protonated at physiological pH)
@@ -314,17 +315,11 @@ class AtomProperties:
     def _identify_hydrophobic(self):
         """Identify hydrophobic atoms"""
         for atom in self.atom_container:
-            # Skip hydrogens
-            if atom.is_hydrogen:
-                continue
-            
-            obatom = atom.obatom
-            
             # Carbon atoms are generally hydrophobic
             if atom.atomic_num == 6:
                 # Exclude carbons in polar groups
                 is_polar = False
-                for neighbor in pybel.ob.OBAtomAtomIter(obatom):
+                for neighbor in pybel.ob.OBAtomAtomIter(atom.obatom):
                     n_atomic_num = neighbor.GetAtomicNum()
                     # Check if connected to electronegative atoms
                     if n_atomic_num in [7, 8, 15, 16]:  # N, O, P, S
