@@ -284,10 +284,13 @@ class UnifiedInteractionDetector:
             self._all_ring_centers = np.array([r['center'] for r in all_rings])
             self._all_ring_normals = np.array([r['normal'] for r in all_rings])
             self._aromatic_ring_mask = np.array([r.get('is_aromatic', False) for r in all_rings])
+            # Pre-compute aromatic rings list to avoid rebuilding in _detect_pication
+            self._aromatic_rings = [r for r in all_rings if r.get('is_aromatic', False)]
         else:
             self._all_ring_centers = np.array([]).reshape(0, 3)
             self._all_ring_normals = np.array([]).reshape(0, 3)
             self._aromatic_ring_mask = np.array([])
+            self._aromatic_rings = []
         
         # Pre-compute positive charge coordinates for pication detection
         all_pos = self.atom_props.get_pos_charged()
@@ -819,27 +822,27 @@ class UnifiedInteractionDetector:
         # Case 1: Residue is positive, other is negative
         if residue.pos_charged and residue.pos_charged_groups:
             # Use pre-computed negative charge group arrays (cached in _precompute_cached_data)
-            neg_keys = self._neg_grouped_keys
             neg_centers_array = self._neg_grouped_centers
             neg_atoms_list = self._neg_grouped_atoms
-            
+
             if len(neg_centers_array) > 0:
-                for res_key, (pos_atoms, pos_center) in residue.pos_charged_groups.items():
-                    # Create mask to skip same residue
-                    skip_mask = np.array([key == res_key for key in neg_keys])
-                    
+                for _, (pos_atoms, pos_center) in residue.pos_charged_groups.items():
                     # Vectorized distance calculation (all at once)
                     distances = np.linalg.norm(neg_centers_array - pos_center, axis=1)
-                    
-                    # Find all pairs within distance threshold, excluding same residue
-                    valid_indices = np.where((distances < config.SALTBRIDGE_DIST_MAX) & ~skip_mask)[0]
-                    
+
+                    # Find all pairs within distance threshold
+                    valid_indices = np.where(distances < config.SALTBRIDGE_DIST_MAX)[0]
+
                     for idx in valid_indices:
                         neg_atoms = neg_atoms_list[idx]
                         distance = distances[idx]
                         pos_atom = pos_atoms[0]
                         neg_atom = neg_atoms[0]
-                        
+
+                        # Skip if same residue (unless it's a ligand) - consistent with other interaction types
+                        if self._should_skip_interaction(residue, pos_atom, neg_atom):
+                            continue
+
                         interaction = Interaction(
                             type='saltbridge',
                             res_a_name=pos_atom.resname,
@@ -865,27 +868,27 @@ class UnifiedInteractionDetector:
         # Case 2: Residue is negative, other is positive
         if residue.neg_charged and residue.neg_charged_groups:
             # Use pre-computed positive charge group arrays (cached in _precompute_cached_data)
-            pos_keys = self._pos_grouped_keys
             pos_centers_array = self._pos_grouped_centers
             pos_atoms_list = self._pos_grouped_atoms
-            
+
             if len(pos_centers_array) > 0:
-                for res_key, (neg_atoms, neg_center) in residue.neg_charged_groups.items():
-                    # Create mask to skip same residue
-                    skip_mask = np.array([key == res_key for key in pos_keys])
-                    
+                for _, (neg_atoms, neg_center) in residue.neg_charged_groups.items():
                     # Vectorized distance calculation (all at once)
                     distances = np.linalg.norm(pos_centers_array - neg_center, axis=1)
-                    
-                    # Find all pairs within distance threshold, excluding same residue
-                    valid_indices = np.where((distances < config.SALTBRIDGE_DIST_MAX) & ~skip_mask)[0]
-                    
+
+                    # Find all pairs within distance threshold
+                    valid_indices = np.where(distances < config.SALTBRIDGE_DIST_MAX)[0]
+
                     for idx in valid_indices:
                         pos_atoms = pos_atoms_list[idx]
                         distance = distances[idx]
                         neg_atom = neg_atoms[0]
                         pos_atom = pos_atoms[0]
-                        
+
+                        # Skip if same residue (unless it's a ligand) - consistent with other interaction types
+                        if self._should_skip_interaction(residue, neg_atom, pos_atom):
+                            continue
+
                         interaction = Interaction(
                             type='saltbridge',
                             res_a_name=neg_atom.resname,
@@ -1040,13 +1043,12 @@ class UnifiedInteractionDetector:
             return
 
         # Use pre-computed aromatic ring data (cached in _precompute_cached_data)
-        aromatic_rings = [r for r in all_rings if r.get('is_aromatic', False)]
+        aromatic_rings = self._aromatic_rings
         if not aromatic_rings:
             return
-        
-        # Filter pre-computed ring centers to only aromatic ones
-        aromatic_mask = self._aromatic_ring_mask
-        ring_centers = self._all_ring_centers[aromatic_mask] if len(aromatic_mask) > 0 else np.array([]).reshape(0, 3)
+
+        # Use pre-computed filtered ring centers (aromatic only)
+        ring_centers = self._all_ring_centers[self._aromatic_ring_mask]
 
         # Case 1: Residue has ring, other has positive charge
         if residue.rings:
