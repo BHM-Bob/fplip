@@ -57,11 +57,11 @@ class AtomProperties:
     def _identify_all_properties(self):
         """Identify all atom properties"""
         logger.info('Identifying atom properties...')
-        
+
         self._identify_hbond_properties()
-        self._identify_charges()
         self._identify_hydrophobic()
-        self._identify_rings()
+        self._identify_rings()  # Rings before charges to provide imidazolium info
+        self._identify_charges()  # Charges after rings to use imidazolium data
         self._identify_metals()
         self._identify_halogen()
         
@@ -273,110 +273,21 @@ class AtomProperties:
             for atom in nitrogen_atoms:
                 if atom.idx not in self.pos_charged and atom.atom_name in ['ND1', 'NE2']:
                     self.pos_charged[atom.idx] = 'imidazolium'
-        # For non-standard residues, use ring detection
-        elif self._is_imidazolium_ring(atoms):
-            ring_nitrogens = [a for a in atoms if a.atomic_num == 7 
-                              and a.idx not in self.pos_charged]
-            if len(ring_nitrogens) >= 2:
-                for n in ring_nitrogens:
-                    self.pos_charged[n.idx] = 'imidazolium'
+        # For non-standard residues, use pre-computed imidazolium ring info
+        else:
+            # Build set of atom indices for this residue
+            residue_atom_indices = set(a.idx for a in atoms)
+            # Check each pre-computed imidazolium ring
+            for ring_indices, n_indices in getattr(self, 'imidazolium_rings', []):
+                # Check if this ring belongs to current residue (at least one atom in common)
+                if ring_indices and any(idx in residue_atom_indices for idx in ring_indices):
+                    # Mark N atoms in this ring as imidazolium
+                    for n_idx in n_indices:
+                        if n_idx not in self.pos_charged:
+                            self.pos_charged[n_idx] = 'imidazolium'
 
         # N-terminus detection would require additional context
 
-    def _is_imidazolium_ring(self, atoms: List[AtomInfo]) -> bool:
-        """Check if atoms form an imidazolium ring (5-membered, 2 N, aromatic, isolated).
-
-        Uses OpenBabel's ring detection for accurate identification.
-        
-        Important: This method is conservative to avoid false positives.
-        - Adenine (in ATP, NADP+, etc.) has a 5-membered ring with 2 N atoms,
-          but it's part of a fused bicyclic system and is neutral, not imidazolium.
-        - True imidazolium (like His sidechain) is an isolated 5-membered ring
-          that can be protonated.
-        
-        Detection criteria:
-        1. 5-membered ring
-        2. Exactly 2 N atoms in the ring
-        3. Ring is isolated (not fused to another ring) - checked by ensuring
-           ring atoms don't share more than 2 atoms with any other ring
-        4. At least one N is not double-bonded within the ring (can accept H)
-        """
-        # Get all atoms in this residue as OpenBabel atoms
-        ob_atoms = [a.obatom for a in atoms]
-        if not ob_atoms:
-            return False
-
-        # Get the OBMol from the first atom
-        obmol = ob_atoms[0].GetParent()
-        if not obmol:
-            return False
-
-        # Find rings in the molecule
-        ring_data = list(obmol.GetSSSR())  # Smallest Set of Smallest Rings
-        
-        # Build set of atom indices for this residue
-        residue_atom_indices = set(oba.GetIdx() for oba in ob_atoms)
-
-        for ring in ring_data:
-            ring_size = ring.Size()
-            if ring_size != 5:
-                continue
-
-            # Get atom indices in this ring
-            ring_atom_indices = set(ring._path)
-            
-            # Check if ring belongs to this residue (at least some atoms)
-            if not ring_atom_indices.intersection(residue_atom_indices):
-                continue
-
-            # Count N atoms in this ring
-            n_atoms_in_ring = [obmol.GetAtom(idx) for idx in ring_atom_indices 
-                               if obmol.GetAtom(idx).GetAtomicNum() == 7]
-            
-            if len(n_atoms_in_ring) != 2:
-                continue
-
-            # Check if ring is isolated (not fused)
-            # A fused ring shares 2 or more atoms with another ring
-            is_fused = False
-            for other_ring in ring_data:
-                if other_ring is ring:
-                    continue
-                other_indices = set(other_ring._path)
-                shared_atoms = ring_atom_indices.intersection(other_indices)
-                if len(shared_atoms) >= 2:
-                    is_fused = True
-                    break
-            
-            if is_fused:
-                continue
-
-            # Check if at least one N can be protonated (has available lone pair)
-            # In imidazolium, one N is protonated (NH), the other is neutral (=N-)
-            # For detection, we look for N atoms that are part of the ring
-            # and have appropriate bonding
-            has_protonatable_n = False
-            for n_atom in n_atoms_in_ring:
-                # Count non-H neighbors
-                neighbors = list(pybel.ob.OBAtomAtomIter(n_atom))
-                non_h_neighbors = [n for n in neighbors if n.GetAtomicNum() != 1]
-                
-                # In imidazolium ring:
-                # - One N has 2 ring neighbors (the other N and a C) and 1 H -> 3 total
-                # - One N has 2 ring neighbors (the other N and a C) -> 2 total (with double bond)
-                # We look for N with at least 2 neighbors within the ring
-                ring_neighbors = [n for n in non_h_neighbors 
-                                  if n.GetIdx() in ring_atom_indices]
-                
-                if len(ring_neighbors) >= 2:
-                    has_protonatable_n = True
-                    break
-
-            if has_protonatable_n:
-                return True
-
-        return False
-    
     def _find_negative_charges(self, atoms: List[AtomInfo], resname: str):
         """Find negatively charged groups in a residue"""
         # Carboxylate (Asp, Glu)
@@ -428,26 +339,32 @@ class AtomProperties:
                 self.hydrophobic_atoms.add(atom.idx)
     
     def _identify_rings(self):
-        """Identify aromatic rings"""
+        """Identify aromatic rings and imidazolium rings."""
         # Get all atoms as OBAtom list
         obatoms = [atom.obatom for atom in self.atom_container]
         if not obatoms:
             return
-        
+
         # Get the OBMol
         obmol = obatoms[0].GetParent()
-        
+
+        # Get all rings first for fused ring detection
+        all_rings_data = list(obmol.GetSSSR())
+
         # Find all rings
         rings = []
-        for ring in obmol.GetSSSR():
+        # Store imidazolium ring info for charge detection: list of (ring_indices, n_indices)
+        self.imidazolium_rings: List[Tuple[List[int], List[int]]] = []
+
+        for ring in all_rings_data:
             # Use ring._path to get the actual atom indices in the ring
             ring_indices = list(ring._path)
             ring_atoms = [obmol.GetAtom(idx) for idx in ring_indices]
-            
+
             # Check if all atoms are in our container
             if not all(idx in self.atom_container.atoms for idx in ring_indices):
                 continue
-            
+
             # Check aromaticity
             is_aromatic = all(atom.IsAromatic() for atom in ring_atoms)
 
@@ -455,10 +372,47 @@ class AtomProperties:
             coords = np.array([self.atom_container[idx].coords for idx in ring_indices])
             is_planar = self._check_ring_planarity(coords)
 
-            if is_aromatic or is_planar:
+            # Detect imidazolium ring characteristics (5-membered, 2 N, isolated)
+            is_imidazolium = False
+            imidazolium_n_indices = []
+            if len(ring_indices) == 5:
+                # Count N atoms in ring
+                n_atoms_in_ring = [obmol.GetAtom(idx) for idx in ring_indices
+                                   if obmol.GetAtom(idx).GetAtomicNum() == 7]
+
+                if len(n_atoms_in_ring) == 2:
+                    # Check if ring is isolated (not fused) - shares < 2 atoms with any other ring
+                    is_fused = False
+                    for other_ring in all_rings_data:
+                        if other_ring is ring:
+                            continue
+                        other_indices = set(other_ring._path)
+                        shared_atoms = set(ring_indices).intersection(other_indices)
+                        if len(shared_atoms) >= 2:
+                            is_fused = True
+                            break
+
+                    if not is_fused:
+                        # Check if at least one N can be protonated
+                        has_protonatable_n = False
+                        for n_atom in n_atoms_in_ring:
+                            neighbors = list(pybel.ob.OBAtomAtomIter(n_atom))
+                            non_h_neighbors = [n for n in neighbors if n.GetAtomicNum() != 1]
+                            ring_neighbors = [n for n in non_h_neighbors
+                                              if n.GetIdx() in ring_indices]
+                            if len(ring_neighbors) >= 2:
+                                has_protonatable_n = True
+                                break
+
+                        if has_protonatable_n:
+                            is_imidazolium = True
+                            imidazolium_n_indices = [n.GetIdx() for n in n_atoms_in_ring]
+                            self.imidazolium_rings.append((ring_indices, imidazolium_n_indices))
+
+            if is_aromatic or is_planar or is_imidazolium:
                 # Calculate ring center
                 center = np.mean(coords, axis=0)
-                
+
                 # Calculate normal vector
                 if len(coords) >= 3:
                     v1 = coords[1] - coords[0]
@@ -467,15 +421,17 @@ class AtomProperties:
                     normal = normal / np.linalg.norm(normal) if np.linalg.norm(normal) > 0 else np.array([0, 0, 1])
                 else:
                     normal = np.array([0, 0, 1])
-                
+
                 rings.append({
                     'indices': ring_indices,
                     'center': center,
                     'normal': normal,
                     'is_aromatic': is_aromatic,
-                    'size': len(ring_indices)
+                    'size': len(ring_indices),
+                    'is_imidazolium': is_imidazolium,
+                    'imidazolium_n_indices': imidazolium_n_indices
                 })
-        
+
         self.rings = rings
 
     def _check_ring_planarity(self, coords: np.ndarray) -> bool:
