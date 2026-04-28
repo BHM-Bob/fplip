@@ -1526,6 +1526,8 @@ class UnifiedInteractionDetector:
         the stricter H-bond-based water_bridge detection.
 
         Performance optimized using scipy.spatial.cKDTree for fast neighbor search.
+        Note: cKDTree may have floating-point precision issues at distance boundaries,
+        so we add a small epsilon and sort results for deterministic behavior.
         """
         from plip.basic.supplemental import euclidean3d, vecangle, vector
         from scipy.spatial import cKDTree
@@ -1550,7 +1552,7 @@ class UnifiedInteractionDetector:
 
         # Pre-compute donor hydrogen mapping for fast lookup
         donor_h_map = {}
-        for don_idx in donors_set:
+        for don_idx in sorted(donors_set):  # Sort for deterministic ordering
             don_atom = self.atom_container[don_idx]
             # Find hydrogen attached to donor
             for atom in self.atom_container:
@@ -1576,12 +1578,18 @@ class UnifiedInteractionDetector:
             if water_o is None:
                 continue
 
+            # Sort water_h by atom index for deterministic ordering
+            water_h = sorted(water_h, key=lambda h: h.idx)
+
             # Use KD-tree to find atoms within distance range
             water_o_pos = self.atom_container.idx_to_array_pos[water_o.idx]
             water_o_coords = coords[water_o_pos]
 
             # Query KD-tree for neighbors within WATER_BRIDGE_MAXDIST
-            neighbor_indices = kdtree.query_ball_point(water_o_coords, config.WATER_BRIDGE_MAXDIST)
+            # Add small epsilon to avoid floating-point precision issues at boundary
+            neighbor_indices = kdtree.query_ball_point(water_o_coords, config.WATER_BRIDGE_MAXDIST + 1e-10)
+            # Sort for deterministic ordering
+            neighbor_indices = sorted(neighbor_indices)
 
             # Find acceptor-water pairs (distance only)
             acc_water_pairs = []
