@@ -413,17 +413,14 @@ class UnifiedInteractionDetector:
         if not residue.atoms:
             return
         
-        # Get residue coordinates
-        res_coords = np.array([a.coords for a in residue.atoms])
-        
         # Detect each interaction type using vectorized operations
-        self._detect_hydrophobic(residue, res_coords)
-        self._detect_hbonds(residue, res_coords)
-        self._detect_saltbridges(residue, res_coords)
-        self._detect_pistacking(residue, res_coords)
-        self._detect_pication(residue, res_coords)
-        self._detect_halogen(residue, res_coords)
-        self._detect_metal(residue, res_coords)
+        self._detect_hydrophobic(residue)
+        self._detect_hbonds(residue)
+        self._detect_saltbridges(residue)
+        self._detect_pistacking(residue)
+        self._detect_pication(residue)
+        self._detect_halogen(residue)
+        self._detect_metal(residue)
     
     def _is_same_residue(self, atom_a, atom_b) -> bool:
         """Check if two atoms belong to the same residue
@@ -447,7 +444,7 @@ class UnifiedInteractionDetector:
             return False  # Ligands don't filter self
         return self._is_same_residue(atom_a, atom_b)
     
-    def _detect_hydrophobic(self, residue: Residue, res_coords: np.ndarray):
+    def _detect_hydrophobic(self, residue: Residue):
         """Detect hydrophobic interactions
         
         Optimized: Uses vectorized numpy operations and pre-computed masks
@@ -496,7 +493,7 @@ class UnifiedInteractionDetector:
             )
             self.interactions['hydrophobic'].append(interaction)
     
-    def _detect_hbonds(self, residue: Residue, res_coords: np.ndarray):
+    def _detect_hbonds(self, residue: Residue):
         """Detect hydrogen bonds"""
         if not (residue.hbond_acceptors or residue.hbond_donors):
             return
@@ -834,7 +831,7 @@ class UnifiedInteractionDetector:
                 )
                 self.interactions['hbond_heavy_atom'].append(interaction)
     
-    def _detect_saltbridges(self, residue: Residue, res_coords: np.ndarray):
+    def _detect_saltbridges(self, residue: Residue):
         """Detect salt bridges between charged residues using vectorized distance calculation.
 
         Uses pre-computed grouped charged atoms and charge centers from:
@@ -905,7 +902,7 @@ class UnifiedInteractionDetector:
                         )
                         self.interactions['saltbridge'].append(interaction)
     
-    def _detect_pistacking(self, residue: Residue, res_coords: np.ndarray):
+    def _detect_pistacking(self, residue: Residue):
         """Detect pi-stacking interactions using vectorized calculations.
         
         Optimized: Uses pre-computed ring data and vectorized numpy operations
@@ -1015,7 +1012,7 @@ class UnifiedInteractionDetector:
             )
             self.interactions['pistacking'].append(interaction)
     
-    def _detect_pication(self, residue: Residue, res_coords: np.ndarray):
+    def _detect_pication(self, residue: Residue):
         """Detect pi-cation interactions using vectorized calculations.
 
         Geometric criteria:
@@ -1199,7 +1196,7 @@ class UnifiedInteractionDetector:
 
         return don_angle, acc_angle
 
-    def _detect_halogen(self, residue: Residue, res_coords: np.ndarray):
+    def _detect_halogen(self, residue: Residue):
         """Detect halogen bonds following PLIP's criteria.
         
         Uses pre-computed halogen bond donors and acceptors from _precompute_cached_data.
@@ -1337,7 +1334,7 @@ class UnifiedInteractionDetector:
                     )
                     self.interactions['halogen'].append(interaction)
     
-    def _detect_metal(self, residue: Residue, res_coords: np.ndarray):
+    def _detect_metal(self, residue: Residue):
         """Detect metal complexation using vectorized distance calculation.
         
         Optimized: Uses pre-computed coordinates and vectorized numpy operations
