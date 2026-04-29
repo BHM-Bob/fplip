@@ -7,19 +7,19 @@ role (protein, ligand, DNA/RNA, etc.)
 """
 
 import os
+from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import scipy.spatial.distance
 from openbabel import pybel
 
+from plip.all_atom.atom_container import AtomContainer, AtomInfo
+from plip.all_atom.residue import Residue
 from plip.basic import config
 from plip.basic.logger import logger
 from plip.basic.supplemental import extract_pdbid, read_pdb, tilde_expansion
 from plip.structure.pdb import PDBParser
-
-from plip.all_atom.atom_container import AtomContainer, AtomInfo
-from plip.all_atom.residue import Residue
 
 
 class MoleculeComplex:
@@ -51,6 +51,8 @@ class MoleculeComplex:
         self.chains: set = set()
         self.residues_info: Dict[Tuple[str, str, int], dict] = {}
         self.residues: List[Residue] = []  # List of Residue objects
+        ## Group atoms by residue
+        self.residue_groups = defaultdict(list) # Dict[Tuple[str, str, int], List[AtomInfo]]
 
         # Source files
         self.sourcefiles: Dict[str, str] = {}
@@ -157,18 +159,16 @@ class MoleculeComplex:
 
     def _build_residues(self):
         """Build Residue objects from atoms"""
-        from collections import defaultdict
 
         # Group atoms by residue
-        residue_groups = defaultdict(list)
         for atom in self.atom_container:
             res_key = (atom.resname, atom.chain, atom.resnum)
-            residue_groups[res_key].append(atom)
+            self.residue_groups[res_key].append(atom)
 
         # Create Residue objects (sorted by residue key for determinism)
         self.residues = []
-        for res_key in sorted(residue_groups.keys()):
-            atoms = residue_groups[res_key]
+        for res_key in sorted(self.residue_groups.keys()):
+            atoms = self.residue_groups[res_key]
             resname, chain, resnum = res_key
             residue = Residue(resname, chain, resnum)
 
