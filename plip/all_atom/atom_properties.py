@@ -219,8 +219,10 @@ class AtomProperties:
         for atom in self.atom_container:
             obatom = atom.obatom
             formal_charge = obatom.GetFormalCharge()
-
-            if formal_charge > 0:
+            
+            if formal_charge == 0:
+                continue
+            elif formal_charge > 0:
                 # Determine charge group type based on topology
                 charge_type = self._classify_positive_charge(atom)
                 self.pos_charged[atom.idx] = charge_type
