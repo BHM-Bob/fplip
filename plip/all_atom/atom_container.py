@@ -155,6 +155,10 @@ class AtomContainer:
             return None
         return self.coords_array[positions]
     
+    def get_atom_coords_array_from_atoms(self, atoms: List[AtomInfo]) -> Optional[np.ndarray]:
+        """Get coordinates array for specified atoms"""
+        return self.get_atom_coords_array([atom.idx for atom in atoms])
+    
     def __len__(self):
         return len(self.atoms)
     

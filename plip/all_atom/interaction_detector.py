@@ -207,11 +207,7 @@ class UnifiedInteractionDetector:
         # Cache hydrophobic atoms for _detect_hydrophobic
         all_hydrophobic = self.atom_props.get_hydrophobic()
         self._hydrophobic_atoms_list = all_hydrophobic
-        self._hydrophobic_coords = np.array([atom.coords for atom in all_hydrophobic])
-        # Pre-compute hydrophobic mask using array-based indexing
-        self._hydrophobic_mask = self._create_atom_mask(
-            [atom.idx for atom in all_hydrophobic]
-        )
+        self._hydrophobic_coords = self.atom_container.get_atom_coords_array_from_atoms(all_hydrophobic)
         
         # Cache H-bond donors and acceptors for _detect_hbonds
         self._all_hba = self.atom_props.get_hba()
@@ -222,7 +218,7 @@ class UnifiedInteractionDetector:
         # Pre-compute H-bond related coordinates for vectorized operations
         # Cache all_hba coordinates (used by both _detect_hbonds_with_h and _detect_hbonds_without_h)
         if self._all_hba:
-            self._all_hba_coords = np.array([hba.coords for hba in self._all_hba])
+            self._all_hba_coords = self.atom_container.get_atom_coords_array_from_atoms(self._all_hba)
         else:
             self._all_hba_coords = np.array([]).reshape(0, 3)
 
@@ -233,7 +229,7 @@ class UnifiedInteractionDetector:
         # Extract donor atoms (first element of each tuple) from all_hbd
         if self._all_hbd:
             self._all_hbd_donor_atoms = [donor for donor, _ in self._all_hbd]
-            self._all_hbd_donor_coords = np.array([donor.coords for donor in self._all_hbd_donor_atoms])
+            self._all_hbd_donor_coords = self.atom_container.get_atom_coords_array_from_atoms(self._all_hbd_donor_atoms)
         else:
             self._all_hbd_donor_atoms = []
             self._all_hbd_donor_coords = np.array([]).reshape(0, 3)
@@ -246,8 +242,8 @@ class UnifiedInteractionDetector:
                     self._all_hbd_pairs.append((donor, h_atom))
 
             if self._all_hbd_pairs:
-                self._all_hbd_don_coords = np.array([pair[0].coords for pair in self._all_hbd_pairs])
-                self._all_hbd_h_coords = np.array([pair[1].coords for pair in self._all_hbd_pairs])
+                self._all_hbd_don_coords = self.atom_container.get_atom_coords_array_from_atoms([pair[0] for pair in self._all_hbd_pairs])
+                self._all_hbd_h_coords = self.atom_container.get_atom_coords_array_from_atoms([pair[1] for pair in self._all_hbd_pairs])
             else:
                 self._all_hbd_don_coords = np.array([]).reshape(0, 3)
                 self._all_hbd_h_coords = np.array([]).reshape(0, 3)
@@ -291,11 +287,11 @@ class UnifiedInteractionDetector:
         all_metals = self.atom_props.get_metals()
         all_binding = self.atom_props.get_metal_binding()
         if all_metals:
-            self._metals_coords = np.array([m.coords for m in all_metals])
+            self._metals_coords = self.atom_container.get_atom_coords_array_from_atoms(all_metals)
         else:
             self._metals_coords = np.array([]).reshape(0, 3)
         if all_binding:
-            self._binding_coords = np.array([b.coords for b in all_binding])
+            self._binding_coords = self.atom_container.get_atom_coords_array_from_atoms(all_binding)
         else:
             self._binding_coords = np.array([]).reshape(0, 3)
         
@@ -461,7 +457,7 @@ class UnifiedInteractionDetector:
             return
         
         # Get coordinates for residue's hydrophobic atoms
-        res_hydrophobic_coords = np.array([atom.coords for atom in residue.hydrophobic_atoms])
+        res_hydrophobic_coords = self.atom_container.get_atom_coords_array_from_atoms(residue.hydrophobic_atoms)
 
         # Compute distances using cdist for better performance
         dist_matrix_hydrophobic = cdist(res_hydrophobic_coords, self._hydrophobic_coords)
@@ -554,8 +550,8 @@ class UnifiedInteractionDetector:
             return
         
         # Pre-extract coordinates as numpy arrays (residue-specific)
-        don_coords = np.array([pair[0].coords for pair in donor_h_pairs])  # [n_pairs, 3]
-        h_coords = np.array([pair[1].coords for pair in donor_h_pairs])    # [n_pairs, 3]
+        don_coords = self.atom_container.get_atom_coords_array_from_atoms([pair[0] for pair in donor_h_pairs])  # [n_pairs, 3]
+        h_coords = self.atom_container.get_atom_coords_array_from_atoms([pair[1] for pair in donor_h_pairs])    # [n_pairs, 3]
         # Use cached all_hba coordinates (global, pre-computed)
         acc_coords = self._all_hba_coords  # [n_acc, 3]
         
@@ -649,7 +645,7 @@ class UnifiedInteractionDetector:
         don_coords = self._all_hbd_don_coords  # [n_pairs, 3]
         h_coords = self._all_hbd_h_coords      # [n_pairs, 3]
         # Extract residue-specific acceptor coordinates
-        acc_coords = np.array([acc.coords for acc in residue.hbond_acceptors])  # [n_acc, 3]
+        acc_coords = self.atom_container.get_atom_coords_array_from_atoms(residue.hbond_acceptors)  # [n_acc, 3]
         
         # Vectorized distance calculation using cdist
         # dist_ad[i, j] = distance between donor i and acceptor j
@@ -740,7 +736,7 @@ class UnifiedInteractionDetector:
             residue_donors = [donor for donor, _ in residue.hbond_donors]
 
             # Get coordinates for vectorized calculation
-            donor_coords = np.array([d.coords for d in residue_donors])
+            donor_coords = self.atom_container.get_atom_coords_array_from_atoms(residue_donors)
             # Use pre-computed HBA coordinates from _precompute_cached_data
             hba_coords = self._all_hba_coords
 
@@ -1363,7 +1359,7 @@ class UnifiedInteractionDetector:
         
         # Case 1: Residue is metal
         if residue.metal_atoms:
-            res_metals_coords = np.array([m.coords for m in residue.metal_atoms])
+            res_metals_coords = self.atom_container.get_atom_coords_array_from_atoms(residue.metal_atoms)
             
             # Vectorized distance calculation using cdist
             dist_matrix = cdist(res_metals_coords, binding_coords)
@@ -1400,7 +1396,7 @@ class UnifiedInteractionDetector:
         
         # Case 2: Residue has metal-binding atoms
         if residue.metal_binding_atoms:
-            res_binding_coords = np.array([b.coords for b in residue.metal_binding_atoms])
+            res_binding_coords = self.atom_container.get_atom_coords_array_from_atoms(residue.metal_binding_atoms)
             
             # Vectorized distance calculation using cdist
             dist_matrix = cdist(res_binding_coords, metals_coords)
