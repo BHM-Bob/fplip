@@ -10,6 +10,8 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
+from plip.basic import config
+
 
 class AtomInfo:
     """Lightweight class to store atom information"""
@@ -60,7 +62,6 @@ class AtomInfo:
             return "protein"
         
         # Check for DNA/RNA
-        from plip.basic import config
         if res_name in config.DNA:
             return "dna"
         if res_name in config.RNA:
@@ -89,18 +90,18 @@ class AtomContainer:
         self.atoms_by_orig_idx: Dict[int, AtomInfo] = {}  # orig_idx -> AtomInfo
         
         # Component-based organization
-        self.component_atoms: Dict[str, Set[int]] = {
-            "protein": set(),
-            "ligand": set(),
-            "dna": set(),
-            "rna": set(),
-            "water": set(),
-            "ion": set(),
-            "unknown": set()
+        self.component_atoms: Dict[str, List[int]] = {
+            "protein": [],
+            "ligand": [],
+            "dna": [],
+            "rna": [],
+            "water": [],
+            "ion": [],
+            "unknown": []
         }
         
         # Residue-based organization
-        self.residue_atoms: Dict[Tuple[str, str, int], Set[int]] = defaultdict(set)
+        ## residue-atom access is proveided in MoleculeComplex.residue_groups
         
         # Chain-based organization
         self.chain_atoms: Dict[str, Set[int]] = defaultdict(set)
@@ -118,15 +119,10 @@ class AtomContainer:
         self.atoms_by_orig_idx[atom_info.orig_idx] = atom_info
         
         # Add to component sets
-        self.component_atoms[atom_info.component_type].add(atom_info.idx)
+        self.component_atoms[atom_info.component_type].append(atom_info.idx)
         
         # Add to residue sets
-        res_key = (atom_info.resname, atom_info.chain, atom_info.resnum)
-        self.residue_atoms[res_key].add(atom_info.idx)
-        
-        # Add to chain sets
-        if atom_info.chain:
-            self.chain_atoms[atom_info.chain].add(atom_info.idx)
+        ## residue-atom access is proveided in MoleculeComplex.residue_groups
     
     def build_coordinate_array(self):
         """Build numpy array of coordinates for vectorized operations"""
@@ -144,15 +140,6 @@ class AtomContainer:
     def get_atoms_by_component(self, component_type: str) -> List[AtomInfo]:
         """Get all atoms of a specific component type"""
         return [self.atoms[idx] for idx in sorted(self.component_atoms.get(component_type, set()))]
-    
-    def get_atoms_by_residue(self, resname: str, chain: str, resnum: int) -> List[AtomInfo]:
-        """Get all atoms in a specific residue"""
-        res_key = (resname, chain, resnum)
-        return [self.atoms[idx] for idx in sorted(self.residue_atoms.get(res_key, set()))]
-    
-    def get_atoms_by_chain(self, chain: str) -> List[AtomInfo]:
-        """Get all atoms in a specific chain"""
-        return [self.atoms[idx] for idx in sorted(self.chain_atoms.get(chain, set()))]
     
     def get_heavy_atoms(self) -> List[AtomInfo]:
         """Get all non-hydrogen atoms"""
