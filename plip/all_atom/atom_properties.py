@@ -185,21 +185,144 @@ class AtomProperties:
                 self.hbond_donors[atom.idx] = []
     
     def _identify_charges(self):
-        """Identify charged groups"""
+        """Identify charged groups.
+
+        Detection priority:
+        1. Use OpenBabel formal charge if available (most reliable)
+        2. Fall back to topology-based detection for standard residues
+        """
+        # First pass: detect by formal charge
+        self._find_charges_by_formal_charge()
+
+        # Second pass: topology-based detection for groups not caught by formal charge
         # Group atoms by residue
         residue_atoms = defaultdict(list)
         for atom in self.atom_container:
             res_key = (atom.resname, atom.chain, atom.resnum)
             residue_atoms[res_key].append(atom)
-        
+
         for res_key, atoms in residue_atoms.items():
             resname = res_key[0]
-            
-            # Identify positive charges
+
+            # Identify positive charges (skip atoms already identified)
             self._find_positive_charges(atoms, resname)
-            
-            # Identify negative charges
+
+            # Identify negative charges (skip atoms already identified)
             self._find_negative_charges(atoms, resname)
+
+    def _find_charges_by_formal_charge(self):
+        """Identify charged atoms using OpenBabel formal charges.
+
+        This is the most reliable method when formal charges are present
+        in the input structure (e.g., from protonation tools).
+        """
+        for atom in self.atom_container:
+            obatom = atom.obatom
+            formal_charge = obatom.GetFormalCharge()
+
+            if formal_charge > 0:
+                # Determine charge group type based on topology
+                charge_type = self._classify_positive_charge(atom)
+                self.pos_charged[atom.idx] = charge_type
+            elif formal_charge < 0:
+                # Determine charge group type based on topology
+                charge_type = self._classify_negative_charge(atom)
+                self.neg_charged[atom.idx] = charge_type
+
+    def _classify_positive_charge(self, atom) -> str:
+        """Classify a positively charged atom into a charge group type.
+
+        Uses topology to determine the specific type of positive charge.
+        """
+        atomic_num = atom.atomic_num
+        resname = atom.resname
+        atom_name = atom.atom_name
+
+        # Nitrogen-based positive charges
+        if atomic_num == 7:
+            # HIS imidazolium
+            if resname == 'HIS' and atom_name in ['ND1', 'NE2']:
+                return 'imidazolium'
+
+            # LYS ammonium
+            if resname == 'LYS' and atom_name == 'NZ':
+                return 'ammonium'
+
+            # ARG guanidinium N atoms
+            if resname == 'ARG' and atom_name in ['NE', 'NH1', 'NH2']:
+                return 'guanidinium'
+
+            # Check for quaternary ammonium (4 non-H neighbors)
+            neighbors = list(pybel.ob.OBAtomAtomIter(atom.obatom))
+            non_h_neighbors = [n for n in neighbors if n.GetAtomicNum() != 1]
+            if len(non_h_neighbors) == 4:
+                return 'ammonium'
+
+            # Check for imidazolium ring membership (non-standard residues)
+            for _, n_indices in getattr(self, 'imidazolium_rings', []):
+                if atom.idx in n_indices:
+                    return 'imidazolium'
+
+            # Default for positive N
+            return 'tertamine'
+
+        # Sulfur-based positive charges (sulfonium)
+        if atomic_num == 16:
+            return 'sulfonium'
+
+        # Default fallback
+        return 'formal_positive'
+
+    def _classify_negative_charge(self, atom) -> str:
+        """Classify a negatively charged atom into a charge group type.
+
+        Uses topology to determine the specific type of negative charge.
+        """
+        atomic_num = atom.atomic_num
+        resname = atom.resname
+        atom_name = atom.atom_name
+
+        # Oxygen-based negative charges
+        if atomic_num == 8:
+            # ASP/GLU carboxylate oxygens
+            if resname == 'ASP' and atom_name in ['OD1', 'OD2']:
+                return 'asp_carboxylate'
+            if resname == 'GLU' and atom_name in ['OE1', 'OE2']:
+                return 'glu_carboxylate'
+
+            # Check if attached to phosphorus (phosphate)
+            neighbors = list(pybel.ob.OBAtomAtomIter(atom.obatom))
+            has_p_neighbor = any(n.GetAtomicNum() == 15 for n in neighbors)
+            if has_p_neighbor:
+                return 'phosphate'
+
+            # Check if attached to sulfur (sulfate/sulfonate)
+            has_s_neighbor = any(n.GetAtomicNum() == 16 for n in neighbors)
+            if has_s_neighbor:
+                return 'sulfonate'
+
+            # Check if attached to aromatic carbon (phenolate)
+            has_aromatic_c = any(n.GetAtomicNum() == 6 and n.IsAromatic() 
+                                for n in neighbors)
+            if has_aromatic_c:
+                # Check if O has no H neighbors (deprotonated)
+                h_neighbors = [n for n in neighbors if n.GetAtomicNum() == 1]
+                if len(h_neighbors) == 0:
+                    return 'phenolate'
+
+            # Default for negative O (carboxylate-like)
+            return 'carboxylate'
+
+        # Phosphorus-based (phosphate center)
+        if atomic_num == 15:
+            return 'phosphate'
+
+        # Sulfur-based negative charges (thiolate)
+        if atomic_num == 16:
+            return 'thiolate'
+
+        # Default fallback
+        return 'formal_negative'
     
     def _find_positive_charges(self, atoms: List[AtomInfo], resname: str):
         """Find positively charged groups in a residue.
@@ -209,16 +332,39 @@ class AtomProperties:
         protonation state detection even when H atoms are missing in PDB.
         
         Detection priority:
-        1. Guanidinium: C connected to 3 N atoms (Arg, ligands)
-        2. Ammonium: N with 4 non-H neighbors OR standard Lys NZ
-        3. Tertamine: sp3 N with 3+ neighbors (can be protonated)
-        4. Sulfonium: S with 3 non-H neighbors
-        5. Imidazolium: Aromatic 5-membered ring with 2 N atoms (His)
+        1. Formal charge detection (most reliable when available)
+        2. Guanidinium: C connected to 3 N atoms (Arg, ligands)
+        3. Ammonium: N with 4 non-H neighbors OR standard Lys NZ
+        4. Tertamine: sp3 N with 3+ neighbors (can be protonated)
+        5. Sulfonium: S with 3 non-H neighbors
+        6. Imidazolium: Aromatic 5-membered ring with 2 N atoms (His)
         """
         # Group atoms by element for efficient processing
         carbon_atoms = [a for a in atoms if a.atomic_num == 6]
         nitrogen_atoms = [a for a in atoms if a.atomic_num == 7]
         sulfur_atoms = [a for a in atoms if a.atomic_num == 16]
+        
+        # 0. First pass: Formal charge-based detection (most reliable)
+        # Pyridinium: Aromatic N with positive formal charge
+        # Anilinium: NH3+ attached to aromatic ring (positive formal charge)
+        for atom in nitrogen_atoms:
+            if atom.obatom.GetFormalCharge() > 0:
+                neighbors = list(pybel.ob.OBAtomAtomIter(atom.obatom))
+                non_h_neighbors = [n for n in neighbors if n.GetAtomicNum() != 1]
+                
+                # Check if aromatic N (pyridinium)
+                if atom.obatom.IsAromatic():
+                    self.pos_charged[atom.idx] = 'pyridinium'
+                    continue
+                
+                # Check if connected to aromatic carbon (anilinium)
+                has_aromatic_c = any(n.IsAromatic() and n.GetAtomicNum() == 6
+                                    for n in non_h_neighbors)
+                if has_aromatic_c and len(non_h_neighbors) == 1:
+                    h_neighbors = [n for n in neighbors if n.GetAtomicNum() == 1]
+                    if len(h_neighbors) >= 2:
+                        self.pos_charged[atom.idx] = 'anilinium'
+                        continue
         
         # 1. Detect Guanidinium (C-centered)
         # Chemical definition: C connected to 3 N atoms, at least one terminal N
@@ -241,7 +387,8 @@ class AtomProperties:
                         # Only mark N atoms as charged (not the C atom)
                         # The positive charge is delocalized over the 3 N atoms
                         for n in n_neighbors:
-                            self.pos_charged[n.GetIdx()] = 'guanidinium'
+                            if n.GetIdx() not in self.pos_charged:
+                                self.pos_charged[n.GetIdx()] = 'guanidinium'
         
         # 2. Detect Ammonium (N-centered)
         # For standard residues: Lys NZ is always ammonium (protonated at physiological pH)
@@ -318,6 +465,72 @@ class AtomProperties:
             for n in neighbors:
                 if n.GetAtomicNum() == 8:  # Oxygen
                     self.neg_charged[n.GetIdx()] = 'phosphate'
+        
+        # Sulfonate and Sulfate detection
+        sulfur_atoms = [a for a in atoms if a.atomic_num == 16]  # Sulfur
+        for s_atom in sulfur_atoms:
+            if s_atom.idx in self.neg_charged:
+                continue
+            neighbors = list(pybel.ob.OBAtomAtomIter(s_atom.obatom))
+            o_neighbors = [n for n in neighbors if n.GetAtomicNum() == 8]
+            c_neighbors = [n for n in neighbors if n.GetAtomicNum() == 6]
+            
+            if len(o_neighbors) >= 3:
+                if len(c_neighbors) == 1 and len(o_neighbors) == 3:
+                    # Sulfonate: -SO3- (S directly connected to C)
+                    self.neg_charged[s_atom.idx] = 'sulfonate'
+                    for o in o_neighbors:
+                        self.neg_charged[o.GetIdx()] = 'sulfonate'
+                elif len(c_neighbors) == 1 and len(o_neighbors) == 4:
+                    # Sulfate: -OSO3- (one O connected to C, S connected to 4 O)
+                    self.neg_charged[s_atom.idx] = 'sulfate'
+                    for o in o_neighbors:
+                        # Check if this O is connected to C (linking O)
+                        o_neighbors_of_o = [nb for nb in pybel.ob.OBAtomAtomIter(o)
+                                           if nb.GetAtomicNum() == 6]
+                        if o_neighbors_of_o:
+                            continue  # Skip linking O
+                        self.neg_charged[o.GetIdx()] = 'sulfate'
+                elif len(c_neighbors) == 0 and len(o_neighbors) >= 3:
+                    # Free sulfate/sulfonate (e.g., inorganic sulfate)
+                    self.neg_charged[s_atom.idx] = 'sulfate'
+                    for o in o_neighbors:
+                        self.neg_charged[o.GetIdx()] = 'sulfate'
+        
+        # Phenolate detection (deprotonated phenolic OH)
+        # Ar-O- where Ar is aromatic carbon AND O has no H (deprotonated)
+        oxygen_atoms = [a for a in atoms if a.atomic_num == 8]
+        for o_atom in oxygen_atoms:
+            if o_atom.idx in self.neg_charged:
+                continue
+            neighbors = list(pybel.ob.OBAtomAtomIter(o_atom.obatom))
+            c_neighbors = [n for n in neighbors if n.GetAtomicNum() == 6]
+            h_neighbors = [n for n in neighbors if n.GetAtomicNum() == 1]
+            # Check if connected to aromatic carbon and has no H (deprotonated)
+            # If O has H, it's neutral phenolic OH, not phenolate
+            for c in c_neighbors:
+                if c.IsAromatic() and len(h_neighbors) == 0:
+                    self.neg_charged[o_atom.idx] = 'phenolate'
+                    break
+        
+        # Thiolate detection (deprotonated thiol)
+        # R-S- where S has negative formal charge or is in CYS deprotonated state
+        for s_atom in sulfur_atoms:
+            if s_atom.idx in self.neg_charged:
+                continue
+            neighbors = list(pybel.ob.OBAtomAtomIter(s_atom.obatom))
+            non_h_neighbors = [n for n in neighbors if n.GetAtomicNum() != 1]
+            # Thiolate: S connected to 1 C (and possibly H, but deprotonated)
+            # In PDB without H, CYS SG with no H would be thiolate
+            if len(non_h_neighbors) == 1 and non_h_neighbors[0].GetAtomicNum() == 6:
+                # Check if it's a cysteine SG that might be deprotonated
+                if resname == 'CYS' and s_atom.atom_name == 'SG':
+                    self.neg_charged[s_atom.idx] = 'thiolate'
+                # For non-standard residues, check if S has no H neighbors
+                elif resname not in ['CYS', 'MET']:
+                    h_neighbors = [n for n in neighbors if n.GetAtomicNum() == 1]
+                    if len(h_neighbors) == 0:
+                        self.neg_charged[s_atom.idx] = 'thiolate'
     
     def _identify_hydrophobic(self):
         """Identify hydrophobic atoms"""
