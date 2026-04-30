@@ -585,9 +585,9 @@ class AtomProperties:
             # Check aromaticity
             is_aromatic = all(atom.IsAromatic() for atom in ring_atoms)
 
-            # Check planarity using simplified method
+            # Check planarity using simplified method and get normal vector
             coords = np.array([self.atom_container[idx].coords for idx in ring_indices])
-            is_planar = self._check_ring_planarity(coords)
+            is_planar, normal = self._check_ring_planarity(coords)
 
             # Detect imidazolium ring characteristics (5-membered, 2 N, isolated)
             is_imidazolium = False
@@ -630,14 +630,7 @@ class AtomProperties:
                 # Calculate ring center
                 center = np.mean(coords, axis=0)
 
-                # Calculate normal vector
-                if len(coords) >= 3:
-                    v1 = coords[1] - coords[0]
-                    v2 = coords[2] - coords[1]
-                    normal = np.cross(v1, v2)
-                    normal = normal / np.linalg.norm(normal) if np.linalg.norm(normal) > 0 else np.array([0, 0, 1])
-                else:
-                    normal = np.array([0, 0, 1])
+                # Normal vector is already computed by _check_ring_planarity
 
                 rings.append({
                     'indices': ring_indices,
@@ -651,9 +644,12 @@ class AtomProperties:
 
         self.rings = rings
 
-    def _check_ring_planarity(self, coords: np.ndarray) -> bool:
+    def _check_ring_planarity(self, coords: np.ndarray) -> tuple[bool, np.ndarray]:
         """
         Check if a ring is planar by computing the deviation from the best-fit plane.
+
+        Uses a fast path for small rings (4-6 atoms) to avoid expensive SVD computation.
+        Falls back to SVD for larger rings.
 
         Parameters
         ----------
@@ -662,13 +658,48 @@ class AtomProperties:
 
         Returns
         -------
-        bool
-            True if the ring is planar enough to be considered aromatic
+        tuple[bool, np.ndarray]
+            (is_planar, normal_vector) where is_planar is True if the ring is planar
+            enough to be considered aromatic, and normal_vector is the normalized
+            normal vector of the best-fit plane
         """
-        if len(coords) < 4:
-            return True  # Small rings are always considered planar
+        n = len(coords)
+        if n < 4:
+            # Small rings are always considered planar, use simple cross product for normal
+            if n >= 3:
+                v1 = coords[1] - coords[0]
+                v2 = coords[2] - coords[0]
+                normal = np.cross(v1, v2)
+                norm = np.linalg.norm(normal)
+                if norm > 1e-10:
+                    normal = normal / norm
+                else:
+                    normal = np.array([0, 0, 1])
+            else:
+                normal = np.array([0, 0, 1])
+            return True, normal
 
-        # Compute the best-fit plane using SVD
+        # Fast path for small rings (4-6 atoms): use cross product instead of SVD
+        if n <= 6:
+            # Use first three non-collinear points to define the reference plane
+            v1 = coords[1] - coords[0]
+            v2 = coords[2] - coords[0]
+            normal = np.cross(v1, v2)
+            norm = np.linalg.norm(normal)
+
+            if norm > 1e-10:  # Ensure vectors are not parallel
+                normal = normal / norm
+                # Calculate distances from all points to the plane through coords[0]
+                centered = coords - coords[0]
+                distances = np.abs(np.dot(centered, normal))
+                max_distance = np.max(distances)
+                is_planar = max_distance < config.AROMATIC_PLANARITY_DISTANCE
+                return is_planar, normal
+            else:
+                # Points are nearly collinear, fall back to SVD
+                pass
+
+        # SVD path for larger rings or when fast path fails
         centroid = np.mean(coords, axis=0)
         centered_coords = coords - centroid
 
@@ -681,7 +712,8 @@ class AtomProperties:
         max_distance = np.max(distances)
 
         # Check if all atoms are within the planarity threshold
-        return max_distance < config.AROMATIC_PLANARITY
+        is_planar = max_distance < config.AROMATIC_PLANARITY_DISTANCE
+        return is_planar, normal
 
     def _identify_metals(self):
         """Identify metal ions and metal-binding atoms"""

@@ -43,7 +43,8 @@ COMPRESS = False  # Compress XML and TXT report files
 
 # Thresholds for detection (global variables)
 BS_DIST = 7.5  # Determines maximum distance to include binding site residues
-AROMATIC_PLANARITY = 5.0  # Determines allowed deviation from planarity in aromatic rings
+AROMATIC_PLANARITY = 5.0  # Determines allowed deviation from planarity in aromatic rings (angle in degrees)
+AROMATIC_PLANARITY_DISTANCE = 0.3  # Max. distance (in Angstrom) from best-fit plane for planarity check in All-Atom module
 MIN_DIST = 0.5  # Minimum distance for all distance thresholds
 # Some distance thresholds were extended (max. 1.0A) if too restrictive too account for low-quality structures
 HYDROPH_DIST_MAX = 4.0  # Distance cutoff for detection of hydrophobic contacts
