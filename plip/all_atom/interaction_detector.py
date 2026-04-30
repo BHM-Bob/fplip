@@ -64,7 +64,7 @@ class UnifiedInteractionDetector:
         # Pre-compute all atom coordinates for fast distance calculation
         self.all_coords = atom_container.coords_array
         self.idx_to_pos = atom_container.idx_to_array_pos
-        self.pos_to_idx = {v: k for k, v in self.idx_to_pos.items()}
+        self.idx_to_pos_array = atom_container.idx_to_array_pos_array
         
         # Results storage
         self.interactions: Dict[str, List[Interaction]] = {
@@ -200,10 +200,7 @@ class UnifiedInteractionDetector:
         
         This method is called once before processing all residues to cache
         expensive-to-compute data structures.
-        """
-        # Get the array-based index mapping from atom_container
-        self._idx_array = self.atom_container.idx_to_array_pos_array
-        
+        """        
         # Cache hydrophobic atoms for _detect_hydrophobic
         all_hydrophobic = self.atom_props.get_hydrophobic()
         self._hydrophobic_atoms_list = all_hydrophobic
