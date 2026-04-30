@@ -34,9 +34,6 @@ class Residue:
         # Atoms in this residue
         self.atoms: List = []
         
-        # Geometric center
-        self.center: Optional[np.ndarray] = None
-        
         # Residue type flags
         self.is_protein = False
         self.is_peptide = False
@@ -70,7 +67,6 @@ class Residue:
     def finalize(self):
         """Finalize residue after all atoms are added"""
         if self.atoms:
-            self.center = np.mean([a.coords for a in self.atoms], axis=0)
             self._determine_residue_type()
             self._precompute_charge_groups()
     
