@@ -210,6 +210,10 @@ class AtomProperties:
             # Identify negative charges (skip atoms already identified)
             self._find_negative_charges(atoms, resname)
 
+        # Third pass: detect imidazolium for non-standard residues using pre-computed rings
+        # This is done outside the residue loop to avoid O(N*M) complexity
+        self._assign_imidazolium_from_rings()
+
     def _find_charges_by_formal_charge(self):
         """Identify charged atoms using OpenBabel formal charges.
 
@@ -430,18 +434,7 @@ class AtomProperties:
             for atom in nitrogen_atoms:
                 if atom.idx not in self.pos_charged and atom.atom_name in ['ND1', 'NE2']:
                     self.pos_charged[atom.idx] = 'imidazolium'
-        # For non-standard residues, use pre-computed imidazolium ring info
-        else:
-            # Build set of atom indices for this residue
-            residue_atom_indices = set(a.idx for a in atoms)
-            # Check each pre-computed imidazolium ring
-            for ring_indices, n_indices in getattr(self, 'imidazolium_rings', []):
-                # Check if this ring belongs to current residue (at least one atom in common)
-                if ring_indices and any(idx in residue_atom_indices for idx in ring_indices):
-                    # Mark N atoms in this ring as imidazolium
-                    for n_idx in n_indices:
-                        if n_idx not in self.pos_charged:
-                            self.pos_charged[n_idx] = 'imidazolium'
+        # Note: Non-standard residue imidazolium detection is handled by _assign_imidazolium_from_rings()
 
         # N-terminus detection would require additional context
 
@@ -533,7 +526,23 @@ class AtomProperties:
                     h_neighbors = [n for n in neighbors if n.GetAtomicNum() == 1]
                     if len(h_neighbors) == 0:
                         self.neg_charged[s_atom.idx] = 'thiolate'
-    
+
+    def _assign_imidazolium_from_rings(self):
+        """Assign imidazolium charge type to N atoms in pre-computed imidazolium rings.
+
+        This method processes all pre-computed imidazolium rings and marks the
+        corresponding N atoms as positively charged. It is called once after
+        processing all residues to avoid O(N*M) complexity.
+        """
+        imidazolium_rings = getattr(self, 'imidazolium_rings', [])
+        if not imidazolium_rings:
+            return
+
+        for _ring_indices, n_indices in imidazolium_rings:
+            for n_idx in n_indices:
+                if n_idx not in self.pos_charged:
+                    self.pos_charged[n_idx] = 'imidazolium'
+
     def _identify_hydrophobic(self):
         """Identify hydrophobic atoms"""
         for atom in self.atom_container:
