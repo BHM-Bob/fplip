@@ -112,6 +112,7 @@ class AtomContainer:
         # Array-based index mapping for O(1) lookup: idx_to_array_pos_array[ob_idx] = array_pos
         # -1 means the atom doesn't exist
         self.idx_to_array_pos_array: Optional[np.ndarray] = None
+        self.array_pos_to_idx_array: Optional[np.ndarray] = None
         
     def add_atom(self, atom_info: AtomInfo):
         """Add an atom to the container"""
@@ -136,6 +137,8 @@ class AtomContainer:
             self.idx_to_array_pos_array = np.full(max_idx + 1, -1, dtype=np.int32)
             for array_pos, ob_idx in enumerate(sorted_indices):
                 self.idx_to_array_pos_array[ob_idx] = array_pos
+        # Build array-based index mapping for arr-pos-idx to ob-idx
+        self.array_pos_to_idx_array = np.array(sorted_indices)
     
     def get_atoms_by_component(self, component_type: str) -> List[AtomInfo]:
         """Get all atoms of a specific component type"""
