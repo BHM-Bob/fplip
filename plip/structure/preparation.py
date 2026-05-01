@@ -1503,8 +1503,19 @@ class PDBComplex:
         # 准备受体，排除配体原子和水分子
         rec_atoms_pack = [[atm.idx, atm] for atm in self.protcomplex.atoms]
         rec_atoms_pack = list(filter(lambda x: x[0] in self.Mapper.proteinmap, rec_atoms_pack))
-        # 只保留蛋白质残基的原子（排除水分子），通过检查残基属性
-        rec_atoms_pack = list(filter(lambda x: x[1].OBAtom.GetResidue().GetResidueProperty(0), rec_atoms_pack))
+        obres = list(map(lambda x: x[1].OBAtom.GetResidue(), rec_atoms_pack))
+        mask_belong = list(map(partial(residue_belongs_to_receptor, regions=lig_obj.regions), obres))
+        mask_prot = list(map(lambda x: x.GetResidueProperty(0), obres))
+        ext_res_names = []
+        if config.DNARECEPTOR:
+            ext_res_names.extend(config.DNA + config.RNA)
+        if config.KEEPMOD:
+            ext_res_names.extend(self.modres)
+        if ext_res_names:
+            mask_extend = list(map(lambda x: x.GetName() in ext_res_names, obres))
+            mask_prot = np.logical_or(mask_prot, mask_extend)
+        rec_atoms_pack = list(filter(lambda i: mask_prot[i[0]] and mask_belong[i[0]], enumerate(rec_atoms_pack)))
+        rec_atoms_pack = list(map(lambda x: x[-1], rec_atoms_pack))
         if self.altconf:
             rec_atoms_pack = list(filter(lambda x: self.Mapper.mapid(x[0], mtype='protein') not in self.altconf, rec_atoms_pack))
             
