@@ -1487,162 +1487,225 @@ class UnifiedInteractionDetector:
         - Acceptor-water: distance check only (2.5-4.1 Å)
         - Donor-water: distance + angle check
         - Water bridge: same water molecule mediates between two residues
+        - Water angle: calculated using donor hydrogen (A-O-H_donor)
 
         Results are stored in 'water_bridge_possible' to distinguish from
         the stricter H-bond-based water_bridge detection.
 
-        Performance optimized using scipy.spatial.cKDTree for fast neighbor search.
-        Note: cKDTree may have floating-point precision issues at distance boundaries,
-        so we add a small epsilon and sort results for deterministic behavior.
-        """
-        from plip.basic.supplemental import euclidean3d, vecangle, vector
-        from scipy.spatial import cKDTree
+        Fully vectorized implementation:
+        1. Pre-extract all coordinates (waters, acceptors, donors+Hs)
+        2. Batch distance calculations using cdist
+        3. Batch angle calculations using vectorized dot product
+        4. Mask filtering for efficient pair identification
 
-        # Find water residues (sorted for deterministic ordering)
+        Note: All arrays are sorted by atom indices for deterministic behavior.
+        """
+        # Find water residues and extract oxygen atoms (sorted for deterministic ordering)
         water_residues = sorted([r for r in self.residues if r.is_water],
                                 key=lambda r: (r.chain, r.resnum))
 
         if not water_residues:
             return
 
-        # Get H-bond acceptors and donors as sets for fast lookup
-        acceptors_set = set(self.atom_props.hbond_acceptors)
-        donors_set = set(self.atom_props.hbond_donors)
-
-        # Build KD-tree for fast distance queries
-        coords = self.atom_container.coords_array
-        kdtree = cKDTree(coords)
-
-        # Create reverse mapping: array_pos -> atom_idx
-        array_pos_to_idx = {pos: idx for idx, pos in self.atom_container.idx_to_array_pos.items()}
-
-        # Pre-compute donor hydrogen mapping for fast lookup
-        donor_h_map = {}
-        for don_idx in sorted(donors_set):  # Sort for deterministic ordering
-            don_atom = self.atom_container[don_idx]
-            # Find hydrogen attached to donor
-            for atom in self.atom_container:
-                if (atom.is_hydrogen and
-                    atom.resname == don_atom.resname and
-                    atom.chain == don_atom.chain and
-                    atom.resnum == don_atom.resnum):
-                    # Check if this H is bonded to donor (distance < 1.2 Å)
-                    if euclidean3d(atom.coords, don_atom.coords) < 1.2:
-                        donor_h_map[don_idx] = atom
-                        break
-
+        # Extract water oxygen atoms and coordinates
+        water_objects = []  # List of (water_res, water_o_atom)
+        water_o_coords_list = []
         for water_res in water_residues:
-            # Get water oxygen atom
-            water_o = None
-            water_h = []
             for atom in water_res.atoms:
                 if atom.atomic_num == 8:  # Oxygen
-                    water_o = atom
-                elif atom.is_hydrogen:
-                    water_h.append(atom)
+                    water_objects.append((water_res, atom))
+                    water_o_coords_list.append(atom.coords)
+                    break
 
-            if water_o is None:
+        if not water_objects:
+            return
+
+        water_o_coords = np.array(water_o_coords_list)  # [n_water, 3]
+
+        # Get all H-bond acceptors
+        all_hba = self._all_hba  # Already cached in _precompute_cached_data
+        if not all_hba:
+            return
+
+        acc_coords = self._all_hba_coords  # [n_acc, 3], cached
+
+        # Get all H-bond donors with hydrogens
+        # Use cached _all_hbd_pairs which contains (donor, h_atom) tuples
+        if not hasattr(self, '_all_hbd_pairs') or not self._all_hbd_pairs:
+            # Fallback: build from atom_props if not cached
+            donor_h_pairs = []
+            for donor_idx, h_indices in self.atom_props.hbond_donors.items():
+                if h_indices:
+                    first_h_idx = sorted(h_indices)[0]
+                    donor = self.atom_container[donor_idx]
+                    h_atom = self.atom_container[first_h_idx]
+                    donor_h_pairs.append((donor, h_atom))
+        else:
+            donor_h_pairs = self._all_hbd_pairs
+
+        if not donor_h_pairs:
+            return
+
+        don_coords = self._all_hbd_don_coords  # [n_don, 3], cached
+        don_h_coords = self._all_hbd_h_coords   # [n_don, 3], cached
+
+        # Build residue identity lookup for self-filtering
+        # water_res_idx -> set of (resname, chain, resnum)
+        water_res_identities = []
+        for water_res, _ in water_objects:
+            water_res_identities.append((water_res.resname, water_res.chain, water_res.resnum))
+
+        # Batch distance calculation: water oxygens vs all acceptors
+        # dist_aw[water_i, acc_j] = distance between water_i oxygen and acceptor_j
+        diff_aw = water_o_coords[:, np.newaxis, :] - acc_coords[np.newaxis, :, :]
+        dist_aw_matrix = np.sqrt(np.sum(diff_aw ** 2, axis=2))
+
+        # Batch distance calculation: water oxygens vs all donors
+        # dist_dw[water_i, don_j] = distance between water_i oxygen and donor_j
+        diff_dw = water_o_coords[:, np.newaxis, :] - don_coords[np.newaxis, :, :]
+        dist_dw_matrix = np.sqrt(np.sum(diff_dw ** 2, axis=2))
+
+        # Filter by distance criteria for acceptors
+        acc_dist_mask = (dist_aw_matrix >= config.WATER_BRIDGE_MINDIST) & \
+                        (dist_aw_matrix <= config.WATER_BRIDGE_MAXDIST)
+
+        # Filter by distance criteria for donors
+        don_dist_mask = (dist_dw_matrix >= config.WATER_BRIDGE_MINDIST) & \
+                        (dist_dw_matrix <= config.WATER_BRIDGE_MAXDIST)
+
+        # Vectorized donor angle calculation (D-H···O)
+        # For each water-donor pair, calculate angle between D-H and D-O vectors
+        # vec_dh[j] = donor_j_coords - donor_h_j_coords
+        # vec_do[water_i, j] = water_i_coords - donor_j_coords
+        vec_dh = don_coords - don_h_coords  # [n_don, 3]
+        vec_do = water_o_coords[:, np.newaxis, :] - don_coords[np.newaxis, :, :]  # [n_water, n_don, 3]
+
+        # Compute donor angles using dot product
+        norm_dh = np.linalg.norm(vec_dh, axis=1)  # [n_don]
+        norm_do = np.linalg.norm(vec_do, axis=2)  # [n_water, n_don]
+
+        # Avoid division by zero
+        norm_dh_safe = np.where(norm_dh == 0, 1, norm_dh)
+        norm_do_safe = np.where(norm_do == 0, 1, norm_do)
+
+        # Dot product: sum over axis=2 for [n_water, n_don]
+        dot_dh_do = np.sum(vec_do * vec_dh[np.newaxis, :, :], axis=2)  # [n_water, n_don]
+
+        cos_d_angle = dot_dh_do / (norm_dh_safe[np.newaxis, :] * norm_do_safe)
+        cos_d_angle = np.clip(cos_d_angle, -1.0, 1.0)
+        d_angle_matrix = np.degrees(np.arccos(cos_d_angle))  # [n_water, n_don]
+
+        # Filter by donor angle
+        don_angle_mask = d_angle_matrix > config.WATER_BRIDGE_THETA_MIN
+
+        # Combined donor mask
+        don_valid_mask = don_dist_mask & don_angle_mask
+
+        # Find valid water-acc-don combinations using broadcasting
+        # For each water, get valid acceptors and donors
+        for water_idx in range(len(water_objects)):
+            water_res, _ = water_objects[water_idx]
+            water_o_coord = water_o_coords[water_idx]
+            water_identity = water_res_identities[water_idx]
+
+            # Get valid acceptors for this water
+            valid_acc_indices = np.where(acc_dist_mask[water_idx])[0]
+
+            # Get valid donors for this water
+            valid_don_indices = np.where(don_valid_mask[water_idx])[0]
+
+            if len(valid_acc_indices) == 0 or len(valid_don_indices) == 0:
                 continue
 
-            # Sort water_h by atom index for deterministic ordering
-            water_h = sorted(water_h, key=lambda h: h.idx)
+            # Pre-compute acceptor coords for this water
+            acc_coords_water = acc_coords[valid_acc_indices]  # [n_valid_acc, 3]
+            dist_aw_valid = dist_aw_matrix[water_idx, valid_acc_indices]  # [n_valid_acc]
 
-            # Use KD-tree to find atoms within distance range
-            water_o_pos = self.atom_container.idx_to_array_pos[water_o.idx]
-            water_o_coords = coords[water_o_pos]
+            # Pre-compute donor data for this water (only need hydrogen coords for water angle)
+            don_h_coords_water = don_h_coords[valid_don_indices]  # [n_valid_don, 3]
+            dist_dw_valid = dist_dw_matrix[water_idx, valid_don_indices]  # [n_valid_don]
+            d_angle_valid = d_angle_matrix[water_idx, valid_don_indices]  # [n_valid_don]
 
-            # Query KD-tree for neighbors within WATER_BRIDGE_MAXDIST
-            # Add small epsilon to avoid floating-point precision issues at boundary
-            neighbor_indices = kdtree.query_ball_point(water_o_coords, config.WATER_BRIDGE_MAXDIST + 1e-10)
-            # Sort for deterministic ordering
-            neighbor_indices = sorted(neighbor_indices)
+            # Vectorized water angle calculation (A-O-H_donor)
+            # For each acc-don pair, calculate angle between A-O and H_donor-O vectors
+            # vec_ao[i, j] = acc_i - water_coord
+            # vec_ho[j] = don_h_j - water_coord
+            vec_ao = acc_coords_water - water_o_coord  # [n_valid_acc, 3]
+            vec_ho = don_h_coords_water - water_o_coord  # [n_valid_don, 3]
 
-            # Find acceptor-water pairs (distance only)
-            acc_water_pairs = []
-            for array_pos in neighbor_indices:
-                atom_idx = array_pos_to_idx[array_pos]
-                if atom_idx not in acceptors_set:
+            # Compute all water angles: for each acceptor i and donor j
+            # w_angle[i, j] = angle between acc_i-O and don_h_j-O
+            # vec_ao_expanded[i, j, :] = vec_ao[i] broadcasted
+            # vec_ho_expanded[i, j, :] = vec_ho[j] broadcasted
+            vec_ao_expanded = vec_ao[:, np.newaxis, :]  # [n_acc, 1, 3]
+            vec_ho_expanded = vec_ho[np.newaxis, :, :]  # [1, n_don, 3]
+
+            norm_ao = np.linalg.norm(vec_ao_expanded, axis=2)  # [n_acc, 1]
+            norm_ho = np.linalg.norm(vec_ho_expanded, axis=2)  # [1, n_don]
+
+            norm_ao_safe = np.where(norm_ao == 0, 1, norm_ao)
+            norm_ho_safe = np.where(norm_ho == 0, 1, norm_ho)
+
+            dot_ao_ho = np.sum(vec_ao_expanded * vec_ho_expanded, axis=2)  # [n_acc, n_don]
+
+            cos_w_angle = dot_ao_ho / (norm_ao_safe * norm_ho_safe)
+            cos_w_angle = np.clip(cos_w_angle, -1.0, 1.0)
+            w_angle_matrix = np.degrees(np.arccos(cos_w_angle))  # [n_acc, n_don]
+
+            # Filter by water angle criteria
+            w_angle_mask = (w_angle_matrix > config.WATER_BRIDGE_OMEGA_MIN) & \
+                           (w_angle_matrix < config.WATER_BRIDGE_OMEGA_MAX)
+
+            # Get all valid combinations
+            valid_combinations = np.argwhere(w_angle_mask)
+
+            for acc_offset, don_offset in valid_combinations:
+                acc_idx = valid_acc_indices[acc_offset]
+                don_idx = valid_don_indices[don_offset]
+
+                acc = all_hba[acc_idx]
+                don, _ = donor_h_pairs[don_idx]
+
+                # Skip if same residue (water's own atoms already filtered, but check partners)
+                acc_identity = (acc.resname, acc.chain, acc.resnum)
+                don_identity = (don.resname, don.chain, don.resnum)
+
+                if acc_identity == water_identity or don_identity == water_identity:
                     continue
-                acc_atom = self.atom_container[atom_idx]
-                # Skip if same residue
-                if (acc_atom.resname == water_res.resname and
-                    acc_atom.chain == water_res.chain and
-                    acc_atom.resnum == water_res.resnum):
-                    continue
-                dist = euclidean3d(acc_atom.coords, water_o.coords)
-                if config.WATER_BRIDGE_MINDIST <= dist <= config.WATER_BRIDGE_MAXDIST:
-                    acc_water_pairs.append((acc_atom, dist))
 
-            # Find donor-water pairs (distance + angle)
-            don_water_pairs = []
-            for array_pos in neighbor_indices:
-                atom_idx = array_pos_to_idx[array_pos]
-                if atom_idx not in donors_set:
-                    continue
-                don_atom = self.atom_container[atom_idx]
-                # Skip if same residue
-                if (don_atom.resname == water_res.resname and
-                    don_atom.chain == water_res.chain and
-                    don_atom.resnum == water_res.resnum):
-                    continue
+                dist_aw = float(dist_aw_valid[acc_offset])
+                dist_dw = float(dist_dw_valid[don_offset])
+                d_angle = float(d_angle_valid[don_offset])
+                w_angle = float(w_angle_matrix[acc_offset, don_offset])
 
-                # Get pre-computed hydrogen
-                don_h = donor_h_map.get(atom_idx)
-                if don_h is None:
-                    continue
+                # is_donor_a = False since acc is acceptor, don is donor
+                is_donor_a = False
 
-                dist = euclidean3d(don_atom.coords, water_o.coords)
-                if dist < config.WATER_BRIDGE_MINDIST or dist > config.WATER_BRIDGE_MAXDIST:
-                    continue
-
-                # Calculate donor angle (D-H···O)
-                d_angle = vecangle(vector(don_h.coords, don_atom.coords),
-                                  vector(don_h.coords, water_o.coords))
-                if d_angle > config.WATER_BRIDGE_THETA_MIN:
-                    don_water_pairs.append((don_atom, don_h, dist, d_angle))
-
-            # Check for water bridges: acceptor-water-donor combinations
-            for acc, dist_aw in acc_water_pairs:
-                for don, don_h, dist_dw, d_angle in don_water_pairs:
-                    # Calculate water angle (A-O-H)
-                    if len(water_h) > 0:
-                        # Use the closest H to acceptor
-                        closest_h = min(water_h,
-                                       key=lambda h: euclidean3d(h.coords, acc.coords))
-                        w_angle = vecangle(vector(water_o.coords, acc.coords),
-                                          vector(water_o.coords, closest_h.coords))
-                    else:
-                        w_angle = 90.0  # Default if no H found
-
-                    # Check water angle criteria
-                    if not (config.WATER_BRIDGE_OMEGA_MIN < w_angle < config.WATER_BRIDGE_OMEGA_MAX):
-                        continue
-
-                    # Create interaction
-                    interaction = Interaction(
-                        type='water_bridge_possible',
-                        res_a_name=acc.resname,
-                        res_a_chain=acc.chain,
-                        res_a_num=acc.resnum,
-                        res_b_name=don.resname,
-                        res_b_chain=don.chain,
-                        res_b_num=don.resnum,
-                        atom_a_name=acc.atom_name,
-                        atom_a_idx=acc.idx,
-                        atom_b_name=don.atom_name,
-                        atom_b_idx=don.idx,
-                        distance=dist_aw + dist_dw,  # Total distance
-                        angle=w_angle,
-                        details={
-                            'distance_aw': dist_aw,
-                            'distance_dw': dist_dw,
-                            'd_angle': d_angle,
-                            'w_angle': w_angle,
-                            'water_residue': water_res.resid,
-                            'protisdon': True  # Protein is donor
-                        }
-                    )
-                    self.interactions['water_bridge_possible'].append(interaction)
+                interaction = Interaction(
+                    type='water_bridge_possible',
+                    res_a_name=acc.resname,
+                    res_a_chain=acc.chain,
+                    res_a_num=acc.resnum,
+                    res_b_name=don.resname,
+                    res_b_chain=don.chain,
+                    res_b_num=don.resnum,
+                    atom_a_name=acc.atom_name,
+                    atom_a_idx=acc.idx,
+                    atom_b_name=don.atom_name,
+                    atom_b_idx=don.idx,
+                    distance=dist_aw + dist_dw,
+                    angle=w_angle,
+                    details={
+                        'distance_aw': dist_aw,
+                        'distance_dw': dist_dw,
+                        'd_angle': d_angle,
+                        'w_angle': w_angle,
+                        'water_residue': water_res.resid,
+                        'is_donor_a': is_donor_a,
+                        'protisdon': True
+                    }
+                )
+                self.interactions['water_bridge_possible'].append(interaction)
 
     def _remove_duplicates(self):
         """Remove duplicate interactions (A-B and B-A)"""
