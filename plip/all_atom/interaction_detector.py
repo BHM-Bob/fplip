@@ -554,9 +554,6 @@ class UnifiedInteractionDetector:
         # dist_ad[i, j] = distance between donor i and acceptor j
         dist_ad_matrix = cdist(don_coords, acc_coords)  # [n_pairs, n_acc]
 
-        # dist_ah[i, j] = distance between hydrogen i and acceptor j
-        dist_ah_matrix = cdist(h_coords, acc_coords)  # [n_pairs, n_acc]
-
         # Filter by distance criteria
         dist_mask = (dist_ad_matrix > config.MIN_DIST) & (dist_ad_matrix < config.HBOND_DIST_MAX)
 
@@ -574,9 +571,12 @@ class UnifiedInteractionDetector:
         vec_hd_sparse = vec_hd[pair_indices]  # [N, 3]
         vec_ha_sparse = acc_coords[acc_indices] - h_coords[pair_indices]  # [N, 3]
 
+        # Compute H-A distance from vec_ha_sparse (reusing the vector, no extra cdist needed)
+        dist_ah_sparse = np.linalg.norm(vec_ha_sparse, axis=1)  # [N]
+
         # Compute angles using dot product (only for sparse pairs)
         norm_hd_sparse = np.linalg.norm(vec_hd_sparse, axis=1)  # [N]
-        norm_ha_sparse = np.linalg.norm(vec_ha_sparse, axis=1)  # [N]
+        norm_ha_sparse = dist_ah_sparse  # Reuse H-A distance as norm of vec_ha_sparse
 
         # Avoid division by zero
         norm_hd_safe = np.where(norm_hd_sparse == 0, 1, norm_hd_sparse)
@@ -596,6 +596,7 @@ class UnifiedInteractionDetector:
         valid_pair_indices = pair_indices[angle_mask_sparse]
         valid_acc_indices = acc_indices[angle_mask_sparse]
         valid_angles = angle_sparse[angle_mask_sparse]
+        valid_dist_ah = dist_ah_sparse[angle_mask_sparse]
 
         # Process only valid pairs
         for i, (pair_idx, acc_idx) in enumerate(zip(valid_pair_indices, valid_acc_indices)):
@@ -607,7 +608,7 @@ class UnifiedInteractionDetector:
                 continue
 
             dist_ad = dist_ad_matrix[pair_idx, acc_idx]
-            dist_ah = dist_ah_matrix[pair_idx, acc_idx]
+            dist_ah = valid_dist_ah[i]
             angle = valid_angles[i]
 
             interaction = Interaction(
