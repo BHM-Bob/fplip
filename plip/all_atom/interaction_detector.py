@@ -1573,7 +1573,7 @@ class UnifiedInteractionDetector:
                                 pb_key, partner_info[pb_key]
                             )
 
-    def _detect_water_bridges_plip_style(self):
+    def _detect_water_bridges_plip_style(self, verbose: bool = False):
         """Detect water bridges using PLIP-style distance+angle criteria
 
         This method implements the PLIP water bridge detection approach:
@@ -1594,7 +1594,8 @@ class UnifiedInteractionDetector:
         Note: All arrays are sorted by atom indices for deterministic behavior.
         """
         # Find water residues and extract oxygen atoms (sorted for deterministic ordering)
-        water_residues = sorted([r for r in self.residues if r.is_water],
+        # Skip water residues marked as distant (is_skip=True) for performance
+        water_residues = sorted([r for r in self.residues if r.is_water and not r.is_skip],
                                 key=lambda r: (r.chain, r.resnum))
 
         if not water_residues:
@@ -1624,7 +1625,7 @@ class UnifiedInteractionDetector:
 
         # Get all H-bond donors with hydrogens
         # Use cached _all_hbd_pairs which contains (donor, h_atom) tuples
-        if not hasattr(self, '_all_hbd_pairs') or not self._all_hbd_pairs:
+        if not self._all_hbd_pairs:
             # Fallback: build from atom_props if not cached
             donor_h_pairs = []
             for donor_idx, h_indices in self.atom_props.hbond_donors.items():
@@ -1650,13 +1651,11 @@ class UnifiedInteractionDetector:
 
         # Batch distance calculation: water oxygens vs all acceptors
         # dist_aw[water_i, acc_j] = distance between water_i oxygen and acceptor_j
-        diff_aw = water_o_coords[:, np.newaxis, :] - acc_coords[np.newaxis, :, :]
-        dist_aw_matrix = np.sqrt(np.sum(diff_aw ** 2, axis=2))
+        dist_aw_matrix = cdist(water_o_coords, acc_coords)
 
         # Batch distance calculation: water oxygens vs all donors
         # dist_dw[water_i, don_j] = distance between water_i oxygen and donor_j
-        diff_dw = water_o_coords[:, np.newaxis, :] - don_coords[np.newaxis, :, :]
-        dist_dw_matrix = np.sqrt(np.sum(diff_dw ** 2, axis=2))
+        dist_dw_matrix = cdist(water_o_coords, don_coords)
 
         # Filter by distance criteria for acceptors
         acc_dist_mask = (dist_aw_matrix >= config.WATER_BRIDGE_MINDIST) & \
@@ -1666,37 +1665,58 @@ class UnifiedInteractionDetector:
         don_dist_mask = (dist_dw_matrix >= config.WATER_BRIDGE_MINDIST) & \
                         (dist_dw_matrix <= config.WATER_BRIDGE_MAXDIST)
 
-        # Vectorized donor angle calculation (D-H···O)
-        # For each water-donor pair, calculate angle between D-H and D-O vectors
-        # vec_dh[j] = donor_j_coords - donor_h_j_coords
-        # vec_do[water_i, j] = water_i_coords - donor_j_coords
+        # Sparse donor angle calculation (D-H···O)
+        # Only calculate angles for pairs that passed distance filter
         vec_dh = don_coords - don_h_coords  # [n_don, 3]
-        vec_do = water_o_coords[:, np.newaxis, :] - don_coords[np.newaxis, :, :]  # [n_water, n_don, 3]
 
-        # Compute donor angles using dot product
-        norm_dh = np.linalg.norm(vec_dh, axis=1)  # [n_don]
-        norm_do = np.linalg.norm(vec_do, axis=2)  # [n_water, n_don]
+        # Get indices of pairs that passed distance filter
+        water_indices, don_indices = np.where(don_dist_mask)
+
+        if len(water_indices) == 0:
+            return
+
+        # Extract only the vectors needed for angle calculation
+        vec_dh_sparse = vec_dh[don_indices]  # [N, 3]
+        vec_do_sparse = water_o_coords[water_indices] - don_coords[don_indices]  # [N, 3]
+
+        # Compute donor angles using dot product (only for sparse pairs)
+        norm_dh_sparse = np.linalg.norm(vec_dh_sparse, axis=1)  # [N]
+        norm_do_sparse = np.linalg.norm(vec_do_sparse, axis=1)  # [N]
 
         # Avoid division by zero
-        norm_dh_safe = np.where(norm_dh == 0, 1, norm_dh)
-        norm_do_safe = np.where(norm_do == 0, 1, norm_do)
+        norm_dh_safe = np.where(norm_dh_sparse == 0, 1, norm_dh_sparse)
+        norm_do_safe = np.where(norm_do_sparse == 0, 1, norm_do_sparse)
 
-        # Dot product: sum over axis=2 for [n_water, n_don]
-        dot_dh_do = np.sum(vec_do * vec_dh[np.newaxis, :, :], axis=2)  # [n_water, n_don]
+        # Dot product
+        dot_dh_do_sparse = np.sum(vec_do_sparse * vec_dh_sparse, axis=1)  # [N]
 
-        cos_d_angle = dot_dh_do / (norm_dh_safe[np.newaxis, :] * norm_do_safe)
-        cos_d_angle = np.clip(cos_d_angle, -1.0, 1.0)
-        d_angle_matrix = np.degrees(np.arccos(cos_d_angle))  # [n_water, n_don]
+        cos_d_angle_sparse = dot_dh_do_sparse / (norm_dh_safe * norm_do_safe)
+        cos_d_angle_sparse = np.clip(cos_d_angle_sparse, -1.0, 1.0)
+        d_angle_sparse = np.degrees(np.arccos(cos_d_angle_sparse))  # [N]
 
         # Filter by donor angle
-        don_angle_mask = d_angle_matrix > config.WATER_BRIDGE_THETA_MIN
+        don_angle_mask_sparse = d_angle_sparse > config.WATER_BRIDGE_THETA_MIN
 
-        # Combined donor mask
-        don_valid_mask = don_dist_mask & don_angle_mask
+        # Create full angle matrix for compatibility with downstream code
+        # Initialize with zeros and fill in calculated values
+        d_angle_matrix = np.zeros((len(water_objects), len(donor_h_pairs)))
+        valid_indices = np.where(don_angle_mask_sparse)[0]
+        for idx in valid_indices:
+            w_idx = water_indices[idx]
+            d_idx = don_indices[idx]
+            d_angle_matrix[w_idx, d_idx] = d_angle_sparse[idx]
+
+        # Combined donor mask (full matrix for compatibility)
+        don_valid_mask = np.zeros((len(water_objects), len(donor_h_pairs)), dtype=bool)
+        for idx in valid_indices:
+            w_idx = water_indices[idx]
+            d_idx = don_indices[idx]
+            don_valid_mask[w_idx, d_idx] = True
 
         # Find valid water-acc-don combinations using broadcasting
         # For each water, get valid acceptors and donors
-        for water_idx in range(len(water_objects)):
+        for water_idx in tqdm(range(len(water_objects)), desc="Detecting PLIP style water bridges",
+                              disable=not verbose, leave=False):
             water_res, _ = water_objects[water_idx]
             water_o_coord = water_o_coords[water_idx]
             water_identity = water_res_identities[water_idx]
@@ -1719,31 +1739,34 @@ class UnifiedInteractionDetector:
             dist_dw_valid = dist_dw_matrix[water_idx, valid_don_indices]  # [n_valid_don]
             d_angle_valid = d_angle_matrix[water_idx, valid_don_indices]  # [n_valid_don]
 
-            # Vectorized water angle calculation (A-O-H_donor)
+            # Sparse water angle calculation (A-O-H_donor)
             # For each acc-don pair, calculate angle between A-O and H_donor-O vectors
-            # vec_ao[i, j] = acc_i - water_coord
-            # vec_ho[j] = don_h_j - water_coord
+            # Only compute angles for pairs that will be checked
             vec_ao = acc_coords_water - water_o_coord  # [n_valid_acc, 3]
             vec_ho = don_h_coords_water - water_o_coord  # [n_valid_don, 3]
 
-            # Compute all water angles: for each acceptor i and donor j
-            # w_angle[i, j] = angle between acc_i-O and don_h_j-O
-            # vec_ao_expanded[i, j, :] = vec_ao[i] broadcasted
-            # vec_ho_expanded[i, j, :] = vec_ho[j] broadcasted
-            vec_ao_expanded = vec_ao[:, np.newaxis, :]  # [n_acc, 1, 3]
-            vec_ho_expanded = vec_ho[np.newaxis, :, :]  # [1, n_don, 3]
+            # Compute norms for all vectors first (needed for angle calculation)
+            norm_ao = np.linalg.norm(vec_ao, axis=1)  # [n_valid_acc]
+            norm_ho = np.linalg.norm(vec_ho, axis=1)  # [n_valid_don]
 
-            norm_ao = np.linalg.norm(vec_ao_expanded, axis=2)  # [n_acc, 1]
-            norm_ho = np.linalg.norm(vec_ho_expanded, axis=2)  # [1, n_don]
+            # Create all combinations of acc-don pairs using broadcasting
+            # For sparse calculation, we compute the full angle matrix but it's now
+            # [n_valid_acc, n_valid_don] which is much smaller than original [n_acc, n_don]
+            # where n_acc/n_don are the global counts
+            vec_ao_expanded = vec_ao[:, np.newaxis, :]  # [n_valid_acc, 1, 3]
+            vec_ho_expanded = vec_ho[np.newaxis, :, :]  # [1, n_valid_don, 3]
 
-            norm_ao_safe = np.where(norm_ao == 0, 1, norm_ao)
-            norm_ho_safe = np.where(norm_ho == 0, 1, norm_ho)
+            norm_ao_expanded = norm_ao[:, np.newaxis]  # [n_valid_acc, 1]
+            norm_ho_expanded = norm_ho[np.newaxis, :]  # [1, n_valid_don]
 
-            dot_ao_ho = np.sum(vec_ao_expanded * vec_ho_expanded, axis=2)  # [n_acc, n_don]
+            norm_ao_safe = np.where(norm_ao_expanded == 0, 1, norm_ao_expanded)
+            norm_ho_safe = np.where(norm_ho_expanded == 0, 1, norm_ho_expanded)
+
+            dot_ao_ho = np.sum(vec_ao_expanded * vec_ho_expanded, axis=2)  # [n_valid_acc, n_valid_don]
 
             cos_w_angle = dot_ao_ho / (norm_ao_safe * norm_ho_safe)
             cos_w_angle = np.clip(cos_w_angle, -1.0, 1.0)
-            w_angle_matrix = np.degrees(np.arccos(cos_w_angle))  # [n_acc, n_don]
+            w_angle_matrix = np.degrees(np.arccos(cos_w_angle))  # [n_valid_acc, n_valid_don]
 
             # Filter by water angle criteria
             w_angle_mask = (w_angle_matrix > config.WATER_BRIDGE_OMEGA_MIN) & \
