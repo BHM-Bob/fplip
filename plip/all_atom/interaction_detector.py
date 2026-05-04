@@ -41,7 +41,8 @@ Interaction = namedtuple('Interaction', [
     'distance',          # Distance
     'angle',             # Angle (if applicable)
     'details',           # Type-specific details
-])
+    'objs',              # Python object reference (for API call)
+], defaults=(None,))
 
 
 class UnifiedInteractionDetector:
@@ -533,75 +534,82 @@ class UnifiedInteractionDetector:
         #     self._detect_hbonds_case2_vectorized(residue, all_hbd)
     
     def _detect_hbonds_case1_vectorized(self, residue: Residue, all_hba: List):
-        """Case 1: Residue is donor, other is acceptor (vectorized)"""
+        """Case 1: Residue is donor, other is acceptor (vectorized with sparse angle calculation)"""
         # Flatten all (donor, h_atom) pairs from residue
         donor_h_pairs = []
         for donor, h_atoms in residue.hbond_donors:
             for h_atom in h_atoms:
                 donor_h_pairs.append((donor, h_atom))
-        
+
         if not donor_h_pairs or not all_hba:
             return
-        
+
         # Pre-extract coordinates as numpy arrays (residue-specific)
         don_coords = self.atom_container.get_atom_coords_array_from_atoms([pair[0] for pair in donor_h_pairs])  # [n_pairs, 3]
         h_coords = self.atom_container.get_atom_coords_array_from_atoms([pair[1] for pair in donor_h_pairs])    # [n_pairs, 3]
         # Use cached all_hba coordinates (global, pre-computed)
         acc_coords = self._all_hba_coords  # [n_acc, 3]
-        
+
         # Vectorized distance calculation using cdist
         # dist_ad[i, j] = distance between donor i and acceptor j
         dist_ad_matrix = cdist(don_coords, acc_coords)  # [n_pairs, n_acc]
 
         # dist_ah[i, j] = distance between hydrogen i and acceptor j
         dist_ah_matrix = cdist(h_coords, acc_coords)  # [n_pairs, n_acc]
-        
+
         # Filter by distance criteria
         dist_mask = (dist_ad_matrix > config.MIN_DIST) & (dist_ad_matrix < config.HBOND_DIST_MAX)
-        
-        # Vectorized angle calculation
+
+        # Get indices of pairs that passed distance filter
+        pair_indices, acc_indices = np.where(dist_mask)
+
+        if len(pair_indices) == 0:
+            return
+
+        # Sparse angle calculation: only for pairs that passed distance filter
         # Vector from H to D: don_coords - h_coords
         vec_hd = don_coords - h_coords  # [n_pairs, 3]
-        # Vector from H to A: acc_coords - h_coords (for each pair)
-        vec_ha = acc_coords[np.newaxis, :, :] - h_coords[:, np.newaxis, :]  # [n_pairs, n_acc, 3]
-        
-        # Compute angles using dot product
-        norm_hd = np.linalg.norm(vec_hd, axis=1)  # [n_pairs]
-        norm_ha = np.linalg.norm(vec_ha, axis=2)  # [n_pairs, n_acc]
-        
+
+        # Extract only the vectors needed for angle calculation
+        vec_hd_sparse = vec_hd[pair_indices]  # [N, 3]
+        vec_ha_sparse = acc_coords[acc_indices] - h_coords[pair_indices]  # [N, 3]
+
+        # Compute angles using dot product (only for sparse pairs)
+        norm_hd_sparse = np.linalg.norm(vec_hd_sparse, axis=1)  # [N]
+        norm_ha_sparse = np.linalg.norm(vec_ha_sparse, axis=1)  # [N]
+
         # Avoid division by zero
-        norm_hd_safe = np.where(norm_hd == 0, 1, norm_hd)
-        norm_ha_safe = np.where(norm_ha == 0, 1, norm_ha)
-        
+        norm_hd_safe = np.where(norm_hd_sparse == 0, 1, norm_hd_sparse)
+        norm_ha_safe = np.where(norm_ha_sparse == 0, 1, norm_ha_sparse)
+
         # Dot product
-        dot_product = np.sum(vec_ha * vec_hd[:, np.newaxis, :], axis=2)  # [n_pairs, n_acc]
-        
-        cos_angle = dot_product / (norm_hd_safe[:, np.newaxis] * norm_ha_safe)
-        cos_angle = np.clip(cos_angle, -1.0, 1.0)  # Clip to avoid numerical errors
-        angle_matrix = np.degrees(np.arccos(cos_angle))  # [n_pairs, n_acc]
-        
+        dot_product_sparse = np.sum(vec_ha_sparse * vec_hd_sparse, axis=1)  # [N]
+
+        cos_angle_sparse = dot_product_sparse / (norm_hd_safe * norm_ha_safe)
+        cos_angle_sparse = np.clip(cos_angle_sparse, -1.0, 1.0)  # Clip to avoid numerical errors
+        angle_sparse = np.degrees(np.arccos(cos_angle_sparse))  # [N]
+
         # Filter by angle criteria
-        angle_mask = angle_matrix > config.HBOND_DON_ANGLE_MIN
-        
-        # Combine masks
-        valid_mask = dist_mask & angle_mask
-        
-        # Get indices of valid pairs
-        valid_indices = np.argwhere(valid_mask)  # [N, 2] where each row is [pair_idx, acc_idx]
-        
+        angle_mask_sparse = angle_sparse > config.HBOND_DON_ANGLE_MIN
+
+        # Get final valid indices
+        valid_pair_indices = pair_indices[angle_mask_sparse]
+        valid_acc_indices = acc_indices[angle_mask_sparse]
+        valid_angles = angle_sparse[angle_mask_sparse]
+
         # Process only valid pairs
-        for pair_idx, acc_idx in valid_indices:
+        for i, (pair_idx, acc_idx) in enumerate(zip(valid_pair_indices, valid_acc_indices)):
             donor, h_atom = donor_h_pairs[pair_idx]
             hba = all_hba[acc_idx]
-            
+
             # Skip if same residue (unless it's a ligand)
             if self._should_skip_interaction(residue, donor, hba):
                 continue
-            
+
             dist_ad = dist_ad_matrix[pair_idx, acc_idx]
             dist_ah = dist_ah_matrix[pair_idx, acc_idx]
-            angle = angle_matrix[pair_idx, acc_idx]
-            
+            angle = valid_angles[i]
+
             interaction = Interaction(
                 type='hbond',
                 res_a_name=donor.resname,
@@ -623,72 +631,85 @@ class UnifiedInteractionDetector:
                     'type': 'strong' if dist_ad < 3.2 and angle > 140 else 'weak',
                     'donor_idx': donor.idx,
                     'acceptor_idx': hba.idx
-                }
+                },
+                objs={'donor': donor, 'h_atom': h_atom, 'acceptor': hba}
             )
             self.interactions['hbond'].append(interaction)
     
     def _detect_hbonds_case2_vectorized(self, residue: Residue, all_hbd: List):
-        """Case 2: Residue is acceptor, other is donor (vectorized)"""
+        """Case 2: Residue is acceptor, other is donor (vectorized with sparse angle calculation)"""
         # Use cached global donor-hydrogen pairs (pre-computed in _precompute_cached_data)
         donor_h_pairs = self._all_hbd_pairs
-        
+
         if not donor_h_pairs or not residue.hbond_acceptors:
             return
-        
+
         # Use cached global donor/hydrogen coordinates (pre-computed)
         don_coords = self._all_hbd_don_coords  # [n_pairs, 3]
         h_coords = self._all_hbd_h_coords      # [n_pairs, 3]
         # Extract residue-specific acceptor coordinates
         acc_coords = self.atom_container.get_atom_coords_array_from_atoms(residue.hbond_acceptors)  # [n_acc, 3]
-        
+
         # Vectorized distance calculation using cdist
         # dist_ad[i, j] = distance between donor i and acceptor j
         dist_ad_matrix = cdist(don_coords, acc_coords)  # [n_pairs, n_acc]
 
         # dist_ah[i, j] = distance between hydrogen i and acceptor j
         dist_ah_matrix = cdist(h_coords, acc_coords)  # [n_pairs, n_acc]
-        
+
         # Filter by distance criteria
         dist_mask = (dist_ad_matrix > config.MIN_DIST) & (dist_ad_matrix < config.HBOND_DIST_MAX)
-        
-        # Vectorized angle calculation
+
+        # Get indices of pairs that passed distance filter
+        pair_indices, acc_indices = np.where(dist_mask)
+
+        if len(pair_indices) == 0:
+            return
+
+        # Sparse angle calculation: only for pairs that passed distance filter
+        # Vector from H to D: don_coords - h_coords
         vec_hd = don_coords - h_coords  # [n_pairs, 3]
-        vec_ha = acc_coords[np.newaxis, :, :] - h_coords[:, np.newaxis, :]  # [n_pairs, n_acc, 3]
-        
-        norm_hd = np.linalg.norm(vec_hd, axis=1)  # [n_pairs]
-        norm_ha = np.linalg.norm(vec_ha, axis=2)  # [n_pairs, n_acc]
-        
-        norm_hd_safe = np.where(norm_hd == 0, 1, norm_hd)
-        norm_ha_safe = np.where(norm_ha == 0, 1, norm_ha)
-        
-        dot_product = np.sum(vec_ha * vec_hd[:, np.newaxis, :], axis=2)  # [n_pairs, n_acc]
-        
-        cos_angle = dot_product / (norm_hd_safe[:, np.newaxis] * norm_ha_safe)
-        cos_angle = np.clip(cos_angle, -1.0, 1.0)
-        angle_matrix = np.degrees(np.arccos(cos_angle))  # [n_pairs, n_acc]
-        
+
+        # Extract only the vectors needed for angle calculation
+        vec_hd_sparse = vec_hd[pair_indices]  # [N, 3]
+        vec_ha_sparse = acc_coords[acc_indices] - h_coords[pair_indices]  # [N, 3]
+
+        # Compute angles using dot product (only for sparse pairs)
+        norm_hd_sparse = np.linalg.norm(vec_hd_sparse, axis=1)  # [N]
+        norm_ha_sparse = np.linalg.norm(vec_ha_sparse, axis=1)  # [N]
+
+        # Avoid division by zero
+        norm_hd_safe = np.where(norm_hd_sparse == 0, 1, norm_hd_sparse)
+        norm_ha_safe = np.where(norm_ha_sparse == 0, 1, norm_ha_sparse)
+
+        # Dot product
+        dot_product_sparse = np.sum(vec_ha_sparse * vec_hd_sparse, axis=1)  # [N]
+
+        cos_angle_sparse = dot_product_sparse / (norm_hd_safe * norm_ha_safe)
+        cos_angle_sparse = np.clip(cos_angle_sparse, -1.0, 1.0)
+        angle_sparse = np.degrees(np.arccos(cos_angle_sparse))  # [N]
+
         # Filter by angle criteria
-        angle_mask = angle_matrix > config.HBOND_DON_ANGLE_MIN
-        
-        # Combine masks
-        valid_mask = dist_mask & angle_mask
-        
-        # Get indices of valid pairs
-        valid_indices = np.argwhere(valid_mask)
-        
+        angle_mask_sparse = angle_sparse > config.HBOND_DON_ANGLE_MIN
+
+        # Get final valid indices
+        valid_pair_indices = pair_indices[angle_mask_sparse]
+        valid_acc_indices = acc_indices[angle_mask_sparse]
+        valid_angles = angle_sparse[angle_mask_sparse]
+
         # Process only valid pairs
-        for pair_idx, acc_idx in valid_indices:
+        for i, (pair_idx, acc_idx) in enumerate(zip(valid_pair_indices, valid_acc_indices)):
             donor, h_atom = donor_h_pairs[pair_idx]
             acc = residue.hbond_acceptors[acc_idx]
-            
+
             # Skip if same residue (unless it's a ligand)
             if self._should_skip_interaction(residue, acc, donor):
                 continue
-            
+
             dist_ad = dist_ad_matrix[pair_idx, acc_idx]
             dist_ah = dist_ah_matrix[pair_idx, acc_idx]
-            angle = angle_matrix[pair_idx, acc_idx]
-            
+            angle = valid_angles[i]
+
             interaction = Interaction(
                 type='hbond',
                 res_a_name=acc.resname,
@@ -710,7 +731,8 @@ class UnifiedInteractionDetector:
                     'type': 'strong' if dist_ad < 3.2 and angle > 140 else 'weak',
                     'donor_idx': donor.idx,
                     'acceptor_idx': acc.idx
-                }
+                },
+                objs={'donor': donor, 'h_atom': h_atom, 'acceptor': acc}
             )
             self.interactions['hbond'].append(interaction)
 
