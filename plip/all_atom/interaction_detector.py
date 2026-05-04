@@ -1447,60 +1447,131 @@ class UnifiedInteractionDetector:
                     details={}
                 )
                 self.interactions['metal'].append(interaction)
-    
-    def _detect_water_bridges(self):
+
+    def _create_water_bridge_interaction(self, water_res, water_o, water_o_coords,
+                                         pa_key, pa_info, pb_key, pb_info):
+        """Create a water bridge interaction between two partner atoms.
+
+        Parameters
+        ----------
+        water_res : Residue
+            The water residue mediating the bridge
+        water_o : AtomInfo
+            The water oxygen atom
+        water_o_coords : np.ndarray
+            Coordinates of water oxygen
+        pa_key, pb_key : tuple
+            Partner keys: (resname, chain, resnum, atom_name, atom_idx)
+        pa_info, pb_info : dict
+            Partner info containing 'hbond' and 'side'
+        """
+        # Extract partner atom coordinates
+        pa_atom = self.atom_container[pa_key[4]]
+        pb_atom = self.atom_container[pb_key[4]]
+        pa_coords = pa_atom.coords
+        pb_coords = pb_atom.coords
+
+        # Calculate distances from partners to water oxygen
+        dist_aw = euclidean3d(pa_coords, water_o_coords)
+        dist_bw = euclidean3d(pb_coords, water_o_coords)
+
+        # Calculate water bridge distance (sum of both distances)
+        bridge_distance = dist_aw + dist_bw
+
+        # Calculate water angle (A-O-B angle)
+        w_angle = vecangle(vector(water_o_coords, pa_coords), vector(water_o_coords, pb_coords))
+
+        # Create interaction
+        interaction = Interaction(
+            type='water_bridge',
+            res_a_name=pa_key[0],
+            res_a_chain=pa_key[1],
+            res_a_num=pa_key[2],
+            res_b_name=pb_key[0],
+            res_b_chain=pb_key[1],
+            res_b_num=pb_key[2],
+            atom_a_name=pa_key[3],
+            atom_a_idx=pa_key[4],
+            atom_b_name=pb_key[3],
+            atom_b_idx=pb_key[4],
+            distance=bridge_distance,
+            angle=w_angle,
+            details={
+                'water_residue': water_res.resid,
+                'water_atom_idx': water_o.idx,
+                'distance_aw': dist_aw,
+                'distance_bw': dist_bw,
+            }
+        )
+        self.interactions['water_bridge'].append(interaction)
+
+    def _detect_water_bridges(self, verbose=False):
         """Detect water bridges (water mediating between two molecules)"""
         # Find water residues (sorted for deterministic ordering)
-        water_residues = sorted([r for r in self.residues if r.is_water],
-                                key=lambda r: (r.chain, r.resnum))
-
-        # Combine standard H-bonds and heavy atom H-bonds for water bridge detection
+        # Skip water residues marked as distant (is_skip=True) for performance
+        water_residues = {r._hash: r for r in self.residues if r.is_water and not r.is_skip}
+        if not water_residues:
+            return
+        # Combine standard H-bonds and heavy atom H-bonds involving water for water bridge detection
         all_hbonds = self.interactions['hbond'] + self.interactions['hbond_heavy_atom']
-
-        for water_res in water_residues:
-            # Collect all H-bonds involving this water
-            # Sort by atom indices for deterministic ordering
-            water_hbonds = []
-            for hbond in sorted(all_hbonds,
-                                key=lambda h: (h.atom_a_idx, h.atom_b_idx)):
-                if (hbond.res_a_name == water_res.resname and
-                    hbond.res_a_chain == water_res.chain and
-                    hbond.res_a_num == water_res.resnum):
-                    water_hbonds.append(hbond)
-                elif (hbond.res_b_name == water_res.resname and
-                      hbond.res_b_chain == water_res.chain and
-                      hbond.res_b_num == water_res.resnum):
-                    water_hbonds.append(hbond)
-            
+        all_hbonds = list(filter(lambda hb: hb.objs['donor'].residue_obj.is_water or hb.objs['acceptor'].residue_obj.is_water, all_hbonds))
+        res2hbonds = defaultdict(list)
+        for hb in all_hbonds:
+            if hb.objs['acceptor'].residue_obj._hash in water_residues:
+                res2hbonds[hb.objs['acceptor'].residue_obj._hash].append(hb)
+            if hb.objs['donor'].residue_obj._hash in water_residues:
+                res2hbonds[hb.objs['donor'].residue_obj._hash].append(hb)
+        for water_res in water_residues.values():
+            # all H-bonds involving this water residue
+            water_hbonds = res2hbonds[water_res._hash]            
             # Check if water bridges two different residues
             if len(water_hbonds) >= 2:
-                partner_residues = set()
+                # Build partner info with atom-level keys to handle ligand internal water bridges
+                partner_info = {}
                 for hb in water_hbonds:
+                    # res_a side (if not water)
                     if hb.res_a_name != water_res.resname:
-                        partner_residues.add((hb.res_a_name, hb.res_a_chain, hb.res_a_num))
+                        key = (hb.res_a_name, hb.res_a_chain, hb.res_a_num, hb.atom_a_name, hb.atom_a_idx)
+                        if key not in partner_info:
+                            partner_info[key] = {'hbond': hb, 'side': 'a'}
+                    # res_b side (if not water)
                     if hb.res_b_name != water_res.resname:
-                        partner_residues.add((hb.res_b_name, hb.res_b_chain, hb.res_b_num))
-                
-                if len(partner_residues) >= 2:
-                    # This is a water bridge
-                    for hb in water_hbonds:
-                        interaction = Interaction(
-                            type='water_bridge',
-                            res_a_name=hb.res_a_name,
-                            res_a_chain=hb.res_a_chain,
-                            res_a_num=hb.res_a_num,
-                            res_b_name=hb.res_b_name,
-                            res_b_chain=hb.res_b_chain,
-                            res_b_num=hb.res_b_num,
-                            atom_a_name=hb.atom_a_name,
-                            atom_a_idx=hb.atom_a_idx,
-                            atom_b_name=hb.atom_b_name,
-                            atom_b_idx=hb.atom_b_idx,
-                            distance=hb.distance,
-                            angle=hb.angle,
-                            details={**hb.details, 'water_residue': water_res.resid}
+                        key = (hb.res_b_name, hb.res_b_chain, hb.res_b_num, hb.atom_b_name, hb.atom_b_idx)
+                        if key not in partner_info:
+                            partner_info[key] = {'hbond': hb, 'side': 'b'}
+
+                partner_keys = list(partner_info.keys())
+                if len(partner_keys) >= 2:
+                    # Get water oxygen atom and its coordinates
+                    water_o = None
+                    for atom in water_res.atoms:
+                        if atom.atomic_num == 8:  # Oxygen
+                            water_o = atom
+                            break
+
+                    if water_o is None:
+                        continue
+
+                    water_o_coords = water_o.coords
+
+                    # Build water bridge interactions for each pair of partners
+                    if len(partner_keys) == 2:
+                        # Common case: exactly 2 partners
+                        pa_key, pb_key = partner_keys
+                        self._create_water_bridge_interaction(
+                            water_res, water_o, water_o_coords,
+                            pa_key, partner_info[pa_key],
+                            pb_key, partner_info[pb_key]
                         )
-                        self.interactions['water_bridge'].append(interaction)
+                    else:
+                        # Rare case: more than 2 partners, use combinations
+                        import itertools
+                        for pa_key, pb_key in itertools.combinations(partner_keys, 2):
+                            self._create_water_bridge_interaction(
+                                water_res, water_o, water_o_coords,
+                                pa_key, partner_info[pa_key],
+                                pb_key, partner_info[pb_key]
+                            )
 
     def _detect_water_bridges_plip_style(self):
         """Detect water bridges using PLIP-style distance+angle criteria
