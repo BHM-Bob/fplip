@@ -725,15 +725,18 @@ class AtomProperties:
         return is_planar, normal
 
     def _identify_metals(self):
-        """Identify metal ions and metal-binding atoms"""
+        """Identify metal ions and metal-binding atoms."""
+        metals, metal_bindings = [], []
         for atom in self.atom_container:
             # Metal ions
             if atom.resname in config.METAL_IONS:
-                self.metals.add(atom.idx)
-            
+                metals.append(atom.idx)
+
             # Metal-binding atoms (O, N, S with lone pairs)
             if atom.atomic_num in [7, 8, 16]:  # N, O, S
-                self.metal_binding.add(atom.idx)
+                metal_bindings.append(atom.idx)
+        self.metals = set(metals)
+        self.metal_binding = set(metal_bindings)
     
     def _identify_halogen(self):
         """Identify halogen bond donors and acceptors with pre-computed C and Y atoms.
