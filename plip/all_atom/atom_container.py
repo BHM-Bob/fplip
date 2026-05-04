@@ -48,6 +48,9 @@ class AtomInfo:
         
         # Component type (protein, ligand, dna, rna, water, ion)
         self.component_type = self._determine_component_type()
+
+        # MDA index for trajectory coordinate updates (set by align_with_mda)
+        self.mda_idx: Optional[int] = None
         
     def _determine_component_type(self) -> str:
         """Determine the type of molecular component this atom belongs to"""
@@ -164,7 +167,32 @@ class AtomContainer:
     def get_atom_coords_array_from_atoms(self, atoms: List[AtomInfo]) -> Optional[np.ndarray]:
         """Get coordinates array for specified atoms"""
         return self.get_atom_coords_array([atom.idx for atom in atoms])
-    
+
+    def update_coords_from_mda(self, mda_coords: np.ndarray, aligned_only: bool = True):
+        """Update atom coordinates from MDAnalysis coordinates array.
+
+        Parameters
+        ----------
+        mda_coords : np.ndarray
+            MDA atoms positions array, shape (n_atoms, 3)
+        aligned_only : bool
+            If True, only update atoms with mda_idx set (already aligned)
+            If False, update all atoms
+        """
+        for atom in self.atoms.values():
+            if aligned_only and atom.mda_idx is None:
+                continue
+            atom.coords = mda_coords[atom.mda_idx]
+
+    def rebuild_coords_array(self):
+        """Rebuild coords_array after coordinate updates.
+
+        This should be called after update_coords_from_mda() before
+        running detect_all() if using cached coordinates.
+        """
+        sorted_indices = sorted(self.atoms.keys())
+        self.coords_array = np.array([self.atoms[idx].coords for idx in sorted_indices])
+
     def __len__(self):
         return len(self.atoms)
     
