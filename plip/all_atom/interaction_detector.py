@@ -230,9 +230,9 @@ class UnifiedInteractionDetector:
             self._all_hbd_donor_atoms = []
             self._all_hbd_donor_coords = np.array([]).reshape(0, 3)
 
+        self._all_hbd_pairs = []
         if self._has_explicit_h:
             # Flatten and cache all_hbd pairs for Case 2
-            self._all_hbd_pairs = []
             for donor, h_atoms in self._all_hbd:
                 for h_atom in h_atoms:
                     self._all_hbd_pairs.append((donor, h_atom))
