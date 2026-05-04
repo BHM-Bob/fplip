@@ -5,9 +5,14 @@ Defines the Residue class as the basic unit for interaction detection.
 Each residue contains atoms and their aggregated properties.
 """
 
-import numpy as np
-from typing import List, Dict, Tuple, Optional, Set
 from collections import defaultdict
+from typing import TYPE_CHECKING, Dict, List, Set, Tuple
+
+import numpy as np
+from openbabel import pybel
+
+if TYPE_CHECKING:
+    from plip.all_atom.atom_container import AtomInfo
 
 from plip.basic import config
 
@@ -30,9 +35,10 @@ class Residue:
         
         # Unique identifier
         self.resid = f"{resname}:{chain}:{resnum}"
+        self._hash = hash(self.resid)
         
         # Atoms in this residue
-        self.atoms: List = []
+        self.atoms: List['AtomInfo'] = []
         
         # Residue type flags
         self.is_protein = False
@@ -42,7 +48,8 @@ class Residue:
         self.is_ion = False
         self.is_dna = False
         self.is_rna = False
-        
+        self.is_skip = False # Skip flag for distant water filtering in trajectory analysis
+
         # Aggregated properties (populated by AtomProperties)
         self.hbond_acceptors: List = []
         self.hbond_donors: List[Tuple] = []  # (donor_atom, [h_atoms])
@@ -85,8 +92,6 @@ class Residue:
         - LYS: NZ forms its own group
         - ASP/GLU: Both O atoms form one carboxylate group, centered at their centroid
         """
-        from openbabel import pybel
-        
         # Group positive charges by functional group
         if self.pos_charged:
             groups = defaultdict(list)
@@ -328,8 +333,6 @@ class Residue:
         Returns:
             bool: True if they are in the same imidazole ring
         """
-        from openbabel import pybel
-        
         # Get the parent molecule
         if not atom1.obatom or not atom2.obatom:
             return False
@@ -401,9 +404,9 @@ class Residue:
         return f"Residue({self.resid}, atoms={len(self.atoms)}, type={'protein' if self.is_protein else 'ligand' if self.is_ligand else 'other'})"
     
     def __hash__(self):
-        return hash(self.resid)
+        return self._hash
     
     def __eq__(self, other):
         if isinstance(other, Residue):
-            return self.resid == other.resid
+            return self._hash == other._hash
         return False
