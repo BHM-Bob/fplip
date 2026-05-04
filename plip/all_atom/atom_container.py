@@ -4,14 +4,17 @@ Atom Container Module
 Provides unified storage and management of atom information
 for all molecular components (proteins, ligands, DNA/RNA, etc.)
 """
+from __future__ import annotations
 
 from collections import defaultdict
-from typing import Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Set
 
 import numpy as np
 
 from plip.basic import config
 
+if TYPE_CHECKING:
+    from plip.all_atom.residue import Residue
 
 class AtomInfo:
     """Lightweight class to store atom information"""
@@ -30,7 +33,7 @@ class AtomInfo:
         self.chain = residue.GetChain() if residue else " "
 
         # Back-reference to Residue object (set by InteractionDetector after residue creation)
-        self.residue_obj = None
+        self.residue_obj: Optional['Residue'] = None
         
         # Atom properties
         self.atom_type = obatom.GetType()
