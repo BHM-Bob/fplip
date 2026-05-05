@@ -93,11 +93,13 @@ class UnifiedInteractionDetector:
         
         # Pre-compute cached data for performance
         self._precompute_cached_data()
-        
+
         # Detect interactions for each residue
-        for residue in tqdm(self.residues, desc='Processing residues', disable=not verbose):            
+        for residue in tqdm(self.residues, desc='Processing residues', disable=not verbose, leave=False):
+            if residue.is_skip:
+                continue
             self._detect_for_residue(residue)
-        
+
         # Remove duplicates (each interaction detected twice: A-B and B-A)
         self._remove_duplicates()
 
@@ -105,10 +107,10 @@ class UnifiedInteractionDetector:
         self._refine_hbonds()
 
         # Detect water bridges (H-bond based)
-        self._detect_water_bridges()
+        self._detect_water_bridges(verbose)
 
         # Detect PLIP-style water bridges (distance+angle based)
-        self._detect_water_bridges_plip_style()
+        self._detect_water_bridges_plip_style(verbose)
 
         self._log_summary()
 
@@ -1939,3 +1941,18 @@ class UnifiedInteractionDetector:
         for itype, interactions in self.interactions.items():
             if interactions:
                 logger.info(f'  {itype}: {len(interactions)}')
+
+    def update_coords(self, mda_coords: np.ndarray):
+        """Update coordinates from MDAnalysis coordinates array.
+
+        This method updates atom coordinates and refreshes all cached coordinate
+        arrays for rapid trajectory analysis.
+
+        Parameters
+        ----------
+        mda_coords : np.ndarray
+            MDA atoms positions array, shape (n_atoms, 3)
+        """
+        self.atom_container.update_coords_from_mda(mda_coords, aligned_only=True)
+        self.atom_container.rebuild_coords_array()
+        self.all_coords = self.atom_container.coords_array
