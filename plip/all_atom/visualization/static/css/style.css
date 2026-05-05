@@ -1,0 +1,226 @@
+/* All-Atom Visualization Styles */
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    background-color: #f5f5f5;
+}
+
+/* Card Styles */
+.card {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    border: none;
+}
+
+.card-header {
+    background-color: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    font-weight: 600;
+}
+
+/* 3D Viewport */
+#viewport {
+    background-color: #000;
+    border-radius: 0 0 4px 4px;
+}
+
+/* Interaction Table */
+#interactionTable {
+    font-size: 0.85rem;
+}
+
+#interactionTable th {
+    font-weight: 600;
+    background-color: #f8f9fa;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+#interactionTable tbody tr {
+    cursor: pointer;
+}
+
+#interactionTable tbody tr:hover {
+    background-color: #e3f2fd;
+}
+
+#interactionTable tbody tr.selected {
+    background-color: #bbdefb;
+}
+
+/* Type Filter Checkboxes */
+.type-filter-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.type-filter-item input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.type-color-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    margin-right: 8px;
+    display: inline-block;
+}
+
+/* Group List */
+.group-item {
+    padding: 8px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    background-color: #fff;
+}
+
+.group-item:hover {
+    background-color: #f5f5f5;
+}
+
+.group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.group-name {
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.group-count {
+    font-size: 0.8rem;
+    color: #666;
+}
+
+.group-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.group-actions button {
+    padding: 2px 6px;
+    font-size: 0.75rem;
+}
+
+/* Statistics Panel */
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.stat-item:last-child {
+    border-bottom: none;
+}
+
+.stat-label {
+    color: #666;
+}
+
+.stat-value {
+    font-weight: 600;
+}
+
+/* Loading Overlay */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Toast Notifications */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .col-md-3, .col-md-6 {
+        margin-bottom: 1rem;
+    }
+
+    #viewport {
+        height: 300px;
+    }
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Form Elements */
+.form-select-sm, .form-control-sm {
+    font-size: 0.875rem;
+}
+
+.btn-group-sm > .btn {
+    font-size: 0.75rem;
+}
+
+/* Navbar */
+.navbar-brand {
+    font-weight: 600;
+}
+
+/* Modal */
+.modal-header {
+    background-color: #f8f9fa;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+}
+
+.empty-state-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    color: #ccc;
+}

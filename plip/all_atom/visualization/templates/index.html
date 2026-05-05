@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All-Atom Visualization</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- NGL Viewer -->
+    <script src="https://cdn.jsdelivr.net/npm/ngl@2.0.0-dev.37/dist/ngl.js"></script>
+
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">All-Atom Visualization</span>
+            <div class="d-flex">
+                <button class="btn btn-outline-light btn-sm me-2" onclick="showHelp()">Help</button>
+                <button class="btn btn-primary btn-sm" onclick="exportPyMOL()">Export PyMOL</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container-fluid mt-3">
+        <div class="row">
+            <!-- Left Panel: Controls -->
+            <div class="col-md-3">
+                <!-- Filter Panel -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">Filters</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Interaction Types -->
+                        <div class="mb-3">
+                            <label class="form-label">Interaction Types</label>
+                            <div id="typeFilters">
+                                <!-- Populated by JavaScript -->
+                            </div>
+                        </div>
+
+                        <!-- Residue Filter -->
+                        <div class="mb-3">
+                            <label class="form-label">Residues</label>
+                            <select class="form-select form-select-sm" id="residueSelect" multiple size="5">
+                                <!-- Populated by JavaScript -->
+                            </select>
+                        </div>
+
+                        <!-- Distance Filter -->
+                        <div class="mb-3">
+                            <label class="form-label">Distance (Å)</label>
+                            <div class="row">
+                                <div class="col">
+                                    <input type="number" class="form-control form-control-sm" id="distMin" placeholder="Min" step="0.1">
+                                </div>
+                                <div class="col">
+                                    <input type="number" class="form-control form-control-sm" id="distMax" placeholder="Max" step="0.1">
+                                </div>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary btn-sm w-100" onclick="applyFilters()">Apply Filters</button>
+                        <button class="btn btn-secondary btn-sm w-100 mt-2" onclick="clearFilters()">Clear</button>
+                    </div>
+                </div>
+
+                <!-- Groups Panel -->
+                <div class="card mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Groups</h5>
+                        <button class="btn btn-success btn-sm" onclick="createGroup()">+ New</button>
+                    </div>
+                    <div class="card-body">
+                        <div id="groupsList">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistics Panel -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Statistics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="statistics">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center Panel: 3D Viewer -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">3D View</h5>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" onclick="setRepresentation('cartoon')">Cartoon</button>
+                            <button class="btn btn-outline-secondary" onclick="setRepresentation('ball+stick')">Ball+Stick</button>
+                            <button class="btn btn-outline-secondary" onclick="setRepresentation('surface')">Surface</button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="viewport" style="width: 100%; height: 500px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Interaction Table -->
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Interactions</h5>
+                        <small class="text-muted" id="interactionCount">0 interactions</small>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                            <table class="table table-sm table-hover" id="interactionTable">
+                                <thead class="sticky-top bg-light">
+                                    <tr>
+                                        <th>Type</th>
+                                        <th>Res A</th>
+                                        <th>Res B</th>
+                                        <th>Dist</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="interactionTableBody">
+                                    <!-- Populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Group Modal -->
+    <div class="modal fade" id="createGroupModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Group</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Group Name</label>
+                        <input type="text" class="form-control" id="newGroupName" placeholder="e.g., Strong H-bonds">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Selected Interactions</label>
+                        <p class="text-muted" id="selectedInteractionsCount">0 interactions selected</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmCreateGroup()">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div class="modal fade" id="helpModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Help</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>Getting Started</h6>
+                    <p>1. Use the filter panel on the left to select specific interaction types, residues, or distance ranges.</p>
+                    <p>2. Click "Apply Filters" to update the 3D view and interaction table.</p>
+                    <p>3. Create groups to organize interactions - select interactions in the table and click "+ New" in the Groups panel.</p>
+
+                    <h6>3D Viewer Controls</h6>
+                    <ul>
+                        <li><strong>Left click + drag:</strong> Rotate</li>
+                        <li><strong>Right click + drag:</strong> Pan</li>
+                        <li><strong>Scroll:</strong> Zoom</li>
+                        <li><strong>Click atom:</strong> Select</li>
+                    </ul>
+
+                    <h6>Interaction Colors</h6>
+                    <ul>
+                        <li><span style="color: #0066CC;">■</span> Hydrogen bond</li>
+                        <li><span style="color: #FFCC00;">■</span> Salt bridge</li>
+                        <li><span style="color: #808080;">■</span> Hydrophobic</li>
+                        <li><span style="color: #009900;">■</span> Pi-stacking</li>
+                        <li><span style="color: #FF6600;">■</span> Pi-cation</li>
+                        <li><span style="color: #00CCCC;">■</span> Halogen</li>
+                        <li><span style="color: #99CCFF;">■</span> Water bridge</li>
+                        <li><span style="color: #9900CC;">■</span> Metal</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Custom JavaScript -->
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=5"></script>
+</body>
+</html>
