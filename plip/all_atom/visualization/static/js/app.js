@@ -17,11 +17,13 @@ const appState = {
         distanceMax: null
     },
     representation: 'cartoon',      // Current molecular representation
-    interactionShapes: []           // NGL shape components for interactions
+    interactionShapes: [],          // NGL shape components for interactions
+    interactionData: {},            // Map of shape name to interaction data
+    selectedInteraction: null       // Currently selected interaction
 };
 
-// Color scheme matching main PLIP
-const INTERACTION_COLORS = {
+// Color scheme matching main PLIP (CSS uses 0-255 range)
+const INTERACTION_COLORS_CSS = {
     'hbond': [0, 102, 204],           // Blue
     'hbond_possible': [153, 204, 255], // Light blue
     'saltbridge': [255, 204, 0],      // Yellow
@@ -33,6 +35,90 @@ const INTERACTION_COLORS = {
     'water_bridge_possible': [153, 204, 255],  // Light blue
     'metal': [153, 0, 204]            // Purple
 };
+
+// Color scheme for NGL (uses 0-1 range)
+const INTERACTION_COLORS = {};
+for (const [type, rgb] of Object.entries(INTERACTION_COLORS_CSS)) {
+    INTERACTION_COLORS[type] = rgb.map(v => v / 255);
+}
+
+// User custom color preferences (persisted in memory during session)
+const userColorPreferences = {};
+
+/**
+ * Convert RGB array to hex color string
+ */
+function rgbToHex(rgb) {
+    return '#' + rgb.map(v => {
+        const hex = v.toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+    }).join('');
+}
+
+/**
+ * Convert hex color string to RGB array
+ */
+function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? [
+        parseInt(result[1], 16),
+        parseInt(result[2], 16),
+        parseInt(result[3], 16)
+    ] : [200, 200, 200];
+}
+
+/**
+ * Get color for interaction type (respects user preferences)
+ */
+function getInteractionColor(type) {
+    if (userColorPreferences[type]) {
+        return userColorPreferences[type];
+    }
+    return INTERACTION_COLORS_CSS[type] || [200, 200, 200];
+}
+
+/**
+ * Get color for interaction type in NGL format (0-1 range)
+ */
+function getInteractionColorNGL(type) {
+    const color = getInteractionColor(type);
+    return color.map(v => v / 255);
+}
+
+
+
+/**
+ * Set custom color for interaction type
+ */
+function setInteractionColor(type, color) {
+    // Store user preference
+    userColorPreferences[type] = color;
+
+    // Update CSS color map
+    INTERACTION_COLORS_CSS[type] = color;
+
+    // Update NGL color map
+    INTERACTION_COLORS[type] = color.map(v => v / 255);
+
+    // Update color indicator in UI
+    const colorIndicators = document.querySelectorAll('.type-color-indicator');
+    const typeItems = document.querySelectorAll('#typeFilters .type-filter-item');
+
+    typeItems.forEach((item, index) => {
+        const checkbox = item.querySelector('input[type="checkbox"]');
+        if (checkbox && checkbox.value === type) {
+            const indicator = item.querySelector('.type-color-indicator');
+            if (indicator) {
+                indicator.style.backgroundColor = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+            }
+        }
+    });
+
+    // Refresh interaction display with new colors
+    updateInteractionDisplay();
+
+    showToast(`Color updated for ${formatTypeName(type)}`, 'success');
+}
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', function() {
@@ -52,6 +138,19 @@ function initNGL() {
     // Handle window resize
     window.addEventListener('resize', function() {
         appState.stage.handleResize();
+    });
+
+    // Setup click handler for interaction selection
+    appState.stage.signals.clicked.add(function(pickingProxy) {
+        if (pickingProxy && pickingProxy.cylinder) {
+            const cylinder = pickingProxy.cylinder;
+            const name = cylinder.name;
+
+            if (name && appState.interactionData[name]) {
+                const interaction = appState.interactionData[name];
+                selectInteraction(interaction);
+            }
+        }
     });
 }
 
@@ -97,17 +196,13 @@ async function loadInitialData() {
  */
 async function loadPDBStructure() {
     try {
-        console.log('Loading PDB structure...');
         const response = await fetch('/api/pdb');
         const data = await response.json();
-        console.log('PDB info:', data);
 
         if (data.has_pdb_content) {
             // Load PDB content from our API
-            console.log('Loading PDB content from API...');
             const pdbResponse = await fetch('/api/pdb/content');
             const pdbContent = await pdbResponse.text();
-            console.log(`Loaded PDB content: ${pdbContent.length} characters`);
 
             // Create a Blob from the PDB content
             const blob = new Blob([pdbContent], { type: 'text/plain' });
@@ -115,7 +210,6 @@ async function loadPDBStructure() {
 
             // Load into NGL
             appState.stage.loadFile(url, { ext: 'pdb' }).then(function(component) {
-                console.log('PDB loaded successfully');
                 component.addRepresentation(appState.representation, {
                     color: 'chainname'
                 });
@@ -128,10 +222,8 @@ async function loadPDBStructure() {
         } else if (data.pdb_file) {
             // Fallback: try to load from RCSB if it's a PDB ID
             const pdbId = data.pdb_file.split('/').pop().replace('.pdb', '');
-            console.log(`Trying to load from RCSB: ${pdbId}`);
             if (pdbId.length === 4) {
                 appState.stage.loadFile('rcsb://' + pdbId).then(function(component) {
-                    console.log('PDB loaded from RCSB');
                     component.addRepresentation(appState.representation, {
                         color: 'chainname'
                     });
@@ -142,11 +234,9 @@ async function loadPDBStructure() {
                     showToast('Could not load PDB structure', 'warning');
                 });
             } else {
-                console.warn('No valid PDB ID found');
                 showToast('No PDB structure available', 'warning');
             }
         } else {
-            console.warn('No PDB file available');
             showToast('No PDB structure available', 'warning');
         }
     } catch (error) {
@@ -163,17 +253,31 @@ function populateTypeFilters(types) {
     container.innerHTML = '';
 
     types.forEach(type => {
-        const color = INTERACTION_COLORS[type] || [200, 200, 200];
+        const color = getInteractionColor(type);
         const colorStr = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+        const colorHex = rgbToHex(color);
 
         const div = document.createElement('div');
         div.className = 'type-filter-item';
         div.innerHTML = `
             <input type="checkbox" id="type_${type}" value="${type}" checked>
-            <span class="type-color-indicator" style="background-color: ${colorStr};"></span>
+            <label for="color_${type}" class="type-color-indicator" style="background-color: ${colorStr}; cursor: pointer; margin-bottom: 0;" title="Click to change color"></label>
+            <input type="color" id="color_${type}" value="${colorHex}" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;" data-type="${type}">
             <label for="type_${type}">${formatTypeName(type)}</label>
         `;
         container.appendChild(div);
+
+        // Add change listener to color input
+        const colorInput = div.querySelector(`#color_${type}`);
+        colorInput.addEventListener('change', function() {
+            const newColor = hexToRgb(this.value);
+            setInteractionColor(type, newColor);
+            // Update the visual indicator
+            const indicator = div.querySelector('.type-color-indicator');
+            if (indicator) {
+                indicator.style.backgroundColor = `rgb(${newColor[0]}, ${newColor[1]}, ${newColor[2]})`;
+            }
+        });
     });
 }
 
@@ -220,10 +324,7 @@ function populateResidueSelect(residues) {
  * Focus NGL view on a specific residue
  */
 function focusResidue(chain, resNum) {
-    console.log(`Focusing on residue: chain ${chain}, number ${resNum}`);
-
     if (!appState.stage) {
-        console.warn('NGL stage not initialized');
         return;
     }
 
@@ -236,13 +337,11 @@ function focusResidue(chain, resNum) {
     });
 
     if (!targetComponent) {
-        console.warn('No structure component found');
         return;
     }
 
     // Create selection string
     const selection = `${resNum}:${chain}`;
-    console.log(`NGL selection: ${selection}`);
 
     // Add temporary highlight representation
     const highlightRepr = targetComponent.addRepresentation('ball+stick', {
@@ -323,7 +422,6 @@ async function applyFilters() {
         updateInteractionCount(data.count);
 
     } catch (error) {
-        console.error('Error applying filters:', error);
         showToast('Error applying filters', 'danger');
     }
 }
@@ -419,8 +517,6 @@ function updateSelectedCount() {
  * Update 3D display of interactions
  */
 function updateInteractionDisplay() {
-    console.log(`Updating interaction display: ${appState.interactions.length} interactions`);
-
     // Remove existing interaction shapes
     appState.interactionShapes.forEach(shape => {
         appState.stage.removeComponent(shape);
@@ -432,18 +528,18 @@ function updateInteractionDisplay() {
         i.coords_a && i.coords_b
     );
 
-    console.log(`Interactions with coordinates: ${interactionsWithCoords.length}`);
-
     if (interactionsWithCoords.length === 0) {
-        console.warn('No interactions with coordinates to display');
         return;
     }
+
+    // Clear previous interaction data
+    appState.interactionData = {};
 
     // Add new interaction lines
     const shape = new NGL.Shape('interactions');
 
     interactionsWithCoords.forEach((interaction) => {
-        const color = INTERACTION_COLORS[interaction.type] || [255, 255, 255];
+        const color = getInteractionColorNGL(interaction.type);
 
         // Check if this is a water bridge
         const isWaterBridge = interaction.type === 'water_bridge' || interaction.type === 'water_bridge_possible';
@@ -454,12 +550,21 @@ function updateInteractionDisplay() {
             const [xw, yw, zw] = interaction.coords_water;
             const [x2, y2, z2] = interaction.coords_b;
 
+            // Create unique names for each segment
+            const seg1Name = `${interaction.type}_${interaction.id}_aw`;
+            const seg2Name = `${interaction.type}_${interaction.id}_wb`;
+
+            // Store interaction data for both segments
+            appState.interactionData[seg1Name] = interaction;
+            appState.interactionData[seg2Name] = interaction;
+
             // First segment: A to Water
             shape.addCylinder(
                 [x1, y1, z1],  // position1
                 [xw, yw, zw],  // position2
                 color,          // color
                 0.08,           // radius (slightly thinner)
+                seg1Name        // name for picking
             );
 
             // Second segment: Water to B
@@ -468,17 +573,25 @@ function updateInteractionDisplay() {
                 [x2, y2, z2],  // position2
                 color,          // color
                 0.08,           // radius
+                seg2Name        // name for picking
             );
         } else {
             // Regular interaction: single line
             const [x1, y1, z1] = interaction.coords_a;
             const [x2, y2, z2] = interaction.coords_b;
 
+            // Create unique name for this cylinder
+            const shapeName = `${interaction.type}_${interaction.id}`;
+
+            // Store interaction data
+            appState.interactionData[shapeName] = interaction;
+
             shape.addCylinder(
                 [x1, y1, z1],  // position1
                 [x2, y2, z2],  // position2
                 color,          // color
                 0.1,            // radius
+                shapeName       // name for picking
             );
         }
     });
@@ -486,8 +599,122 @@ function updateInteractionDisplay() {
     const shapeComponent = appState.stage.addComponentFromObject(shape);
     shapeComponent.addRepresentation('buffer');
     appState.interactionShapes.push(shapeComponent);
+}
 
-    console.log(`Created shape component with ${interactionsWithCoords.length} interactions`);
+/**
+ * Select an interaction and display its details in the sidebar
+ */
+function selectInteraction(interaction) {
+    appState.selectedInteraction = interaction;
+
+    const detailsDiv = document.getElementById('selectedInteractionDetails');
+    if (!detailsDiv) return;
+
+    // Build detailed info HTML
+    let html = `
+        <div class="interaction-details">
+            <h6 class="border-bottom pb-2 mb-3">${interaction.type.toUpperCase()} #${interaction.id}</h6>
+
+            <div class="mb-3">
+                <strong>Residue A:</strong><br>
+                <span class="ms-2">${interaction.res_a_name} ${interaction.res_a_chain}:${interaction.res_a_num}</span><br>
+                <span class="ms-2 text-muted">Atom: ${interaction.atom_a_name} (idx: ${interaction.atom_a_idx})</span>
+            </div>
+
+            <div class="mb-3">
+                <strong>Residue B:</strong><br>
+                <span class="ms-2">${interaction.res_b_name} ${interaction.res_b_chain}:${interaction.res_b_num}</span><br>
+                <span class="ms-2 text-muted">Atom: ${interaction.atom_b_name} (idx: ${interaction.atom_b_idx})</span>
+            </div>
+
+            <div class="mb-3">
+                <strong>Geometry:</strong><br>
+                <span class="ms-2">Distance: ${interaction.distance.toFixed(2)} Å</span>
+    `;
+
+    if (interaction.angle !== undefined && interaction.angle !== null) {
+        html += `<br><span class="ms-2">Angle: ${interaction.angle.toFixed(1)}°</span>`;
+    }
+
+    html += `</div>`;
+
+    // Add water bridge specific info
+    if (interaction.type === 'water_bridge' || interaction.type === 'water_bridge_possible') {
+        html += `
+            <div class="mb-3">
+                <strong>Water Bridge Details:</strong>
+        `;
+
+        if (interaction.water_residue) {
+            html += `<br><span class="ms-2">Water: ${interaction.water_residue}</span>`;
+        }
+
+        if (interaction.distance_aw !== undefined) {
+            html += `<br><span class="ms-2">Acceptor-Water: ${interaction.distance_aw.toFixed(2)} Å</span>`;
+        }
+
+        if (interaction.distance_bw !== undefined) {
+            html += `<br><span class="ms-2">Water-Donor: ${interaction.distance_bw.toFixed(2)} Å</span>`;
+        }
+
+        if (interaction.distance_dw !== undefined) {
+            html += `<br><span class="ms-2">Donor-Water: ${interaction.distance_dw.toFixed(2)} Å</span>`;
+        }
+
+        if (interaction.d_angle !== undefined) {
+            html += `<br><span class="ms-2">Donor Angle: ${interaction.d_angle.toFixed(1)}°</span>`;
+        }
+
+        if (interaction.w_angle !== undefined) {
+            html += `<br><span class="ms-2">Water Angle: ${interaction.w_angle.toFixed(1)}°</span>`;
+        }
+
+        html += `</div>`;
+    }
+
+    // Add coordinates info (collapsible)
+    html += `
+        <div class="mt-3 pt-2 border-top">
+            <small class="text-muted">
+                <strong>Coordinates:</strong><br>
+                Atom A: [${interaction.coords_a.map(c => c.toFixed(2)).join(', ')}]<br>
+                Atom B: [${interaction.coords_b.map(c => c.toFixed(2)).join(', ')}]
+    `;
+
+    if (interaction.coords_water) {
+        html += `<br>Water O: [${interaction.coords_water.map(c => c.toFixed(2)).join(', ')}]`;
+    }
+
+    html += `
+            </small>
+        </div>
+    </div>
+    `;
+
+    detailsDiv.innerHTML = html;
+
+    // Highlight the interaction in the table
+    highlightInteractionInTable(interaction);
+}
+
+/**
+ * Highlight the selected interaction in the table
+ */
+function highlightInteractionInTable(interaction) {
+    // Remove previous highlights
+    document.querySelectorAll('#interactionTableBody tr').forEach(row => {
+        row.classList.remove('table-primary');
+    });
+
+    // Find and highlight the row
+    const rows = document.querySelectorAll('#interactionTableBody tr');
+    rows.forEach(row => {
+        const rowId = parseInt(row.dataset.id);
+        if (rowId === interaction.id) {
+            row.classList.add('table-primary');
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    });
 }
 
 /**
@@ -561,7 +788,6 @@ async function confirmCreateGroup() {
             showToast(data.error || 'Error creating group', 'danger');
         }
     } catch (error) {
-        console.error('Error creating group:', error);
         showToast('Error creating group', 'danger');
     }
 }
@@ -577,7 +803,7 @@ async function loadGroups() {
         appState.groups = data.groups;
         updateGroupsList();
     } catch (error) {
-        console.error('Error loading groups:', error);
+        showToast('Error loading groups', 'warning');
     }
 }
 
@@ -633,7 +859,7 @@ async function toggleGroupVisibility(name) {
         group.visible = newVisibility;
         updateGroupsList();
     } catch (error) {
-        console.error('Error toggling group visibility:', error);
+        showToast('Error toggling group visibility', 'danger');
     }
 }
 
@@ -643,11 +869,9 @@ async function toggleGroupVisibility(name) {
 async function showGroup(name) {
     const group = appState.groups[name];
     if (!group) {
-        console.error(`Group "${name}" not found`);
+        showToast(`Group "${name}" not found`, 'warning');
         return;
     }
-
-    console.log(`Showing group "${name}" with ${group.interaction_ids.length} interactions`);
 
     // Clear current filters and show only group interactions
     // First, get all interactions
@@ -658,8 +882,6 @@ async function showGroup(name) {
     appState.interactions = data.interactions.filter(i =>
         group.interaction_ids.includes(i.id)
     );
-
-    console.log(`Filtered to ${appState.interactions.length} interactions from group`);
 
     // Update display
     updateInteractionTable();
@@ -690,7 +912,6 @@ async function deleteGroup(name) {
             await loadGroups();
         }
     } catch (error) {
-        console.error('Error deleting group:', error);
         showToast('Error deleting group', 'danger');
     }
 }
@@ -729,7 +950,6 @@ async function exportPyMOL() {
             showToast('PyMOL script exported', 'success');
         }
     } catch (error) {
-        console.error('Error exporting PyMOL:', error);
         showToast('Error exporting PyMOL script', 'danger');
     }
 }
