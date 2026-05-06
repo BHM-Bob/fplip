@@ -24,7 +24,7 @@ class TrajectoryAnalyzerFunctionalTest(unittest.TestCase):
     def setUpClass(cls):
         """Set up test fixtures with GPCR-peptide trajectory."""
         cls.tpr = "/home/pcmd36/Desktop/BHM/My_Progs/fplip/test_data/pull/pull.tpr"
-        cls.xtc = "/home/pcmd36/Desktop/BHM/My_Progs/fplip/test_data/pull/pull.xtc"
+        cls.xtc = "/home/pcmd36/Desktop/BHM/My_Progs/fplip/test_data/pull/pull_center.xtc"
         cls.gro = "/home/pcmd36/Desktop/BHM/My_Progs/fplip/test_data/pull/pull.gro"
 
         cls.analyzer = TrajectoryAnalyzer(cls.tpr, cls.xtc, cls.gro, tolerance=1e-4)
@@ -40,7 +40,7 @@ class TrajectoryAnalyzerFunctionalTest(unittest.TestCase):
         """Test that MDA universe loads correctly."""
         self.assertIsNotNone(self.analyzer.u)
         self.assertEqual(len(self.analyzer.u.atoms), 73644)
-        self.assertEqual(len(self.analyzer.u.trajectory), 401)
+        self.assertEqual(len(self.analyzer.u.trajectory), 17)
 
     def test_molecule_loading(self):
         """Test that OpenBabel molecule loads correctly."""
@@ -126,7 +126,7 @@ class TrajectoryAnalyzerFunctionalTest(unittest.TestCase):
         self.analyzer.update_frame(0)
         interactions_0 = self.analyzer.detector.detect_all()
 
-        self.analyzer.update_frame(50)
+        self.analyzer.update_frame(10)
         interactions_50 = self.analyzer.detector.detect_all()
 
         total_0 = sum(len(v) for v in interactions_0.values())

@@ -24,7 +24,7 @@ class TrajectoryAnalyzerPerformanceTest(unittest.TestCase):
     def setUpClass(cls):
         """Set up test fixtures with GPCR-peptide trajectory."""
         cls.tpr = "/home/pcmd36/Desktop/BHM/My_Progs/fplip/test_data/pull/pull.tpr"
-        cls.xtc = "/home/pcmd36/Desktop/BHM/My_Progs/fplip/test_data/pull/pull.xtc"
+        cls.xtc = "/home/pcmd36/Desktop/BHM/My_Progs/fplip/test_data/pull/pull_center.xtc"
         cls.gro = "/home/pcmd36/Desktop/BHM/My_Progs/fplip/test_data/pull/pull.gro"
 
         cls.analyzer = TrajectoryAnalyzer(cls.tpr, cls.xtc, cls.gro, tolerance=1e-4)
