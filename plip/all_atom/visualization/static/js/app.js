@@ -19,7 +19,13 @@ const appState = {
     representation: 'cartoon',      // Current molecular representation
     interactionShapes: [],          // NGL shape components for interactions
     interactionData: {},            // Map of shape name to interaction data
-    selectedInteraction: null       // Currently selected interaction
+    selectedInteraction: null,      // Currently selected interaction
+    focusMode: {                    // Focus mode settings
+        enabled: false,
+        centerChains: [],
+        radius: 5.0
+    },
+    structureComponent: null        // NGL structure component
 };
 
 // Color scheme matching main PLIP (CSS uses 0-255 range)
@@ -210,6 +216,7 @@ async function loadPDBStructure() {
 
             // Load into NGL
             appState.stage.loadFile(url, { ext: 'pdb' }).then(function(component) {
+                appState.structureComponent = component;
                 component.addRepresentation(appState.representation, {
                     color: 'chainname'
                 });
@@ -224,6 +231,7 @@ async function loadPDBStructure() {
             const pdbId = data.pdb_file.split('/').pop().replace('.pdb', '');
             if (pdbId.length === 4) {
                 appState.stage.loadFile('rcsb://' + pdbId).then(function(component) {
+                    appState.structureComponent = component;
                     component.addRepresentation(appState.representation, {
                         color: 'chainname'
                     });
@@ -318,6 +326,208 @@ function populateResidueSelect(residues) {
             }
         }
     });
+
+    // Populate chains for Focus Mode
+    populateChainsSelect(residues);
+}
+
+/**
+ * Populate chains select dropdown for Focus Mode
+ */
+function populateChainsSelect(residues) {
+    const select = document.getElementById('focusChains');
+    if (!select) return;
+
+    // Get unique chains
+    const chains = [...new Set(residues.map(r => r.chain))].sort();
+
+    select.innerHTML = '';
+    chains.forEach(chain => {
+        const option = document.createElement('option');
+        option.value = chain;
+        option.textContent = `Chain ${chain}`;
+        select.appendChild(option);
+    });
+}
+
+/**
+ * Toggle Focus Mode on/off
+ */
+function toggleFocusMode() {
+    const chainsSelect = document.getElementById('focusChains');
+    const radiusInput = document.getElementById('focusRadius');
+    const toggleBtn = document.getElementById('focusToggleBtn');
+    const resetBtn = document.getElementById('focusResetBtn');
+
+    // Get selected chains
+    const selectedChains = Array.from(chainsSelect.selectedOptions).map(opt => opt.value);
+
+    if (selectedChains.length === 0) {
+        showToast('Please select at least one chain as center', 'warning');
+        return;
+    }
+
+    if (appState.focusMode.enabled) {
+        // Disable focus mode
+        disableFocusMode();
+        toggleBtn.textContent = 'Enable Focus';
+        toggleBtn.classList.remove('btn-danger');
+        toggleBtn.classList.add('btn-warning');
+        resetBtn.disabled = true;
+        chainsSelect.disabled = false;
+        radiusInput.disabled = false;
+    } else {
+        // Enable focus mode
+        const radius = parseFloat(radiusInput.value) || 5.0;
+        enableFocusMode(selectedChains, radius);
+        toggleBtn.textContent = 'Disable Focus';
+        toggleBtn.classList.remove('btn-warning');
+        toggleBtn.classList.add('btn-danger');
+        resetBtn.disabled = false;
+        chainsSelect.disabled = true;
+        radiusInput.disabled = true;
+    }
+}
+
+/**
+ * Enable Focus Mode
+ */
+function enableFocusMode(chains, radius) {
+    appState.focusMode.enabled = true;
+    appState.focusMode.centerChains = chains;
+    appState.focusMode.radius = radius;
+
+    // Update structure display with focus
+    updateStructureDisplay();
+
+    // Re-apply filters to update interactions
+    applyFilters();
+
+    showToast(`Focus Mode enabled: ${chains.length} chain(s), ${radius} Å radius`, 'success');
+}
+
+/**
+ * Disable Focus Mode
+ */
+function disableFocusMode() {
+    appState.focusMode.enabled = false;
+
+    // Reset structure display
+    updateStructureDisplay();
+
+    // Re-apply filters
+    applyFilters();
+
+    showToast('Focus Mode disabled', 'info');
+}
+
+/**
+ * Reset Focus Mode
+ */
+function resetFocusMode() {
+    const chainsSelect = document.getElementById('focusChains');
+    const radiusInput = document.getElementById('focusRadius');
+    const toggleBtn = document.getElementById('focusToggleBtn');
+    const resetBtn = document.getElementById('focusResetBtn');
+
+    // Clear selections
+    chainsSelect.selectedIndex = -1;
+    radiusInput.value = '5.0';
+
+    // Disable focus mode if enabled
+    if (appState.focusMode.enabled) {
+        disableFocusMode();
+    }
+
+    // Reset UI
+    toggleBtn.textContent = 'Enable Focus';
+    toggleBtn.classList.remove('btn-danger');
+    toggleBtn.classList.add('btn-warning');
+    resetBtn.disabled = true;
+    chainsSelect.disabled = false;
+    radiusInput.disabled = false;
+
+    showToast('Focus Mode reset', 'info');
+}
+
+/**
+ * Update structure display based on Focus Mode
+ */
+function updateStructureDisplay() {
+    if (!appState.structureComponent) {
+        console.warn('No structure component available');
+        return;
+    }
+
+    console.log('Updating structure display. Focus mode:', appState.focusMode.enabled,
+                'Chains:', appState.focusMode.centerChains,
+                'Radius:', appState.focusMode.radius);
+
+    // Remove existing representations
+    appState.structureComponent.removeAllRepresentations();
+
+    if (appState.focusMode.enabled && appState.focusMode.centerChains.length > 0) {
+        // Build NGL selection for focus mode
+        const chains = appState.focusMode.centerChains;
+        const radius = appState.focusMode.radius;
+
+        // Build selection for center chains
+        const chainSelections = chains.map(c => `:${c}`).join(' or ');
+
+        // Use NGL API to get atoms within radius
+        const structure = appState.structureComponent.structure;
+        const selection = new NGL.Selection(chainSelections);
+        const atomSet = structure.getAtomSetWithinSelection(selection, radius);
+
+        // Expand selection to include complete residues
+        const atomSet2 = structure.getAtomSetWithinGroup(atomSet);
+
+        // Convert to selection string
+        const seleString = atomSet2.toSeleString();
+
+        console.log('Center chains:', chainSelections);
+        console.log('Atoms within', radius, 'Å:', seleString.substring(0, 200) + '...');
+
+        // Add representation with the selection
+        appState.structureComponent.addRepresentation(appState.representation, {
+            sele: seleString,
+            color: 'chainname'
+        });
+
+        showToast(`Showing pocket around chain(s): ${chains.join(', ')} (${radius} Å)`, 'info');
+    } else {
+        // Show all
+        console.log('Showing all structure');
+        appState.structureComponent.addRepresentation(appState.representation, {
+            color: 'chainname'
+        });
+    }
+}
+
+/**
+ * Calculate minimum distance from interaction to any center chain
+ */
+function getMinDistanceToCenterChains(interaction) {
+    if (!appState.focusMode.enabled || appState.focusMode.centerChains.length === 0) {
+        return 0;
+    }
+
+    const chains = appState.focusMode.centerChains;
+
+    // Check if either residue is in a center chain
+    const resAInCenter = chains.includes(interaction.res_a_chain);
+    const resBInCenter = chains.includes(interaction.res_b_chain);
+
+    // If either residue is in center chain, distance is 0
+    if (resAInCenter || resBInCenter) {
+        return 0;
+    }
+
+    // Otherwise, we need to calculate distance to center chains
+    // Since we don't have all atom coordinates, we use a heuristic:
+    // Return a large value to filter out, but in practice we should
+    // rely on the structure display to show only nearby atoms
+    return Infinity;
 }
 
 /**
@@ -416,10 +626,21 @@ async function applyFilters() {
         const response = await fetch('/api/interactions?' + params.toString());
         const data = await response.json();
 
-        appState.interactions = data.interactions;
+        let interactions = data.interactions;
+
+        // Apply Focus Mode filter if enabled
+        if (appState.focusMode.enabled && appState.focusMode.centerChains.length > 0) {
+            const chains = appState.focusMode.centerChains;
+            interactions = interactions.filter(i => {
+                // Keep interactions where either residue is in center chains
+                return chains.includes(i.res_a_chain) || chains.includes(i.res_b_chain);
+            });
+        }
+
+        appState.interactions = interactions;
         updateInteractionTable();
         updateInteractionDisplay();
-        updateInteractionCount(data.count);
+        updateInteractionCount(interactions.length);
 
     } catch (error) {
         showToast('Error applying filters', 'danger');
@@ -723,15 +944,8 @@ function highlightInteractionInTable(interaction) {
 function setRepresentation(representation) {
     appState.representation = representation;
 
-    // Update all components
-    appState.stage.eachComponent(component => {
-        if (component.structure) {
-            component.removeAllRepresentations();
-            component.addRepresentation(representation, {
-                color: 'chainname'
-            });
-        }
-    });
+    // Use updateStructureDisplay which handles Focus Mode
+    updateStructureDisplay();
 }
 
 /**
