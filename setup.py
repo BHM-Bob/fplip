@@ -73,9 +73,9 @@ def read_readme():
 
 
 setup(
-    name='plip',
-    version='3.0.0',
-    description='FPLIP - Fast Protein-Ligand Interaction Profiler',
+    name='fplip',
+    version='1.0.0',
+    description='FPLIP - Fast and Full atom Protein-Ligand Interaction Profiler',
     long_description=read_readme(),
     long_description_content_type='text/markdown',
     classifiers=[
@@ -116,9 +116,18 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "plip = plip.plipcmd:main"
+            "fplip = plip.plipcmd:main",
+            "fplip-aa = plip.all_atom.cli:main",
         ]
     },
+    package_data={
+        'plip.all_atom.visualization': [
+            'templates/*.html',
+            'static/css/*.css',
+            'static/js/*.js',
+        ],
+    },
+    include_package_data=True,
     zip_safe=False,
     python_requires='>=3.8',
 )

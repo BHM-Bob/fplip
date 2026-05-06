@@ -9,3 +9,6 @@ prune test
 prune docs
 prune build
 prune dist
+include plip/all_atom/visualization/templates/*.html
+include plip/all_atom/visualization/static/css/*.css
+include plip/all_atom/visualization/static/js/*.js
