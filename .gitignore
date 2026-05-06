@@ -56,9 +56,17 @@ tests/
 .trae
 .vscode
 pyrightconfig.json
+docs
+
+# test temp files
+*plipfixed*
+*xtc_offsets*
+test_output
+*performance.json
 
 # viztracer
 result.json
+result.cvf
 
 # Cython
 plip/structure/_pdb_parser.c
