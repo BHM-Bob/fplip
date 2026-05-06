@@ -1,7 +1,7 @@
 {
   "test_case": "GPCR_pep",
-  "pdb_file": "/home/pcmd36/Desktop/BHM/My_Progs/fplip/test_data/GPCR_pep.pdb",
-  "created_at": "2026-04-25T13:05:19.797495",
+  "pdb_file": "GPCR_pep.pdb",
+  "created_at": "2026-05-06T17:27:50.410758",
   "plip_version": "3.0.0",
   "num_ligands": 1,
   "ligands": [
@@ -24,10 +24,10 @@
   ],
   "metrics": {
     "pdb_id": "GPCR_pep",
-    "total_time": 0.33589818491600454,
-    "load_time": 0.12994502484798431,
-    "analysis_time": 0.2029217928647995,
-    "report_time": 0.003013473004102707,
+    "total_time": 0.29605410899966955,
+    "load_time": 0.10812638280913234,
+    "analysis_time": 0.1855724612250924,
+    "report_time": 0.002339082770049572,
     "num_atoms": 5994,
     "num_ligands": 1,
     "num_interactions": 23

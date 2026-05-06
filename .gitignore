@@ -69,5 +69,5 @@ result.json
 result.cvf
 
 # Cython
-plip/structure/_pdb_parser.c
-plip/structure/_pdb_parser.html
+fplip/structure/_pdb_parser.c
+fplip/structure/_pdb_parser.html

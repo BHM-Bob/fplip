@@ -33,8 +33,8 @@ def get_extensions():
     
     extensions = [
         Extension(
-            "plip.structure._pdb_parser",
-            ["plip/structure/_pdb_parser.pyx"],
+            "fplip.structure._pdb_parser",
+            ["fplip/structure/_pdb_parser.pyx"],
             extra_compile_args=[
                 "-O3",              # Maximum optimization
                 "-march=native",    # Optimize for current CPU
@@ -98,7 +98,7 @@ setup(
     author_email='bhmfly@foxmail.com',
     license='GPLv2',
     packages=find_packages(),
-    scripts=['plip/plipcmd.py'],
+    scripts=['fplip/plipcmd.py'],
     cmdclass={'build_ext': build_ext},
     ext_modules=get_extensions(),
     install_requires=[
@@ -121,7 +121,7 @@ setup(
         ]
     },
     package_data={
-        'plip.all_atom.visualization': [
+        'fplip.all_atom.visualization': [
             'templates/*.html',
             'static/css/*.css',
             'static/js/*.js',

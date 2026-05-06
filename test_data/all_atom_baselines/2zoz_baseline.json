@@ -1,7 +1,7 @@
 {
   "test_case": "2zoz",
-  "pdb_file": "/home/pcmd36/Desktop/BHM/My_Progs/fplip/plip/test/pdb/2zoz.pdb",
-  "created_at": "2026-05-06T09:16:57.551848",
+  "pdb_file": "2zoz.pdb",
+  "created_at": "2026-05-06T17:14:33.734366",
   "num_residues": 720,
   "num_atoms": 3286,
   "interactions": {
@@ -4113,9 +4113,9 @@
   },
   "metrics": {
     "pdb_id": "2zoz",
-    "total_time": 0.19351806491613388,
-    "load_time": 0.09076953027397394,
-    "analysis_time": 0.1027418440207839,
+    "total_time": 0.18784422520548105,
+    "load_time": 0.08808885095641017,
+    "analysis_time": 0.09974842891097069,
     "num_atoms": 3286,
     "num_residues": 720,
     "num_interactions": 409

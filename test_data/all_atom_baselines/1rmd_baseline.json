@@ -1,7 +1,7 @@
 {
   "test_case": "1rmd",
-  "pdb_file": "/home/pcmd36/Desktop/BHM/My_Progs/fplip/plip/test/pdb/1rmd.pdb",
-  "created_at": "2026-05-06T09:16:57.353748",
+  "pdb_file": "1rmd.pdb",
+  "created_at": "2026-05-06T17:14:33.541987",
   "num_residues": 172,
   "num_atoms": 967,
   "interactions": {
@@ -1193,9 +1193,9 @@
   },
   "metrics": {
     "pdb_id": "1rmd",
-    "total_time": 0.12299164617434144,
-    "load_time": 0.08713660296052694,
-    "analysis_time": 0.035848119761794806,
+    "total_time": 0.12526127882301807,
+    "load_time": 0.09075043210759759,
+    "analysis_time": 0.03450371930375695,
     "num_atoms": 967,
     "num_residues": 172,
     "num_interactions": 117

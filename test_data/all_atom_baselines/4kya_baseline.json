@@ -1,7 +1,7 @@
 {
   "test_case": "4kya",
-  "pdb_file": "/home/pcmd36/Desktop/BHM/My_Progs/fplip/plip/test/pdb/4kya.pdb",
-  "created_at": "2026-05-06T09:16:57.079567",
+  "pdb_file": "4kya.pdb",
+  "created_at": "2026-05-06T17:14:33.268070",
   "num_residues": 4036,
   "num_atoms": 33184,
   "interactions": {
@@ -49813,9 +49813,9 @@
   },
   "metrics": {
     "pdb_id": "4kya",
-    "total_time": 8.103310356847942,
-    "load_time": 5.9445716817863286,
-    "analysis_time": 2.158731217030436,
+    "total_time": 8.17517250822857,
+    "load_time": 6.063760533928871,
+    "analysis_time": 2.1114045842550695,
     "num_atoms": 33184,
     "num_residues": 4036,
     "num_interactions": 4979
