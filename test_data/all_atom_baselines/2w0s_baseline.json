@@ -1,7 +1,7 @@
 {
   "test_case": "2w0s",
   "pdb_file": "/home/pcmd36/Desktop/BHM/My_Progs/fplip/plip/test/pdb/2w0s.pdb",
-  "created_at": "2026-04-28T10:17:16.725662",
+  "created_at": "2026-05-06T09:16:48.957313",
   "num_residues": 421,
   "num_atoms": 3319,
   "interactions": {
@@ -574,16 +574,6 @@
         "res_b_name": "BVP",
         "res_b_num": 1207,
         "res_b_chain": "A",
-        "distance": 1.3956837034228067
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "BVP",
-        "res_a_num": 1207,
-        "res_a_chain": "A",
-        "res_b_name": "BVP",
-        "res_b_num": 1207,
-        "res_b_chain": "A",
         "distance": 2.4963495348207956
       },
       {
@@ -774,16 +764,6 @@
         "res_b_name": "BVP",
         "res_b_num": 1207,
         "res_b_chain": "B",
-        "distance": 1.3937966135702875
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "BVP",
-        "res_a_num": 1207,
-        "res_a_chain": "B",
-        "res_b_name": "BVP",
-        "res_b_num": 1207,
-        "res_b_chain": "B",
         "distance": 2.4615809960267394
       },
       {
@@ -915,16 +895,6 @@
         "res_b_num": 73,
         "res_b_chain": "B",
         "distance": 3.8988706057010907
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "BVP",
-        "res_a_num": 1209,
-        "res_a_chain": "B",
-        "res_b_name": "BVP",
-        "res_b_num": 1209,
-        "res_b_chain": "B",
-        "distance": 1.395616351294295
       },
       {
         "interaction_type": "hydrophobic",
@@ -3709,7 +3679,7 @@
         "res_b_name": "ASP",
         "res_b_num": 123,
         "res_b_chain": "A",
-        "distance": 3.728178986523522
+        "distance": 3.7252852239795
       },
       {
         "interaction_type": "saltbridge",
@@ -3719,7 +3689,7 @@
         "res_b_name": "ASP",
         "res_b_num": 50,
         "res_b_chain": "A",
-        "distance": 4.879251604726101
+        "distance": 4.879438959097199
       },
       {
         "interaction_type": "saltbridge",
@@ -3729,7 +3699,7 @@
         "res_b_name": "GLU",
         "res_b_num": 142,
         "res_b_chain": "A",
-        "distance": 3.918142927459383
+        "distance": 3.91859242018809
       },
       {
         "interaction_type": "saltbridge",
@@ -3739,7 +3709,7 @@
         "res_b_name": "BVP",
         "res_b_num": 1207,
         "res_b_chain": "A",
-        "distance": 5.135098668315277
+        "distance": 5.135278181364668
       },
       {
         "interaction_type": "saltbridge",
@@ -3749,7 +3719,17 @@
         "res_b_name": "GLU",
         "res_b_num": 116,
         "res_b_chain": "A",
-        "distance": 3.7784720309787785
+        "distance": 3.7789512066474513
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "ARG",
+        "res_a_num": 72,
+        "res_a_chain": "A",
+        "res_b_name": "BVP",
+        "res_b_num": 1207,
+        "res_b_chain": "A",
+        "distance": 4.957806722735369
       },
       {
         "interaction_type": "saltbridge",
@@ -3759,7 +3739,27 @@
         "res_b_name": "ASP",
         "res_b_num": 13,
         "res_b_chain": "A",
-        "distance": 4.809207245828917
+        "distance": 4.811529578926945
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "ARG",
+        "res_a_num": 93,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 101,
+        "res_b_chain": "A",
+        "distance": 4.004461761585445
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "ARG",
+        "res_a_num": 93,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 157,
+        "res_b_chain": "A",
+        "distance": 4.792402946330786
       },
       {
         "interaction_type": "saltbridge",
@@ -3769,7 +3769,7 @@
         "res_b_name": "BVP",
         "res_b_num": 1207,
         "res_b_chain": "A",
-        "distance": 4.932266202151794
+        "distance": 4.934202063150638
       },
       {
         "interaction_type": "saltbridge",
@@ -3779,7 +3779,7 @@
         "res_b_name": "ASP",
         "res_b_num": 123,
         "res_b_chain": "B",
-        "distance": 3.725238486027139
+        "distance": 3.72048170417637
       },
       {
         "interaction_type": "saltbridge",
@@ -3789,7 +3789,7 @@
         "res_b_name": "ASP",
         "res_b_num": 50,
         "res_b_chain": "B",
-        "distance": 4.870578906956429
+        "distance": 4.872631162364381
       },
       {
         "interaction_type": "saltbridge",
@@ -3799,7 +3799,7 @@
         "res_b_name": "GLU",
         "res_b_num": 142,
         "res_b_chain": "B",
-        "distance": 3.910790542418076
+        "distance": 3.9103191685590053
       },
       {
         "interaction_type": "saltbridge",
@@ -3809,7 +3809,7 @@
         "res_b_name": "BVP",
         "res_b_num": 1207,
         "res_b_chain": "B",
-        "distance": 4.9959982763986
+        "distance": 4.9947012923697445
       },
       {
         "interaction_type": "saltbridge",
@@ -3819,7 +3819,17 @@
         "res_b_name": "GLU",
         "res_b_num": 116,
         "res_b_chain": "B",
-        "distance": 3.803541288501195
+        "distance": 3.804040395859819
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "ARG",
+        "res_a_num": 72,
+        "res_a_chain": "B",
+        "res_b_name": "BVP",
+        "res_b_num": 1207,
+        "res_b_chain": "B",
+        "distance": 4.522010448904337
       },
       {
         "interaction_type": "saltbridge",
@@ -3829,7 +3839,27 @@
         "res_b_name": "ASP",
         "res_b_num": 13,
         "res_b_chain": "B",
-        "distance": 4.773113554065104
+        "distance": 4.771644091226138
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "ARG",
+        "res_a_num": 93,
+        "res_a_chain": "B",
+        "res_b_name": "TYR",
+        "res_b_num": 101,
+        "res_b_chain": "B",
+        "distance": 3.971772777992215
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "ARG",
+        "res_a_num": 93,
+        "res_a_chain": "B",
+        "res_b_name": "TYR",
+        "res_b_num": 157,
+        "res_b_chain": "B",
+        "distance": 4.816915299234564
       },
       {
         "interaction_type": "saltbridge",
@@ -3839,260 +3869,310 @@
         "res_b_name": "BVP",
         "res_b_num": 1207,
         "res_b_chain": "B",
-        "distance": 4.98471369956858
+        "distance": 4.983956159518258
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 51,
+        "res_a_name": "LYS",
+        "res_a_num": 14,
         "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 57,
-        "res_b_chain": "A",
-        "distance": 4.362226215541274
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 61,
-        "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 105,
-        "res_b_chain": "A",
-        "distance": 4.549012163829271
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 92,
-        "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 17,
-        "res_b_chain": "A",
-        "distance": 3.9410890203935613
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 165,
-        "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 121,
-        "res_b_chain": "A",
-        "distance": 4.599651109957509
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 51,
-        "res_a_chain": "B",
-        "res_b_name": "LYS",
-        "res_b_num": 57,
-        "res_b_chain": "B",
-        "distance": 4.411649338840168
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 61,
-        "res_a_chain": "B",
-        "res_b_name": "LYS",
-        "res_b_num": 105,
-        "res_b_chain": "B",
-        "distance": 4.593746727889987
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 92,
-        "res_a_chain": "B",
-        "res_b_name": "LYS",
-        "res_b_num": 17,
-        "res_b_chain": "B",
-        "distance": 4.043757163826728
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 165,
-        "res_a_chain": "B",
-        "res_b_name": "LYS",
-        "res_b_num": 121,
-        "res_b_chain": "B",
-        "distance": 4.605231867729956
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "BVP",
-        "res_a_num": 1207,
-        "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 17,
-        "res_b_chain": "A",
-        "distance": 5.215067976546423
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "BVP",
-        "res_a_num": 1207,
-        "res_a_chain": "B",
-        "res_b_name": "LYS",
-        "res_b_num": 17,
-        "res_b_chain": "B",
-        "distance": 5.310440000602586
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 129,
-        "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 158,
-        "res_b_chain": "A",
-        "distance": 4.445120033374928
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 141,
-        "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 14,
+        "res_b_name": "GLU",
+        "res_b_num": 141,
         "res_b_chain": "A",
         "distance": 3.957878079083398
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 145,
+        "res_a_name": "LYS",
+        "res_a_num": 14,
         "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 14,
+        "res_b_name": "GLU",
+        "res_b_num": 145,
         "res_b_chain": "A",
         "distance": 4.088042875943885
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 156,
+        "res_a_name": "LYS",
+        "res_a_num": 17,
         "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 159,
+        "res_b_name": "ASP",
+        "res_b_num": 92,
         "res_b_chain": "A",
-        "distance": 4.353136914915495
+        "distance": 3.9410890203935613
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 163,
+        "res_a_name": "LYS",
+        "res_a_num": 17,
         "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 113,
+        "res_b_name": "BVP",
+        "res_b_num": 1207,
+        "res_b_chain": "A",
+        "distance": 5.215067976546423
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 17,
+        "res_a_chain": "A",
+        "res_b_name": "SO4",
+        "res_b_num": 1208,
+        "res_b_chain": "A",
+        "distance": 4.285439263366126
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 57,
+        "res_a_chain": "A",
+        "res_b_name": "ASP",
+        "res_b_num": 51,
+        "res_b_chain": "A",
+        "distance": 4.362226215541274
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 105,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 52,
+        "res_b_chain": "A",
+        "distance": 4.766278737128159
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 105,
+        "res_a_chain": "A",
+        "res_b_name": "ASP",
+        "res_b_num": 61,
+        "res_b_chain": "A",
+        "distance": 4.549012163829271
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 105,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 144,
+        "res_b_chain": "A",
+        "distance": 3.6609022112042275
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 113,
+        "res_a_chain": "A",
+        "res_b_name": "GLU",
+        "res_b_num": 163,
         "res_b_chain": "A",
         "distance": 2.8581533471029057
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 177,
+        "res_a_name": "LYS",
+        "res_a_num": 121,
         "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 180,
+        "res_b_name": "ASP",
+        "res_b_num": 165,
+        "res_b_chain": "A",
+        "distance": 4.599651109957509
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 158,
+        "res_a_chain": "A",
+        "res_b_name": "GLU",
+        "res_b_num": 129,
+        "res_b_chain": "A",
+        "distance": 4.445120033374928
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 159,
+        "res_a_chain": "A",
+        "res_b_name": "GLU",
+        "res_b_num": 156,
+        "res_b_chain": "A",
+        "distance": 4.353136914915495
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 180,
+        "res_a_chain": "A",
+        "res_b_name": "GLU",
+        "res_b_num": 177,
         "res_b_chain": "A",
         "distance": 4.729190604932077
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 182,
+        "res_a_name": "LYS",
+        "res_a_num": 185,
         "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 185,
+        "res_b_name": "GLU",
+        "res_b_num": 182,
         "res_b_chain": "A",
         "distance": 4.499796094145702
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 129,
+        "res_a_name": "LYS",
+        "res_a_num": 14,
         "res_a_chain": "B",
-        "res_b_name": "LYS",
-        "res_b_num": 158,
-        "res_b_chain": "B",
-        "distance": 4.492989910219399
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 141,
-        "res_a_chain": "B",
-        "res_b_name": "LYS",
-        "res_b_num": 14,
+        "res_b_name": "GLU",
+        "res_b_num": 141,
         "res_b_chain": "B",
         "distance": 3.9311712136602637
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 145,
+        "res_a_name": "LYS",
+        "res_a_num": 14,
         "res_a_chain": "B",
-        "res_b_name": "LYS",
-        "res_b_num": 14,
+        "res_b_name": "GLU",
+        "res_b_num": 145,
         "res_b_chain": "B",
         "distance": 4.002987675890759
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 156,
+        "res_a_name": "LYS",
+        "res_a_num": 17,
         "res_a_chain": "B",
-        "res_b_name": "LYS",
-        "res_b_num": 159,
+        "res_b_name": "ASP",
+        "res_b_num": 92,
         "res_b_chain": "B",
-        "distance": 4.412450717382954
+        "distance": 4.043757163826728
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 163,
+        "res_a_name": "LYS",
+        "res_a_num": 17,
         "res_a_chain": "B",
-        "res_b_name": "LYS",
-        "res_b_num": 113,
+        "res_b_name": "BVP",
+        "res_b_num": 1207,
+        "res_b_chain": "B",
+        "distance": 5.310440000602586
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 17,
+        "res_a_chain": "B",
+        "res_b_name": "SO4",
+        "res_b_num": 1208,
+        "res_b_chain": "B",
+        "distance": 4.084386117888462
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 57,
+        "res_a_chain": "B",
+        "res_b_name": "ASP",
+        "res_b_num": 51,
+        "res_b_chain": "B",
+        "distance": 4.411649338840168
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 105,
+        "res_a_chain": "B",
+        "res_b_name": "TYR",
+        "res_b_num": 52,
+        "res_b_chain": "B",
+        "distance": 4.69886209629523
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 105,
+        "res_a_chain": "B",
+        "res_b_name": "ASP",
+        "res_b_num": 61,
+        "res_b_chain": "B",
+        "distance": 4.593746727889987
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 105,
+        "res_a_chain": "B",
+        "res_b_name": "TYR",
+        "res_b_num": 144,
+        "res_b_chain": "B",
+        "distance": 3.715135798325548
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 113,
+        "res_a_chain": "B",
+        "res_b_name": "GLU",
+        "res_b_num": 163,
         "res_b_chain": "B",
         "distance": 2.9012988279198173
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 177,
+        "res_a_name": "LYS",
+        "res_a_num": 121,
         "res_a_chain": "B",
-        "res_b_name": "LYS",
-        "res_b_num": 180,
+        "res_b_name": "ASP",
+        "res_b_num": 165,
+        "res_b_chain": "B",
+        "distance": 4.605231867729956
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 158,
+        "res_a_chain": "B",
+        "res_b_name": "GLU",
+        "res_b_num": 129,
+        "res_b_chain": "B",
+        "distance": 4.492989910219399
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 159,
+        "res_a_chain": "B",
+        "res_b_name": "GLU",
+        "res_b_num": 156,
+        "res_b_chain": "B",
+        "distance": 4.412450717382954
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 180,
+        "res_a_chain": "B",
+        "res_b_name": "GLU",
+        "res_b_num": 177,
         "res_b_chain": "B",
         "distance": 4.738369925993068
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 182,
+        "res_a_name": "LYS",
+        "res_a_num": 185,
         "res_a_chain": "B",
-        "res_b_name": "LYS",
-        "res_b_num": 185,
+        "res_b_name": "GLU",
+        "res_b_num": 182,
         "res_b_chain": "B",
         "distance": 4.512738439376054
       }
     ],
     "pistacking": [
-      {
-        "interaction_type": "pistacking",
-        "res_a_name": "BVP",
-        "res_a_num": 1207,
-        "res_a_chain": "A",
-        "res_b_name": "TYR",
-        "res_b_num": 144,
-        "res_b_chain": "A",
-        "distance": 5.183603851568912
-      },
       {
         "interaction_type": "pistacking",
         "res_a_name": "BVP",
@@ -4294,11 +4374,11 @@
   },
   "metrics": {
     "pdb_id": "2w0s",
-    "total_time": 0.9571291180327535,
-    "load_time": 0.3976182518526912,
-    "analysis_time": 0.559502650052309,
+    "total_time": 0.3498054905794561,
+    "load_time": 0.2195431781001389,
+    "analysis_time": 0.13025348540395498,
     "num_atoms": 3319,
     "num_residues": 421,
-    "num_interactions": 427
+    "num_interactions": 435
   }
 }

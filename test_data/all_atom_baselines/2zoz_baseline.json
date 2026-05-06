@@ -1,7 +1,7 @@
 {
   "test_case": "2zoz",
   "pdb_file": "/home/pcmd36/Desktop/BHM/My_Progs/fplip/plip/test/pdb/2zoz.pdb",
-  "created_at": "2026-04-28T10:17:41.756002",
+  "created_at": "2026-05-06T09:16:57.551848",
   "num_residues": 720,
   "num_atoms": 3286,
   "interactions": {
@@ -714,56 +714,6 @@
         "res_b_name": "ET",
         "res_b_num": 184,
         "res_b_chain": "B",
-        "distance": 2.4427455864252368
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.837616253125148
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 1.4337646250343918
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.4853981572375883
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 3.8419565328098106
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
         "distance": 2.9575640314285723
       },
       {
@@ -801,46 +751,6 @@
         "res_a_name": "ET",
         "res_a_num": 184,
         "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 1.391723392057486
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.844593995634526
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.4509716440628195
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 3.833433187105258
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
         "res_b_name": "LEU",
         "res_b_num": 88,
         "res_b_chain": "B",
@@ -861,36 +771,6 @@
         "res_a_name": "ET",
         "res_a_num": 184,
         "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.4875636675269286
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 1.4311512848053545
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.565392757454501
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
         "res_b_name": "PHE",
         "res_b_num": 147,
         "res_b_chain": "B",
@@ -905,26 +785,6 @@
         "res_b_num": 147,
         "res_b_chain": "B",
         "distance": 3.4766486736511055
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 1.4556802533523625
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.5336331620816734
       },
       {
         "interaction_type": "hydrophobic",
@@ -994,16 +854,6 @@
         "res_b_name": "ET",
         "res_b_num": 184,
         "res_b_chain": "B",
-        "distance": 1.4936980953325172
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
         "distance": 3.9107187318957104
       },
       {
@@ -1025,56 +875,6 @@
         "res_b_num": 147,
         "res_b_chain": "B",
         "distance": 3.893566103201532
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 1.4251154339210577
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.4518735693342806
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.837601980546253
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.470428707734754
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 1.4393119884166832
       },
       {
         "interaction_type": "hydrophobic",
@@ -1134,46 +934,6 @@
         "res_b_name": "ET",
         "res_b_num": 184,
         "res_b_chain": "B",
-        "distance": 1.410837340021879
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.4560254477509007
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.8463833192316192
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.46985040032792
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
         "distance": 3.892263608750057
       },
       {
@@ -1211,36 +971,6 @@
         "res_a_name": "ET",
         "res_a_num": 184,
         "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 1.4164000141203055
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.451512594297654
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.8244225958591977
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
         "res_b_name": "LEU",
         "res_b_num": 59,
         "res_b_chain": "B",
@@ -1265,36 +995,6 @@
         "res_b_num": 113,
         "res_b_chain": "B",
         "distance": 3.5827109847153507
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 1.4100677288697896
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 2.4373325583514474
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "ET",
-        "res_b_num": 184,
-        "res_b_chain": "B",
-        "distance": 1.4067967159472645
       },
       {
         "interaction_type": "hydrophobic",
@@ -3929,7 +3629,7 @@
         "res_b_name": "GLU",
         "res_b_num": 7,
         "res_b_chain": "A",
-        "distance": 4.284084888670316
+        "distance": 4.286880010243142
       },
       {
         "interaction_type": "saltbridge",
@@ -3939,7 +3639,7 @@
         "res_b_name": "ASP",
         "res_b_num": 62,
         "res_b_chain": "A",
-        "distance": 3.686604369576129
+        "distance": 3.68899338874743
       },
       {
         "interaction_type": "saltbridge",
@@ -3949,7 +3649,7 @@
         "res_b_name": "ASP",
         "res_b_num": 64,
         "res_b_chain": "A",
-        "distance": 3.569827851436101
+        "distance": 3.568778269006544
       },
       {
         "interaction_type": "saltbridge",
@@ -3959,7 +3659,7 @@
         "res_b_name": "ASP",
         "res_b_num": 150,
         "res_b_chain": "A",
-        "distance": 4.354370397147621
+        "distance": 4.355756867513251
       },
       {
         "interaction_type": "saltbridge",
@@ -3969,7 +3669,7 @@
         "res_b_name": "GLU",
         "res_b_num": 7,
         "res_b_chain": "B",
-        "distance": 4.691206182256803
+        "distance": 4.6919420404680094
       },
       {
         "interaction_type": "saltbridge",
@@ -3979,7 +3679,7 @@
         "res_b_name": "ASP",
         "res_b_num": 62,
         "res_b_chain": "B",
-        "distance": 3.7821578937602998
+        "distance": 3.7844908508278876
       },
       {
         "interaction_type": "saltbridge",
@@ -3989,7 +3689,7 @@
         "res_b_name": "ASP",
         "res_b_num": 64,
         "res_b_chain": "B",
-        "distance": 3.835104257600647
+        "distance": 3.83717954869053
       },
       {
         "interaction_type": "saltbridge",
@@ -3999,7 +3699,7 @@
         "res_b_name": "GLU",
         "res_b_num": 79,
         "res_b_chain": "B",
-        "distance": 3.534666823840053
+        "distance": 3.5340417214414512
       },
       {
         "interaction_type": "saltbridge",
@@ -4009,177 +3709,237 @@
         "res_b_name": "ASP",
         "res_b_num": 150,
         "res_b_chain": "B",
-        "distance": 4.91354592484446
+        "distance": 4.911382403266026
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 28,
+        "res_a_name": "HIS",
+        "res_a_num": 49,
         "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 38,
-        "res_b_chain": "A",
-        "distance": 5.064591822973821
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 61,
-        "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 65,
-        "res_b_chain": "A",
-        "distance": 3.8136761792265497
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 108,
-        "res_a_chain": "A",
-        "res_b_name": "HIS",
-        "res_b_num": 49,
+        "res_b_name": "ASP",
+        "res_b_num": 108,
         "res_b_chain": "A",
         "distance": 4.668216427192629
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 108,
+        "res_a_name": "HIS",
+        "res_a_num": 106,
         "res_a_chain": "A",
-        "res_b_name": "HIS",
-        "res_b_num": 106,
+        "res_b_name": "ASP",
+        "res_b_num": 108,
         "res_b_chain": "A",
         "distance": 4.374573582393813
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 123,
+        "res_a_name": "HIS",
+        "res_a_num": 149,
         "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 133,
-        "res_b_chain": "A",
-        "distance": 3.319134877243368
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 125,
-        "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 133,
-        "res_b_chain": "A",
-        "distance": 5.40423835727313
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 130,
-        "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 133,
-        "res_b_chain": "A",
-        "distance": 5.256486300012797
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 144,
-        "res_a_chain": "A",
-        "res_b_name": "HIS",
-        "res_b_num": 153,
-        "res_b_chain": "B",
-        "distance": 3.669856987071236
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 150,
-        "res_a_chain": "A",
-        "res_b_name": "HIS",
-        "res_b_num": 149,
+        "res_b_name": "ASP",
+        "res_b_num": 150,
         "res_b_chain": "A",
         "distance": 5.080772912548733
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 61,
-        "res_a_chain": "B",
-        "res_b_name": "LYS",
-        "res_b_num": 65,
+        "res_a_name": "HIS",
+        "res_a_num": 149,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 137,
         "res_b_chain": "B",
-        "distance": 4.971748507539593
+        "distance": 3.7038433417195145
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 108,
+        "res_a_name": "HIS",
+        "res_a_num": 153,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 137,
+        "res_b_chain": "B",
+        "distance": 3.6154767666242833
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "HIS",
+        "res_a_num": 153,
+        "res_a_chain": "A",
+        "res_b_name": "ASP",
+        "res_b_num": 144,
+        "res_b_chain": "B",
+        "distance": 3.8559442171218654
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "HIS",
+        "res_a_num": 49,
         "res_a_chain": "B",
-        "res_b_name": "HIS",
-        "res_b_num": 49,
+        "res_b_name": "ASP",
+        "res_b_num": 108,
         "res_b_chain": "B",
         "distance": 4.670536362845998
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 108,
+        "res_a_name": "HIS",
+        "res_a_num": 106,
         "res_a_chain": "B",
-        "res_b_name": "HIS",
-        "res_b_num": 106,
+        "res_b_name": "ASP",
+        "res_b_num": 108,
         "res_b_chain": "B",
         "distance": 4.323243390866011
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 123,
+        "res_a_name": "HIS",
+        "res_a_num": 149,
         "res_a_chain": "B",
-        "res_b_name": "LYS",
-        "res_b_num": 133,
-        "res_b_chain": "B",
-        "distance": 3.5969360727028628
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 144,
-        "res_a_chain": "B",
-        "res_b_name": "HIS",
-        "res_b_num": 153,
+        "res_b_name": "TYR",
+        "res_b_num": 137,
         "res_b_chain": "A",
-        "distance": 3.8559442171218654
+        "distance": 3.7133570391224135
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "ASP",
-        "res_a_num": 150,
+        "res_a_name": "HIS",
+        "res_a_num": 149,
         "res_a_chain": "B",
-        "res_b_name": "HIS",
-        "res_b_num": 149,
+        "res_b_name": "ASP",
+        "res_b_num": 150,
         "res_b_chain": "B",
         "distance": 4.780459944166223
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 128,
-        "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 161,
-        "res_b_chain": "B",
-        "distance": 5.338388749842457
+        "res_a_name": "HIS",
+        "res_a_num": 153,
+        "res_a_chain": "B",
+        "res_b_name": "TYR",
+        "res_b_num": 137,
+        "res_b_chain": "A",
+        "distance": 5.043662632452729
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 128,
+        "res_a_name": "HIS",
+        "res_a_num": 153,
         "res_a_chain": "B",
-        "res_b_name": "LYS",
-        "res_b_num": 161,
+        "res_b_name": "ASP",
+        "res_b_num": 144,
         "res_b_chain": "A",
+        "distance": 3.669856987071236
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "HIS",
+        "res_a_num": 180,
+        "res_a_chain": "B",
+        "res_b_name": "SO4",
+        "res_b_num": 185,
+        "res_b_chain": "B",
+        "distance": 5.499349701555632
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 38,
+        "res_a_chain": "A",
+        "res_b_name": "ASP",
+        "res_b_num": 28,
+        "res_b_chain": "A",
+        "distance": 5.064591822973821
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 38,
+        "res_a_chain": "A",
+        "res_b_name": "SO4",
+        "res_b_num": 184,
+        "res_b_chain": "A",
+        "distance": 3.7143551041869984
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 65,
+        "res_a_chain": "A",
+        "res_b_name": "ASP",
+        "res_b_num": 61,
+        "res_b_chain": "A",
+        "distance": 3.8136761792265497
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 133,
+        "res_a_chain": "A",
+        "res_b_name": "ASP",
+        "res_b_num": 123,
+        "res_b_chain": "A",
+        "distance": 3.319134877243368
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 133,
+        "res_a_chain": "A",
+        "res_b_name": "ASP",
+        "res_b_num": 125,
+        "res_b_chain": "A",
+        "distance": 5.40423835727313
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 133,
+        "res_a_chain": "A",
+        "res_b_name": "ASP",
+        "res_b_num": 130,
+        "res_b_chain": "A",
+        "distance": 5.256486300012797
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 161,
+        "res_a_chain": "A",
+        "res_b_name": "GLU",
+        "res_b_num": 128,
+        "res_b_chain": "B",
         "distance": 5.117711228881741
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 65,
+        "res_a_chain": "B",
+        "res_b_name": "ASP",
+        "res_b_num": 61,
+        "res_b_chain": "B",
+        "distance": 4.971748507539593
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 133,
+        "res_a_chain": "B",
+        "res_b_name": "ASP",
+        "res_b_num": 123,
+        "res_b_chain": "B",
+        "distance": 3.5969360727028628
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "LYS",
+        "res_a_num": 161,
+        "res_a_chain": "B",
+        "res_b_name": "GLU",
+        "res_b_num": 128,
+        "res_b_chain": "A",
+        "distance": 5.338388749842457
       }
     ],
     "pistacking": [
@@ -4192,6 +3952,16 @@
         "res_b_num": 147,
         "res_b_chain": "B",
         "distance": 4.40883251742076
+      },
+      {
+        "interaction_type": "pistacking",
+        "res_a_name": "ET",
+        "res_a_num": 184,
+        "res_a_chain": "B",
+        "res_b_name": "TRP",
+        "res_b_num": 63,
+        "res_b_chain": "B",
+        "distance": 4.179308317174023
       },
       {
         "interaction_type": "pistacking",
@@ -4212,16 +3982,6 @@
         "res_b_num": 63,
         "res_b_chain": "B",
         "distance": 4.149989307215138
-      },
-      {
-        "interaction_type": "pistacking",
-        "res_a_name": "ET",
-        "res_a_num": 184,
-        "res_a_chain": "B",
-        "res_b_name": "TRP",
-        "res_b_num": 63,
-        "res_b_chain": "B",
-        "distance": 4.179308317174023
       },
       {
         "interaction_type": "pistacking",
@@ -4353,11 +4113,11 @@
   },
   "metrics": {
     "pdb_id": "2zoz",
-    "total_time": 0.7205914950463921,
-    "load_time": 0.16949552996084094,
-    "analysis_time": 0.551090374821797,
+    "total_time": 0.19351806491613388,
+    "load_time": 0.09076953027397394,
+    "analysis_time": 0.1027418440207839,
     "num_atoms": 3286,
     "num_residues": 720,
-    "num_interactions": 433
+    "num_interactions": 409
   }
 }

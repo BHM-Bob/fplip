@@ -1,7 +1,7 @@
 {
   "test_case": "1rmd",
   "pdb_file": "/home/pcmd36/Desktop/BHM/My_Progs/fplip/plip/test/pdb/1rmd.pdb",
-  "created_at": "2026-04-28T10:17:41.027263",
+  "created_at": "2026-05-06T09:16:57.353748",
   "num_residues": 172,
   "num_atoms": 967,
   "interactions": {
@@ -979,70 +979,40 @@
         "res_b_name": "ASP",
         "res_b_num": 35,
         "res_b_chain": "A",
-        "distance": 3.7350215528159953
+        "distance": 3.7564814802033983
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 98,
+        "res_a_name": "ARG",
+        "res_a_num": 52,
         "res_a_chain": "A",
-        "res_b_name": "HIS",
-        "res_b_num": 108,
+        "res_b_name": "CYS",
+        "res_b_num": 53,
+        "res_b_chain": "A",
+        "distance": 3.4808833648946043
+      },
+      {
+        "interaction_type": "saltbridge",
+        "res_a_name": "HIS",
+        "res_a_num": 108,
+        "res_a_chain": "A",
+        "res_b_name": "GLU",
+        "res_b_num": 98,
         "res_b_chain": "A",
         "distance": 4.891238314578423
       },
       {
         "interaction_type": "saltbridge",
-        "res_a_name": "GLU",
-        "res_a_num": 114,
+        "res_a_name": "LYS",
+        "res_a_num": 116,
         "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 116,
+        "res_b_name": "GLU",
+        "res_b_num": 114,
         "res_b_chain": "A",
         "distance": 3.909140129946171
       }
     ],
     "pistacking": [
-      {
-        "interaction_type": "pistacking",
-        "res_a_name": "CYS",
-        "res_a_num": 26,
-        "res_a_chain": "A",
-        "res_b_name": "CYS",
-        "res_b_num": 29,
-        "res_b_chain": "A",
-        "distance": 4.233014403200022
-      },
-      {
-        "interaction_type": "pistacking",
-        "res_a_name": "CYS",
-        "res_a_num": 29,
-        "res_a_chain": "A",
-        "res_b_name": "HIS",
-        "res_b_num": 31,
-        "res_b_chain": "A",
-        "distance": 0.6818953588476029
-      },
-      {
-        "interaction_type": "pistacking",
-        "res_a_name": "CYS",
-        "res_a_num": 41,
-        "res_a_chain": "A",
-        "res_b_name": "HIS",
-        "res_b_num": 43,
-        "res_b_chain": "A",
-        "distance": 0.6260819322695639
-      },
-      {
-        "interaction_type": "pistacking",
-        "res_a_name": "CYS",
-        "res_a_num": 61,
-        "res_a_chain": "A",
-        "res_b_name": "PRO",
-        "res_b_num": 62,
-        "res_b_chain": "A",
-        "distance": 0.7519571028774882
-      },
       {
         "interaction_type": "pistacking",
         "res_a_name": "PHE",
@@ -1052,36 +1022,6 @@
         "res_b_num": 20,
         "res_b_chain": "A",
         "distance": 4.703562131217384
-      },
-      {
-        "interaction_type": "pistacking",
-        "res_a_name": "PRO",
-        "res_a_num": 67,
-        "res_a_chain": "A",
-        "res_b_name": "TYR",
-        "res_b_num": 60,
-        "res_b_chain": "A",
-        "distance": 4.861384709570355
-      },
-      {
-        "interaction_type": "pistacking",
-        "res_a_name": "HIS",
-        "res_a_num": 6,
-        "res_a_chain": "A",
-        "res_b_name": "HIS",
-        "res_b_num": 6,
-        "res_b_chain": "A",
-        "distance": 3.225954311312807
-      },
-      {
-        "interaction_type": "pistacking",
-        "res_a_name": "HIS",
-        "res_a_num": 108,
-        "res_a_chain": "A",
-        "res_b_name": "HIS",
-        "res_b_num": 108,
-        "res_b_chain": "A",
-        "distance": 3.8912548877138584
       }
     ],
     "pication": [],
@@ -1253,11 +1193,11 @@
   },
   "metrics": {
     "pdb_id": "1rmd",
-    "total_time": 0.15141228586435318,
-    "load_time": 0.0449619279243052,
-    "analysis_time": 0.10644408501684666,
+    "total_time": 0.12299164617434144,
+    "load_time": 0.08713660296052694,
+    "analysis_time": 0.035848119761794806,
     "num_atoms": 967,
     "num_residues": 172,
-    "num_interactions": 123
+    "num_interactions": 117
   }
 }
