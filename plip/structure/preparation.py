@@ -3,6 +3,7 @@ import os
 import re
 import tempfile
 from collections import namedtuple
+from functools import partial
 from operator import itemgetter
 
 import numpy as np
@@ -1565,8 +1566,8 @@ class PDBComplex:
 
 
 if __name__ == '__main__':
-    config.PEPTIDES = ['Z']
-    mol = PDBComplex({"PEPTIDES": ['Z']})
-    mol.load_pdb('test_data/GPCR_pep.pdb', as_string=False)
+    mol = PDBComplex()
+    config.DNARECEPTOR = True
+    mol.load_pdb('plip/test/pdb/4yb0.pdb', as_string=False)
     for ligand in mol.ligands:
         mol.characterize_complex(ligand)
