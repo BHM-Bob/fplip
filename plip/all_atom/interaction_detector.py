@@ -302,12 +302,21 @@ class UnifiedInteractionDetector:
             self._aromatic_ring_mask = np.array([r.get('is_aromatic', False) for r in all_rings])
             # Pre-compute aromatic rings list to avoid rebuilding in _detect_pication
             self._aromatic_rings = [r for r in all_rings if r.get('is_aromatic', False)]
+
+            # Pre-compute aromatic ring membership for hydrophobic interaction filtering
+            # atom_idx -> set of aromatic ring indices (for filtering intra-ring hydrophobic interactions)
+            self._aromatic_ring_atom_sets = {}
+            for ring_idx, ring in enumerate(self._aromatic_rings):
+                for atom_idx in ring['indices']:
+                    if atom_idx not in self._aromatic_ring_atom_sets:
+                        self._aromatic_ring_atom_sets[atom_idx] = set()
+                    self._aromatic_ring_atom_sets[atom_idx].add(ring_idx)
         else:
             self._all_ring_centers = np.array([]).reshape(0, 3)
             self._all_ring_normals = np.array([]).reshape(0, 3)
             self._aromatic_ring_mask = np.array([])
             self._aromatic_rings = []
-        
+            self._aromatic_ring_atom_sets = {}
         # Pre-compute positive charge coordinates for pication detection
         all_pos = self.atom_props.get_pos_charged()
         if all_pos:
@@ -473,7 +482,33 @@ class UnifiedInteractionDetector:
             # Skip if same residue (unless it's a ligand)
             if self._should_skip_interaction(residue, atom_a, atom_b):
                 continue
-            
+
+            # Skip if both atoms belong to the same aromatic ring
+            # (intra-aromatic-ring carbon interactions are covalent bonds, not hydrophobic)
+            rings_a = self._aromatic_ring_atom_sets.get(atom_a.idx, set())
+            rings_b = self._aromatic_ring_atom_sets.get(atom_b.idx, set())
+            if rings_a & rings_b:  # intersection - same aromatic ring
+                continue
+
+            # Skip if one atom is connected to the other's aromatic ring via chemical bond
+            # (e.g., S attached to benzene ring - S cannot form hydrophobic interaction with ring atoms)
+            # A connected to ring R means: A is not in R, but A has a neighbor atom that is in R
+            # This filters out 1-3 and 1-4 invalid interaction
+            if rings_b:
+                neighbors_a = self.atom_props.atom_neighbors.get(atom_a.idx, set())
+                ring_atoms_b = set()
+                for ring_idx in rings_b:
+                    ring_atoms_b.update(self._aromatic_rings[ring_idx]['indices'])
+                if neighbors_a & ring_atoms_b:
+                    continue
+            if rings_a:
+                neighbors_b = self.atom_props.atom_neighbors.get(atom_b.idx, set())
+                ring_atoms_a = set()
+                for ring_idx in rings_a:
+                    ring_atoms_a.update(self._aromatic_rings[ring_idx]['indices'])
+                if neighbors_b & ring_atoms_a:
+                    continue
+
             interaction = Interaction(
                 type='hydrophobic',
                 res_a_name=atom_a.resname,

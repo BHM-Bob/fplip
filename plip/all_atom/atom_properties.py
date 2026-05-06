@@ -39,7 +39,11 @@ class AtomProperties:
         self.neg_charged: Dict[int, str] = {}  # idx -> charge type
         
         self.hydrophobic_atoms: Set[int] = set()
-        
+
+        # Neighbor atoms for hydrophobic interaction filtering
+        # atom_idx -> set of neighbor atom indices (connected by chemical bonds)
+        self.atom_neighbors: Dict[int, Set[int]] = {}
+
         self.rings: List[Dict] = []  # List of ring information dicts
         
         self.metal_binding: Set[int] = set()
@@ -546,21 +550,25 @@ class AtomProperties:
     def _identify_hydrophobic(self):
         """Identify hydrophobic atoms"""
         for atom in self.atom_container:
-            # Carbon atoms are generally hydrophobic
+            # only collect neighbers for C and S
+            if atom.atomic_num not in {6, 16}:
+                continue
+            atom_neighbors = set()
+            for neighbor in pybel.ob.OBAtomAtomIter(atom.obatom):
+                atom_neighbors.add(neighbor.GetIdx())
+            self.atom_neighbors[atom.idx] = atom_neighbors
+
             if atom.atomic_num == 6:
-                # Exclude carbons in polar groups
                 is_polar = False
-                for neighbor in pybel.ob.OBAtomAtomIter(atom.obatom):
-                    n_atomic_num = neighbor.GetAtomicNum()
-                    # Check if connected to electronegative atoms
+                for neighbor in atom_neighbors:
+                    n_atomic_num = self.atom_container.atoms_by_orig_idx[neighbor].atomic_num
                     if n_atomic_num in [7, 8, 15, 16]:  # N, O, P, S
                         is_polar = True
                         break
-                
+
                 if not is_polar:
                     self.hydrophobic_atoms.add(atom.idx)
-            
-            # Sulfur in some contexts
+
             elif atom.atomic_num == 16:  # Sulfur
                 self.hydrophobic_atoms.add(atom.idx)
     
