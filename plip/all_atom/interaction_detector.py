@@ -1755,7 +1755,7 @@ class UnifiedInteractionDetector:
         # For each water, get valid acceptors and donors
         for water_idx in tqdm(range(len(water_objects)), desc="Detecting PLIP style water bridges",
                               disable=not verbose, leave=False):
-            water_res, _ = water_objects[water_idx]
+            water_res, water_o = water_objects[water_idx]
             water_o_coord = water_o_coords[water_idx]
             water_identity = water_res_identities[water_idx]
 
@@ -1855,6 +1855,7 @@ class UnifiedInteractionDetector:
                         'd_angle': d_angle,
                         'w_angle': w_angle,
                         'water_residue': water_res.resid,
+                        'water_atom_idx': water_o.idx,  # Add water oxygen atom index for visualization
                         'is_donor_a': is_donor_a,
                         'protisdon': True
                     }
