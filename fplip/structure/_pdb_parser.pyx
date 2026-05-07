@@ -109,6 +109,7 @@ cdef inline int _check_pdbqt_suffix(char* ptr, int line_len, char* replacement) 
     cdef int i, j
     cdef int match
     cdef int effective_len = line_len
+    cdef int pattern_start
     
     # Strip trailing whitespace to match Python behavior
     while effective_len > 0 and ptr[effective_len - 1] == ord(' '):
@@ -127,6 +128,14 @@ cdef inline int _check_pdbqt_suffix(char* ptr, int line_len, char* replacement) 
                 break
         
         if match:
+            # For single-char patterns (like 'A'), ensure preceding char is space
+            # to avoid matching element symbols like 'CA' (Calcium)
+            if _PDBQT_MAP[i].pattern_len == 1:
+                pattern_start = effective_len - 1
+                if pattern_start > 0 and ptr[pattern_start - 1] != ord(' '):
+                    # Preceding char is not space, skip this match
+                    continue
+
             replacement[0] = _PDBQT_MAP[i].replacement
             return 1
     
@@ -173,6 +182,7 @@ cpdef tuple fix_pdbline(bytes pdbline_bytes, int lastnum):
         int is_digit_resnum
         char pdbqt_replacement
         int has_pdbqt
+        int effective_len
     
     # Get line pointer and length
     line_len = len(pdbline_bytes)
@@ -252,11 +262,17 @@ cpdef tuple fix_pdbline(bytes pdbline_bytes, int lastnum):
         # Check for PDBQT atom types
         has_pdbqt = _check_pdbqt_suffix(line_ptr, line_len, &pdbqt_replacement)
         if has_pdbqt:
-            # Replace last 2 chars with space + replacement
-            if line_len >= 2:
-                line_ptr[line_len - 2] = ord(' ')
-                line_ptr[line_len - 1] = pdbqt_replacement
-                # Note: caller needs to handle adding newline
+            # Calculate effective_len (line_len without trailing spaces) for correct replacement.
+            # This ensures that if the line ends with "OA " or "A ", we replace the correct
+            # positions rather than being off by one.
+            effective_len = line_len
+            while effective_len > 0 and line_ptr[effective_len - 1] == ord(' '):
+                effective_len -= 1
+            
+            # Replace PDBQT type with standard PDB element symbol
+            if effective_len >= 2:
+                line_ptr[effective_len - 2] = ord(' ')
+                line_ptr[effective_len - 1] = pdbqt_replacement
                 fixed = 1
     
     # Check for HETATM record (first 6 bytes)
@@ -315,9 +331,14 @@ cpdef tuple fix_pdbline(bytes pdbline_bytes, int lastnum):
         # Check for PDBQT atom types
         has_pdbqt = _check_pdbqt_suffix(line_ptr, line_len, &pdbqt_replacement)
         if has_pdbqt:
-            if line_len >= 2:
-                line_ptr[line_len - 2] = ord(' ')
-                line_ptr[line_len - 1] = pdbqt_replacement
+            # Calculate effective_len (line_len without trailing spaces) for correct replacement
+            effective_len = line_len
+            while effective_len > 0 and line_ptr[effective_len - 1] == ord(' '):
+                effective_len -= 1
+            
+            if effective_len >= 2:
+                line_ptr[effective_len - 2] = ord(' ')
+                line_ptr[effective_len - 1] = pdbqt_replacement
                 fixed = 1
     
     # Add newline if modified
