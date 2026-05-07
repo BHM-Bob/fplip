@@ -7,7 +7,7 @@ from fplip.basic.supplemental import read
 
 # Try to import Cython-optimized parser
 try:
-    from plip.structure._pdb_parser import \
+    from fplip.structure._pdb_parser import \
         fix_pdbline_str as _fix_pdbline_cython
     _CYTHON_AVAILABLE = True
 except ImportError:
