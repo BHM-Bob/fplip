@@ -108,16 +108,21 @@ cdef inline int _check_pdbqt_suffix(char* ptr, int line_len, char* replacement) 
     """Check if line ends with PDBQT atom type and return replacement if found."""
     cdef int i, j
     cdef int match
+    cdef int effective_len = line_len
+    
+    # Strip trailing whitespace to match Python behavior
+    while effective_len > 0 and ptr[effective_len - 1] == ord(' '):
+        effective_len -= 1
     
     # Check each pattern (8 patterns: HD, HS, NA, NS, OA, OS, SA, A)
     for i in range(8):
-        if line_len < _PDBQT_MAP[i].pattern_len:
+        if effective_len < _PDBQT_MAP[i].pattern_len:
             continue
         
         # Compare suffix
         match = 1
         for j in range(_PDBQT_MAP[i].pattern_len):
-            if ptr[line_len - _PDBQT_MAP[i].pattern_len + j] != _PDBQT_MAP[i].pattern[j]:
+            if ptr[effective_len - _PDBQT_MAP[i].pattern_len + j] != _PDBQT_MAP[i].pattern[j]:
                 match = 0
                 break
         
