@@ -3,25 +3,30 @@ All-Atom Command Line Interface
 
 Provides command-line tools for:
 1. Analyzing PDB files and generating interaction data
-2. Generating static visualizations
-3. Launching interactive web visualization
+2. Analyzing AutoDock Vina docking results
+3. Generating static visualizations
+4. Launching interactive web visualization
 
 Usage:
     python -m plip.all_atom.cli analyze input.pdb -o results.json
+    python -m plip.all_atom.cli dock --ligand dock.pdbqt --receptor receptor.pdbqt -o dock_results.json
     python -m plip.all_atom.cli static results.json --plot-matrix -o matrix.png
     python -m plip.all_atom.cli interactive results.json --port 8080
 """
 
 import argparse
 import json
+import re
 import sys
+import tempfile
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 from fplip.all_atom.atom_properties import AtomProperties
 from fplip.all_atom.interaction_detector import UnifiedInteractionDetector
 from fplip.all_atom.molecule_complex import MoleculeComplex
 from fplip.basic import config
+from fplip.structure.pdb import PDBParser
 
 
 class AllAtomJSONEncoder(json.JSONEncoder):
@@ -46,6 +51,277 @@ class AllAtomJSONEncoder(json.JSONEncoder):
             return str(obj)
         except Exception:
             return f"<{obj.__class__.__name__}>"
+
+
+def _parse_dock_pdbqt(filepath: Path) -> List[Dict]:
+    """Parse AutoDock Vina PDBQT result file and extract all conformations.
+
+    Args:
+        filepath: Path to the PDBQT file containing docking results
+
+    Returns:
+        List of dictionaries containing conformation data
+    """
+    with open(filepath, 'r') as f:
+        content = f.read()
+
+    models = []
+    # Pattern to match MODEL records and their content
+    model_pattern = r'MODEL\s+(\d+)\n(.*?)(?=ENDMDL|MODEL|$)'
+
+    for match in re.finditer(model_pattern, content, re.DOTALL):
+        model_num = int(match.group(1))
+        model_content = match.group(2)
+
+        # Extract VINA RESULT information
+        vina_result = None
+        vina_match = re.search(
+            r'REMARK VINA RESULT:\s+([\-\d.]+)\s+([\-\d.]+)\s+([\-\d.]+)',
+            model_content
+        )
+        if vina_match:
+            vina_result = {
+                'affinity': float(vina_match.group(1)),
+                'rmsd_lb': float(vina_match.group(2)),
+                'rmsd_ub': float(vina_match.group(3))
+            }
+
+        # Extract ATOM/HETATM lines
+        atoms = []
+        for line in model_content.split('\n'):
+            if line.startswith(('ATOM', 'HETATM')):
+                atoms.append(line)
+
+        models.append({
+            'model_num': model_num,
+            'vina_result': vina_result,
+            'atoms': atoms,
+            'atom_count': len(atoms)
+        })
+
+    return models
+
+
+def _merge_receptor_ligand(receptor_path: Path, ligand_models: List[Dict]) -> List[Dict]:
+    """Merge receptor PDBQT with ligand conformations.
+
+    Args:
+        receptor_path: Path to receptor PDBQT file
+        ligand_models: List of ligand conformation dictionaries
+
+    Returns:
+        List of merged complex dictionaries
+    """
+    with open(receptor_path, 'r') as f:
+        receptor_content = f.read()
+
+    # Extract receptor ATOM lines
+    receptor_atoms = []
+    for line in receptor_content.split('\n'):
+        if line.startswith(('ATOM', 'HETATM')):
+            receptor_atoms.append(line)
+
+    # Create merged complexes for each ligand conformation
+    complexes = []
+    for ligand_model in ligand_models:
+        # Merge receptor and ligand atoms
+        complex_atoms = receptor_atoms + ligand_model['atoms']
+
+        # Create PDBQT content with REMARKs for metadata
+        pdbqt_content = f"REMARK   4 Model {ligand_model['model_num']}\n"
+        if ligand_model['vina_result']:
+            pdbqt_content += f"REMARK   4 VINA_AFFINITY: {ligand_model['vina_result']['affinity']}\n"
+
+        # Renumber atoms sequentially
+        atom_num = 1
+        for atom_line in complex_atoms:
+            new_line = f"{atom_line[:6]}{atom_num:5d}{atom_line[11:]}"
+            pdbqt_content += new_line + "\n"
+            atom_num += 1
+
+        complexes.append({
+            'model_num': ligand_model['model_num'],
+            'vina_result': ligand_model['vina_result'],
+            'pdbqt_content': pdbqt_content,
+            'atom_count': len(complex_atoms)
+        })
+
+    return complexes
+
+
+def _analyze_conformation(complex_data: Dict, nohydro: bool = True) -> Dict:
+    """Analyze a single docking conformation.
+
+    Args:
+        complex_data: Dictionary containing merged complex data
+        nohydro: Whether to use existing hydrogens
+
+    Returns:
+        Dictionary containing analysis results
+    """
+    # Set NOHYDRO config (PDBQT already has hydrogens)
+    config.NOHYDRO = nohydro
+
+    # Use PDBParser to convert PDBQT to standard PDB
+    pdb_parser = PDBParser(complex_data['pdbqt_content'], as_string=True)
+    corrected_pdb = pdb_parser.corrected_pdb
+
+    # Write to temporary file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as f:
+        f.write(corrected_pdb)
+        temp_path = f.name
+
+    try:
+        # Load molecule
+        mol = MoleculeComplex()
+        mol.load_pdb(temp_path, as_string=False)
+        mol.build_distance_matrix()
+
+        # Detect atom properties
+        props = AtomProperties(mol.atom_container)
+
+        # Detect interactions
+        detector = UnifiedInteractionDetector(mol.atom_container, props, mol.residues)
+        interactions = detector.detect_all()
+
+        # Prepare atom coordinates
+        atom_coords = {}
+        for atom in mol.atom_container:
+            atom_coords[str(atom.idx)] = atom.coords.tolist()
+
+        # Convert interactions to serializable format
+        interactions_dict = {}
+        for interaction_type, interaction_list in interactions.items():
+            interactions_dict[interaction_type] = []
+            for interaction in interaction_list:
+                interaction_dict = {
+                    'type': interaction.type,
+                    'res_a_name': interaction.res_a_name,
+                    'res_a_chain': interaction.res_a_chain,
+                    'res_a_num': interaction.res_a_num,
+                    'res_b_name': interaction.res_b_name,
+                    'res_b_chain': interaction.res_b_chain,
+                    'res_b_num': interaction.res_b_num,
+                    'atom_a_name': interaction.atom_a_name,
+                    'atom_a_idx': interaction.atom_a_idx,
+                    'atom_b_name': interaction.atom_b_name,
+                    'atom_b_idx': interaction.atom_b_idx,
+                    'distance': interaction.distance,
+                    'angle': interaction.angle,
+                    'details': _serialize_details(interaction.details) if hasattr(interaction, 'details') else None
+                }
+                interactions_dict[interaction_type].append(interaction_dict)
+
+        return {
+            'atom_coords': atom_coords,
+            'interactions': interactions_dict,
+            'atom_count': len(mol.atom_container),
+            'residue_count': len(mol.residues),
+            'pdb_content': corrected_pdb  # Save PDB content for visualization
+        }
+
+    finally:
+        # Clean up temporary file
+        import os
+        os.unlink(temp_path)
+
+
+def cmd_dock(args):
+    """Analyze AutoDock Vina docking results."""
+    ligand_path = Path(args.ligand)
+    receptor_path = Path(args.receptor)
+    output_path = Path(args.output)
+    nohydro = args.nohydro
+
+    # Validate input files
+    if not ligand_path.exists():
+        print(f"Error: Ligand file not found: {ligand_path}")
+        sys.exit(1)
+
+    if not receptor_path.exists():
+        print(f"Error: Receptor file not found: {receptor_path}")
+        sys.exit(1)
+
+    print(f"Analyzing AutoDock Vina results...")
+    print(f"  Ligand: {ligand_path}")
+    print(f"  Receptor: {receptor_path}")
+
+    # Parse ligand PDBQT file
+    print("\nParsing ligand conformations...")
+    ligand_models = _parse_dock_pdbqt(ligand_path)
+    print(f"  Found {len(ligand_models)} conformations")
+
+    # Merge receptor with ligand conformations
+    print("\nMerging receptor with ligand conformations...")
+    complexes = _merge_receptor_ligand(receptor_path, ligand_models)
+    print(f"  Created {len(complexes)} receptor-ligand complexes")
+
+    # Analyze each conformation
+    print("\nAnalyzing conformations...")
+
+    # Try to import tqdm for progress bar
+    try:
+        from tqdm import tqdm
+        use_tqdm = True
+    except ImportError:
+        use_tqdm = False
+
+    conformations = []
+    iterator = tqdm(complexes, desc="Analyzing") if use_tqdm else complexes
+
+    for complex_data in iterator:
+        if not use_tqdm:
+            print(f"  Conformation {complex_data['model_num']}/{len(complexes)}...", end=" ")
+
+        # Analyze this conformation
+        analysis = _analyze_conformation(complex_data, nohydro)
+
+        # Count interactions
+        total_interactions = sum(len(v) for v in analysis['interactions'].values())
+
+        if not use_tqdm:
+            print(f"{analysis['atom_count']} atoms, {total_interactions} interactions")
+
+        # Build conformation result
+        conf_result = {
+            'model_num': complex_data['model_num'],
+            'vina_result': complex_data['vina_result'],
+            'atom_count': analysis['atom_count'],
+            'residue_count': analysis['residue_count'],
+            'interactions': analysis['interactions'],
+            'atom_coords': analysis['atom_coords'],
+            'pdb_content': analysis['pdb_content']  # Include PDB content for visualization
+        }
+        conformations.append(conf_result)
+
+    # Prepare output data
+    output_data = {
+        'metadata': {
+            'analysis_type': 'docking',
+            'ligand_file': str(ligand_path),
+            'receptor_file': str(receptor_path),
+            'conformation_count': len(conformations),
+            'nohydro': nohydro
+        },
+        'conformations': conformations
+    }
+
+    # Save to JSON
+    with open(output_path, 'w') as f:
+        json.dump(output_data, f, indent=2, cls=AllAtomJSONEncoder)
+
+    print(f"\nResults saved to: {output_path}")
+    print(f"  Total conformations: {len(conformations)}")
+
+    # Print summary of top conformations
+    print("\nTop 5 conformations by affinity:")
+    for conf in conformations[:5]:
+        vina = conf['vina_result']
+        if vina:
+            total = sum(len(v) for v in conf['interactions'].values())
+            print(f"  Model {conf['model_num']}: "
+                  f"Affinity = {vina['affinity']:.3f} kcal/mol, "
+                  f"Interactions = {total}")
 
 
 def _serialize_details(details) -> Optional[dict]:
@@ -326,6 +602,22 @@ Examples:
     analyze_parser.add_argument('--plot-all', action='store_true',
                                help='Generate all standard plots')
     analyze_parser.set_defaults(func=cmd_analyze)
+
+    # Dock command (AutoDock Vina analysis)
+    dock_parser = subparsers.add_parser(
+        'dock',
+        help='Analyze AutoDock Vina docking results',
+        description='Analyze docking results from AutoDock Vina PDBQT files.'
+    )
+    dock_parser.add_argument('--ligand', required=True,
+                            help='Ligand PDBQT file with multiple conformations')
+    dock_parser.add_argument('--receptor', required=True,
+                            help='Receptor PDBQT file')
+    dock_parser.add_argument('-o', '--output', required=True,
+                            help='Output JSON file path')
+    dock_parser.add_argument('--nohydro', action='store_true',
+                            help='Use existing hydrogens (do not add with OpenBabel)')
+    dock_parser.set_defaults(func=cmd_dock)
 
     # Static command
     static_parser = subparsers.add_parser(
