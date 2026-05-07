@@ -1221,3 +1221,229 @@ function formatTypeName(type) {
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
 }
+
+// ============================================
+// Conformation Management (for Docking Data)
+// ============================================
+
+/**
+ * Load conformation information from API
+ */
+async function loadConformationInfo() {
+    try {
+        const response = await fetch('/api/conformations');
+        const data = await response.json();
+
+        if (data.is_docking) {
+            // Show conformation selector
+            const selectorDiv = document.getElementById('conformationSelector');
+            const infoDiv = document.getElementById('conformationInfo');
+
+            if (selectorDiv) selectorDiv.style.display = 'block';
+            if (infoDiv) infoDiv.style.display = 'block';
+
+            // Populate conformation select
+            populateConformationSelect(data.conformations, data.current);
+
+            // Update conformation info display
+            updateConformationInfo(data.current);
+
+            showToast(`Loaded docking data with ${data.conformations.length} conformations`, 'info');
+        } else {
+            // Hide conformation selector for standard data
+            const selectorDiv = document.getElementById('conformationSelector');
+            const infoDiv = document.getElementById('conformationInfo');
+
+            if (selectorDiv) selectorDiv.style.display = 'none';
+            if (infoDiv) infoDiv.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error loading conformation info:', error);
+    }
+}
+
+/**
+ * Populate conformation select dropdown
+ */
+function populateConformationSelect(conformations, current) {
+    const select = document.getElementById('conformationSelect');
+    if (!select) return;
+
+    select.innerHTML = '';
+
+    conformations.forEach(conf => {
+        const option = document.createElement('option');
+        option.value = conf.index;
+
+        const vina = conf.vina_result;
+        if (vina) {
+            option.text = `Model ${conf.model_num} (Affinity: ${vina.affinity.toFixed(2)})`;
+        } else {
+            option.text = `Model ${conf.model_num}`;
+        }
+
+        if (conf.index === current.index) {
+            option.selected = true;
+        }
+
+        select.appendChild(option);
+    });
+}
+
+/**
+ * Update conformation info display
+ */
+function updateConformationInfo(current) {
+    const infoDiv = document.getElementById('conformationInfo');
+    if (!infoDiv || !current) return;
+
+    const vina = current.vina_result;
+    if (vina) {
+        infoDiv.innerHTML = `
+            <span class="badge bg-info">Affinity: ${vina.affinity.toFixed(3)} kcal/mol</span>
+            ${vina.rmsd_lb > 0 ? `<span class="badge bg-secondary ms-1">RMSD: ${vina.rmsd_lb.toFixed(2)}</span>` : ''}
+        `;
+    } else {
+        infoDiv.innerHTML = `<span class="badge bg-secondary">Model ${current.model_num}</span>`;
+    }
+}
+
+/**
+ * Switch to a different conformation
+ */
+async function switchConformation(index) {
+    const idx = parseInt(index);
+    if (isNaN(idx)) return;
+
+    showToast(`Switching to conformation ${idx + 1}...`, 'info');
+
+    try {
+        const response = await fetch(`/api/conformations/${idx}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            // Update conformation info display
+            updateConformationInfo(data.current);
+
+            // Reload all data for the new conformation
+            await reloadConformationData();
+
+            showToast(`Switched to conformation ${data.current.model_num}`, 'success');
+        } else {
+            showToast(data.error || 'Error switching conformation', 'danger');
+        }
+    } catch (error) {
+        console.error('Error switching conformation:', error);
+        showToast('Error switching conformation', 'danger');
+    }
+}
+
+/**
+ * Reload data after conformation switch
+ */
+async function reloadConformationData() {
+    try {
+        // Clear current interactions
+        appState.interactions = [];
+        appState.selectedInteractions.clear();
+        appState.groups = {};
+
+        // Reload interaction types
+        const typesResponse = await fetch('/api/interactions/types');
+        const typesData = await typesResponse.json();
+        populateTypeFilters(typesData.types);
+
+        // Reload residues
+        const residuesResponse = await fetch('/api/residues');
+        const residuesData = await residuesResponse.json();
+        populateResidueSelect(residuesData.residues);
+
+        // Reload statistics
+        const statsResponse = await fetch('/api/interactions/summary');
+        const statsData = await statsResponse.json();
+        updateStatistics(statsData);
+
+        // Clear interaction display
+        updateInteractionTable();
+        updateInteractionDisplay();
+        updateInteractionCount(0);
+        updateGroupsList();
+
+        // Reload PDB structure (if coordinates changed)
+        await reloadPDBStructure();
+
+    } catch (error) {
+        console.error('Error reloading conformation data:', error);
+        showToast('Error reloading data', 'danger');
+    }
+}
+
+/**
+ * Reload PDB structure
+ */
+async function reloadPDBStructure() {
+    try {
+        // Remove existing structure component
+        if (appState.structureComponent) {
+            appState.stage.removeComponent(appState.structureComponent);
+            appState.structureComponent = null;
+        }
+
+        // Load new structure
+        await loadPDBStructure();
+    } catch (error) {
+        console.error('Error reloading PDB structure:', error);
+    }
+}
+
+/**
+ * Export current conformation as PDB file
+ */
+async function exportConformationPDB() {
+    try {
+        const response = await fetch('/api/export/conformation', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+
+            // Get current conformation info for filename
+            const infoResponse = await fetch('/api/conformations');
+            const infoData = await infoResponse.json();
+            const currentModel = infoData.current ? infoData.current.model_num : 'unknown';
+            a.download = `conformation_${currentModel}.pdb`;
+
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            showToast('Conformation exported as PDB', 'success');
+        } else {
+            showToast('Error exporting conformation', 'danger');
+        }
+    } catch (error) {
+        console.error('Error exporting conformation:', error);
+        showToast('Error exporting conformation', 'danger');
+    }
+}
+
+// Modify loadInitialData to also load conformation info
+const originalLoadInitialData = loadInitialData;
+loadInitialData = async function() {
+    await originalLoadInitialData();
+    await loadConformationInfo();
+};

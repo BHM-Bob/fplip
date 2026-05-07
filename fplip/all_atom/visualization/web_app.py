@@ -29,7 +29,15 @@ class WebAppState:
     """Global state management for the web application."""
 
     def __init__(self):
+        # For single conformation (standard analysis)
         self.data_manager: Optional[InteractionDataManager] = None
+
+        # For multi-conformation (docking analysis)
+        self.is_docking: bool = False
+        self.conformations: List[Dict] = []  # List of conformation data
+        self.current_conformation_idx: int = 0  # Currently selected conformation
+        self._conformation_data_managers: Dict[int, InteractionDataManager] = {}  # Cached data managers
+
         self.pdb_path: Optional[str] = None
         self.pdb_content: Optional[str] = None  # Store PDB content for serving
         self.groups: Dict[str, Dict] = {}  # User-defined interaction groups
@@ -37,17 +45,153 @@ class WebAppState:
         self.current_filters: Dict[str, Any] = {}
         self._interaction_id_map: Dict[int, int] = {}  # id(interaction) -> sequential_id
         self._next_id: int = 1  # Next sequential ID
+        self._raw_data: Dict[str, Any] = {}  # Store raw JSON data for conformation switching
         logger.info("WebAppState initialized")
 
     def load_data(self, json_path: str, pdb_path: Optional[str] = None):
         """Load interaction data from JSON file."""
         logger.info(f"Loading data from JSON: {json_path}")
-        self.data_manager = InteractionDataManager(json_path)
+
+        # Load raw JSON data
+        with open(json_path, 'r') as f:
+            self._raw_data = json.load(f)
+
+        # Check if this is docking data (multi-conformation)
+        metadata = self._raw_data.get('metadata', {})
+        self.is_docking = metadata.get('analysis_type') == 'docking'
+
+        if self.is_docking:
+            logger.info("Detected docking data with multiple conformations")
+            self._load_docking_data(json_path, pdb_path)
+        else:
+            logger.info("Detected standard single-structure data")
+            self._load_standard_data(json_path, pdb_path)
+
+    def _load_standard_data(self, json_path: str, pdb_path: Optional[str] = None):
+        """Load standard single-conformation data."""
+        self.data_manager = InteractionDataManager(self._raw_data)
         logger.info(f"Loaded {len(self.data_manager.all_interactions)} interactions")
 
         # Try to find PDB file
+        self._load_pdb_file(json_path, pdb_path)
+
+        # Build interaction ID map
+        self._build_interaction_id_map()
+
+    def _load_docking_data(self, json_path: str, pdb_path: Optional[str] = None):
+        """Load docking multi-conformation data."""
+        self.conformations = self._raw_data.get('conformations', [])
+        logger.info(f"Loaded {len(self.conformations)} conformations")
+
+        if not self.conformations:
+            raise ValueError("No conformations found in docking data")
+
+        # Load first conformation by default
+        self.current_conformation_idx = 0
+        self._load_conformation(0)
+
+        # Try to find PDB file (for receptor structure)
+        self._load_pdb_file(json_path, pdb_path)
+
+    def _load_conformation(self, idx: int):
+        """Load a specific conformation by index."""
+        if idx < 0 or idx >= len(self.conformations):
+            raise ValueError(f"Invalid conformation index: {idx}")
+
+        # Check if we have a cached data manager for this conformation
+        if idx in self._conformation_data_managers:
+            self.data_manager = self._conformation_data_managers[idx]
+            logger.info(f"Using cached data manager for conformation {idx + 1}")
+        else:
+            # Create a data manager for this conformation
+            conf_data = self.conformations[idx]
+            conformation_dict = {
+                'metadata': {
+                    **self._raw_data.get('metadata', {}),
+                    'model_num': conf_data.get('model_num'),
+                    'vina_result': conf_data.get('vina_result')
+                },
+                'atom_coords': conf_data.get('atom_coords', {}),
+                'interactions': conf_data.get('interactions', {})
+            }
+            self.data_manager = InteractionDataManager(conformation_dict)
+            self._conformation_data_managers[idx] = self.data_manager
+            logger.info(f"Created data manager for conformation {idx + 1} with "
+                       f"{len(self.data_manager.all_interactions)} interactions")
+
+        # Load PDB content for this conformation (for NGL Viewer)
+        conf_data = self.conformations[idx]
+        self.pdb_content = conf_data.get('pdb_content')
+        if self.pdb_content:
+            logger.info(f"Loaded PDB content for conformation {idx + 1}: {len(self.pdb_content)} characters")
+        else:
+            logger.warning(f"No PDB content available for conformation {idx + 1}")
+
+        self.current_conformation_idx = idx
+        self._build_interaction_id_map()
+
+    def switch_conformation(self, idx: int) -> bool:
+        """Switch to a different conformation.
+
+        Args:
+            idx: Conformation index (0-based)
+
+        Returns:
+            True if switch was successful
+        """
+        if not self.is_docking:
+            logger.warning("Cannot switch conformation: not docking data")
+            return False
+
+        if idx < 0 or idx >= len(self.conformations):
+            logger.error(f"Invalid conformation index: {idx}")
+            return False
+
+        if idx == self.current_conformation_idx:
+            return True
+
+        logger.info(f"Switching from conformation {self.current_conformation_idx + 1} to {idx + 1}")
+        self._load_conformation(idx)
+
+        # Reset groups when switching conformations
+        self.groups = {}
+        self.visible_interactions = set(self._interaction_id_map.values())
+
+        return True
+
+    def get_current_conformation_info(self) -> Optional[Dict]:
+        """Get information about the current conformation."""
+        if not self.is_docking or not self.conformations:
+            return None
+
+        conf = self.conformations[self.current_conformation_idx]
+        return {
+            'index': self.current_conformation_idx,
+            'model_num': conf.get('model_num'),
+            'vina_result': conf.get('vina_result'),
+            'atom_count': conf.get('atom_count'),
+            'residue_count': conf.get('residue_count')
+        }
+
+    def get_all_conformations_info(self) -> List[Dict]:
+        """Get information about all conformations."""
+        if not self.is_docking:
+            return []
+
+        return [
+            {
+                'index': i,
+                'model_num': c.get('model_num'),
+                'vina_result': c.get('vina_result')
+            }
+            for i, c in enumerate(self.conformations)
+        ]
+
+    def _load_pdb_file(self, json_path: str, pdb_path: Optional[str] = None):
+        """Load PDB file for 3D visualization."""
         self.pdb_path = pdb_path
-        if self.pdb_path is None:
+
+        if self.pdb_path is None and self.data_manager:
             # Try to infer from metadata
             metadata = self.data_manager.metadata
             if 'pdb_file' in metadata:
@@ -65,8 +209,6 @@ class WebAppState:
                     if alternative_path.exists():
                         self.pdb_path = str(alternative_path)
                         logger.info(f"PDB file found at alternative path: {self.pdb_path}")
-                    else:
-                        logger.warning(f"PDB file not found at alternative path: {alternative_path}")
 
         # Load PDB content if available (for NGL Viewer)
         if self.pdb_path and Path(self.pdb_path).exists():
@@ -79,12 +221,16 @@ class WebAppState:
         else:
             logger.warning("No PDB file available for 3D visualization")
 
-        # Build interaction ID map for stable IDs
+    def _build_interaction_id_map(self):
+        """Build interaction ID map for stable IDs."""
         self._interaction_id_map = {}
         self._next_id = 1
-        for interaction in self.data_manager.all_interactions:
-            self._interaction_id_map[id(interaction)] = self._next_id
-            self._next_id += 1
+
+        if self.data_manager:
+            for interaction in self.data_manager.all_interactions:
+                self._interaction_id_map[id(interaction)] = self._next_id
+                self._next_id += 1
+
         logger.info(f"Built ID map with {len(self._interaction_id_map)} interactions")
 
         # Auto-show all interactions initially
@@ -343,6 +489,112 @@ def _register_routes(app: Flask):
         chains = app_state.data_manager.get_chains()
         logger.info(f"Returning chains: {chains}")
         return jsonify({'chains': chains})
+
+    @app.route('/api/conformations')
+    def get_conformations():
+        """Get list of all conformations (for docking data)."""
+        logger.info("API: get_conformations called")
+
+        if not app_state.is_docking:
+            return jsonify({
+                'is_docking': False,
+                'conformations': [],
+                'current': None
+            })
+
+        conformations = app_state.get_all_conformations_info()
+        current = app_state.get_current_conformation_info()
+
+        logger.info(f"Returning {len(conformations)} conformations, current: {current['model_num'] if current else None}")
+        return jsonify({
+            'is_docking': True,
+            'conformations': conformations,
+            'current': current
+        })
+
+    @app.route('/api/conformations/<int:idx>', methods=['POST'])
+    def switch_conformation(idx):
+        """Switch to a specific conformation."""
+        logger.info(f"API: switch_conformation called for index {idx}")
+
+        if not app_state.is_docking:
+            logger.error("Not docking data")
+            return jsonify({'error': 'Not docking data'}), 400
+
+        success = app_state.switch_conformation(idx)
+        if not success:
+            logger.error(f"Failed to switch to conformation {idx}")
+            return jsonify({'error': f'Failed to switch to conformation {idx}'}), 400
+
+        current = app_state.get_current_conformation_info()
+        logger.info(f"Switched to conformation {current['model_num'] if current else 'unknown'}")
+        return jsonify({
+            'status': 'success',
+            'current': current
+        })
+
+    @app.route('/api/export/conformation', methods=['POST'])
+    def export_conformation_pdb():
+        """Export current conformation as PDB file."""
+        logger.info("API: export_conformation_pdb called")
+
+        if not app_state.data_manager:
+            logger.error("No data loaded")
+            return jsonify({'error': 'No data loaded'}), 400
+
+        # Get current conformation info
+        conf_info = app_state.get_current_conformation_info()
+        model_num = conf_info['model_num'] if conf_info else app_state.current_conformation_idx + 1
+
+        # Generate PDB content from atom coordinates
+        pdb_lines = []
+        pdb_lines.append(f"REMARK   4 Exported from All-Atom Visualization")
+        pdb_lines.append(f"REMARK   4 Conformation: {model_num}")
+
+        if conf_info and conf_info.get('vina_result'):
+            vina = conf_info['vina_result']
+            pdb_lines.append(f"REMARK   4 VINA_AFFINITY: {vina.get('affinity', 'N/A')}")
+            pdb_lines.append(f"REMARK   4 VINA_RMSD_LB: {vina.get('rmsd_lb', 'N/A')}")
+            pdb_lines.append(f"REMARK   4 VINA_RMSD_UB: {vina.get('rmsd_ub', 'N/A')}")
+
+        # Add atom coordinates
+        for idx_str, coords in app_state.data_manager.atom_coords.items():
+            # Simple PDB ATOM record format
+            # This is a simplified version - real implementation would need proper formatting
+            x, y, z = coords
+            pdb_lines.append(
+                f"ATOM  {int(idx_str):5d}  X   RES A{int(idx_str):4d}    "
+                f"{x:8.3f}{y:8.3f}{z:8.3f}  1.00  0.00           X"
+            )
+
+        pdb_lines.append("END")
+        pdb_content = '\n'.join(pdb_lines)
+
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as f:
+            f.write(pdb_content)
+            temp_path = f.name
+
+        logger.info(f"Exported conformation {model_num} to {temp_path}")
+
+        # Send file
+        response = send_file(
+            temp_path,
+            as_attachment=True,
+            download_name=f'conformation_{model_num}.pdb',
+            mimetype='chemical/x-pdb'
+        )
+
+        # Schedule cleanup
+        @response.call_on_close
+        def cleanup():
+            try:
+                os.unlink(temp_path)
+                logger.info(f"Temporary file cleaned up: {temp_path}")
+            except Exception as e:
+                logger.warning(f"Failed to cleanup temp file: {e}")
+
+        return response
 
     @app.route('/api/groups', methods=['GET'])
     def get_groups():

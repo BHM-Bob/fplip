@@ -22,7 +22,16 @@
     <nav class="navbar navbar-dark bg-dark">
         <div class="container-fluid">
             <span class="navbar-brand mb-0 h1">All-Atom Visualization</span>
-            <div class="d-flex">
+            <div class="d-flex align-items-center">
+                <!-- Conformation Selector (for docking data) -->
+                <div id="conformationSelector" class="me-3" style="display: none;">
+                    <select class="form-select form-select-sm" id="conformationSelect" onchange="switchConformation(this.value)">
+                        <!-- Populated by JavaScript -->
+                    </select>
+                </div>
+                <div id="conformationInfo" class="text-light me-3 small" style="display: none;">
+                    <!-- Vina score display -->
+                </div>
                 <button class="btn btn-outline-light btn-sm me-2" onclick="showHelp()">Help</button>
                 <button class="btn btn-primary btn-sm" onclick="exportPyMOL()">Export PyMOL</button>
             </div>
