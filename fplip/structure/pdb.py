@@ -17,10 +17,11 @@ except ImportError:
 class PDBParser:
     # 类级别的预编译正则表达式和常量，避免每次实例化都重新编译
     _FORBIDDEN_PATTERN = re.compile(r"[^a-zA-Z0-9_]")
-    _PDBQT_PATTERN = re.compile(r"(HD|HS|NA|NS|OA|OS|SA)$")
+    _PDBQT_PATTERN = re.compile(r"(HD|HS|NA|NS|OA|OS|SA|A)$")
     _PDBQT_MAP = {
         "HD": "H", "HS": "H", "NA": "N",
-        "NS": "N", "OA": "O", "OS": "O", "SA": "S"
+        "NS": "N", "OA": "O", "OS": "O", "SA": "S",
+        "A": "C"  # Aromatic carbon in AutoDock Vina PDBQT
     }
 
     def __init__(self, pdbpath, as_string):

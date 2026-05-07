@@ -46,7 +46,7 @@ cdef struct PDBQTMap:
     char replacement
     int pattern_len
 
-cdef PDBQTMap[7] _PDBQT_MAP
+cdef PDBQTMap[8] _PDBQT_MAP
 cdef int _pdbqt_initialized = 0
 
 cdef void _init_pdbqt_map():
@@ -87,6 +87,11 @@ cdef void _init_pdbqt_map():
     _PDBQT_MAP[6].replacement = ord('S')
     _PDBQT_MAP[6].pattern_len = 2
     
+    # A -> C (Aromatic carbon in AutoDock Vina PDBQT)
+    memcpy(_PDBQT_MAP[7].pattern, b"A", 1)
+    _PDBQT_MAP[7].replacement = ord('C')
+    _PDBQT_MAP[7].pattern_len = 1
+    
     _pdbqt_initialized = 1
 
 
@@ -104,8 +109,8 @@ cdef inline int _check_pdbqt_suffix(char* ptr, int line_len, char* replacement) 
     cdef int i, j
     cdef int match
     
-    # Check each pattern
-    for i in range(7):
+    # Check each pattern (8 patterns: HD, HS, NA, NS, OA, OS, SA, A)
+    for i in range(8):
         if line_len < _PDBQT_MAP[i].pattern_len:
             continue
         
