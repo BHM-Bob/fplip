@@ -1080,8 +1080,8 @@ class UnifiedInteractionDetector:
         if not aromatic_rings:
             return
 
-        # Use pre-computed filtered ring centers (aromatic only)
-        ring_centers = self._all_ring_centers[self._aromatic_ring_mask]
+        # # Use pre-computed filtered ring centers (aromatic only)
+        # ring_centers = self._all_ring_centers[self._aromatic_ring_mask]
 
         # Case 1: Residue has ring, other has positive charge
         if residue.rings:
@@ -1136,56 +1136,57 @@ class UnifiedInteractionDetector:
                         details={'ring_center': ring['center'], 'offset': float(offset)}
                     )
                     self.interactions['pication'].append(interaction)
-
-        # Case 2: Residue has positive charge, other has ring
-        if residue.pos_charged:
-            if residue.pos_charged and aromatic_rings:
-                res_pos_coords = np.array([p.coords for p in residue.pos_charged])
+        
+        # Case 2 is redundant with Case 1
+        # # Case 2: Residue has positive charge, other has ring
+        # if residue.pos_charged:
+        #     if residue.pos_charged and aromatic_rings:
+        #         res_pos_coords = np.array([p.coords for p in residue.pos_charged])
                 
-                # Vectorized distance calculation using cdist
-                dist_matrix = cdist(res_pos_coords, ring_centers)
+        #         # Vectorized distance calculation using cdist
+        #         dist_matrix = cdist(res_pos_coords, ring_centers)
                 
-                # Filter by distance
-                valid_dist_mask = dist_matrix < config.PICATION_DIST_MAX
-                valid_indices = np.argwhere(valid_dist_mask)
+        #         # Filter by distance
+        #         valid_dist_mask = dist_matrix < config.PICATION_DIST_MAX
+        #         valid_indices = np.argwhere(valid_dist_mask)
                 
-                for i, j in valid_indices:
-                    pos_atom = residue.pos_charged[i]
-                    ring = aromatic_rings[j]
+        #         for i, j in valid_indices:
+        #             pos_atom = residue.pos_charged[i]
+        #             ring = aromatic_rings[j]
                     
-                    # Skip if same residue
-                    atom_b = self.atom_container[ring['indices'][0]]
-                    if self._should_skip_interaction(residue, pos_atom, atom_b):
-                        continue
+        #             # Skip if same residue
+        #             atom_b = self.atom_container[ring['indices'][0]]
+        #             if self._should_skip_interaction(residue, pos_atom, atom_b):
+        #                 continue
                     
-                    distance = float(dist_matrix[i, j])
+        #             distance = float(dist_matrix[i, j])
                     
-                    # Calculate offset: projection of charge onto ring plane to ring center
-                    vec = pos_atom.coords - ring['center']
-                    proj_dist = np.dot(vec, ring['normal'])
-                    proj = pos_atom.coords - proj_dist * ring['normal']
-                    offset = np.linalg.norm(proj - ring['center'])
+        #             # Calculate offset: projection of charge onto ring plane to ring center
+        #             vec = pos_atom.coords - ring['center']
+        #             proj_dist = np.dot(vec, ring['normal'])
+        #             proj = pos_atom.coords - proj_dist * ring['normal']
+        #             offset = np.linalg.norm(proj - ring['center'])
                     
-                    if offset >= config.PISTACK_OFFSET_MAX:
-                        continue
+        #             if offset >= config.PISTACK_OFFSET_MAX:
+        #                 continue
                     
-                    interaction = Interaction(
-                        type='pication',
-                        res_a_name=pos_atom.resname,
-                        res_a_chain=pos_atom.chain,
-                        res_a_num=pos_atom.resnum,
-                        res_b_name=atom_b.resname,
-                        res_b_chain=atom_b.chain,
-                        res_b_num=atom_b.resnum,
-                        atom_a_name=self._get_atom_name(pos_atom),
-                        atom_a_idx=pos_atom.idx,
-                        atom_b_name='RING',
-                        atom_b_idx=ring['indices'][0],
-                        distance=distance,
-                        angle=None,
-                        details={'ring_center': ring['center'], 'offset': float(offset)}
-                    )
-                    self.interactions['pication'].append(interaction)
+        #             interaction = Interaction(
+        #                 type='pication',
+        #                 res_a_name=pos_atom.resname,
+        #                 res_a_chain=pos_atom.chain,
+        #                 res_a_num=pos_atom.resnum,
+        #                 res_b_name=atom_b.resname,
+        #                 res_b_chain=atom_b.chain,
+        #                 res_b_num=atom_b.resnum,
+        #                 atom_a_name=pos_atom.atom_name,
+        #                 atom_a_idx=pos_atom.idx,
+        #                 atom_b_name='RING',
+        #                 atom_b_idx=ring['indices'][0],
+        #                 distance=distance,
+        #                 angle=None,
+        #                 details={'ring_center': ring['center'], 'offset': float(offset)}
+        #             )
+        #             self.interactions['pication'].append(interaction)
     
     def _get_halogen_bond_angles(self, donor, acceptor):
         """Calculate donor and acceptor angles for halogen bond.
