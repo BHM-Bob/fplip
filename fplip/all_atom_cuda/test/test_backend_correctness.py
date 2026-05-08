@@ -21,6 +21,10 @@ from fplip.all_atom.atom_properties import AtomProperties
 from fplip.all_atom.molecule_complex import MoleculeComplex
 from fplip.all_atom_cuda.cuda_detector import CudaInteractionDetector
 
+# Import NumPy backend (always available)
+from fplip.all_atom_cuda.numpy_backend import NumPyBackend
+NUMPY_AVAILABLE = True
+
 # Try to import Torch, skip tests if not available
 try:
     from fplip.all_atom_cuda.torch_backend import TorchBackend
@@ -48,6 +52,9 @@ class BackendCorrectnessTest(unittest.TestCase):
         """Set up test fixtures."""
         self.test_data_dir = str(TEST_DIR / 'pdb') + '/'
         self.backends = {}
+        # NumPy backend is always available as the reference implementation
+        if NUMPY_AVAILABLE:
+            self.backends['numpy'] = NumPyBackend()
         if TORCH_AVAILABLE:
             self.backends['torch'] = TorchBackend()
         if CUPY_AVAILABLE:

@@ -233,6 +233,11 @@ def process_pdb_detailed(pdbfile: str, backend: str = 'numpy') -> Tuple[Analysis
         from fplip.all_atom_cuda import CudaInteractionDetector, TorchBackend
         detector = CudaInteractionDetector(mol.atom_container, props, mol.residues,
                                            backend=TorchBackend())
+    elif backend == 'numpy':
+        from fplip.all_atom_cuda import CudaInteractionDetector
+        from fplip.all_atom_cuda.numpy_backend import NumPyBackend
+        detector = CudaInteractionDetector(mol.atom_container, props, mol.residues,
+                                           backend=NumPyBackend())
     else:  # 'original' or any other value
         detector = UnifiedInteractionDetector(mol.atom_container, props, mol.residues)
     
@@ -644,12 +649,12 @@ def main():
     )
     parser.add_argument(
         '--backend',
-        choices=['cupy', 'torch', 'original'],
-        default='torch',    
-        help='Compute backend to use (default: torch). '
-             'cupy: CudaInteractionDetector with CuPyBackend, '
-             'torch: CudaInteractionDetector with TorchBackend, '
-             'original: Original UnifiedInteractionDetector'
+        choices=['numpy', 'cupy', 'torch'],
+        default='numpy',
+        help='Compute backend to use (default: numpy). '
+             'numpy: CudaInteractionDetector with NumPyBackend (CPU), '
+             'cupy: CudaInteractionDetector with CuPyBackend (GPU), '
+             'torch: CudaInteractionDetector with TorchBackend (GPU), '
     )
     
     args = parser.parse_args()
@@ -689,11 +694,11 @@ def main():
     if args.test_type in ['consistency', 'all']:
         consistency_tester = ConsistencyTester(backend=args.backend)
         consistency_passed = consistency_tester.run_all_tests(
-            args.generate_baselines, 
+            args.generate_baselines,
             test_cases=args.test_cases
         )
         success = success and consistency_passed
-    
+
     # Run performance tests
     if args.test_type in ['performance', 'all']:
         performance_tester = PerformanceTester(backend=args.backend)
