@@ -24,6 +24,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from tqdm import tqdm
+
 from fplip.all_atom.atom_properties import AtomProperties
 from fplip.all_atom.interaction_detector import UnifiedInteractionDetector
 from fplip.all_atom.molecule_complex import MoleculeComplex
@@ -113,6 +115,16 @@ TEST_CASES = {
             "water_bridge_possible": ">=300"
         },
         "categories": ["water_bridge", "large"]
+    },
+    "GPCR_MD": {
+        "file": "",
+        "description": "GPCR peptide MD trajectory - full iteration benchmark",
+        "type": "trajectory",
+        "tpr": "pull/pull.tpr",
+        "xtc": "pull/pull_center.xtc",
+        "gro": "pull/pull.gro",
+        "expected_interactions": {},
+        "categories": ["trajectory", "large"]
     }
 }
 
@@ -566,6 +578,118 @@ class PerformanceTester:
 
 
 # =============================================================================
+# Trajectory Performance Testing
+# =============================================================================
+
+class TrajectoryPerformanceTester:
+    """Trajectory-based performance benchmark for GPCR_MD test case."""
+
+    def __init__(self, results_dir: Path = RESULTS_DIR):
+        self.results_dir = results_dir
+        self.results_dir.mkdir(parents=True, exist_ok=True)
+
+    def run_benchmark(self, test_case: str, test_info: Dict,
+                      n_frame: int = 10) -> Dict:
+        """Run trajectory iteration benchmark.
+
+        Args:
+            test_case: Name of the test case
+            test_info: Test case configuration dict
+            n_frame: Number of frames to iterate (will cycle 0~10 if > 10)
+        """
+        from lazydock.gmx.mda.convert import PDBConverter
+        from fplip.all_atom.trajectory_analyzer import TrajectoryAnalyzer
+
+        tpr = str(CUSTOM_TEST_DATA_DIR / test_info["tpr"])
+        xtc = str(CUSTOM_TEST_DATA_DIR / test_info["xtc"])
+        gro = str(CUSTOM_TEST_DATA_DIR / test_info["gro"])
+
+        print(f"\nBenchmarking {test_case} ({n_frame} frames)...")
+
+        analyzer = TrajectoryAnalyzer(tpr, xtc, gro, tolerance=1e-4)
+        analyzer.load_universe()
+        analyzer.u.trajectory[0]
+        converter = PDBConverter(analyzer.u.atoms, reindex=False)
+        pdb_str = converter.fast_convert()
+        analyzer.load_molecule(pdb_str, as_string=True)
+        analyzer.align_with_mda(frame=0)
+        analyzer.setup_detector()
+        analyzer.precompute_detector_once()
+
+        n_frames_total = len(analyzer.u.trajectory)
+        actual_n_frame = min(n_frame, n_frames_total)
+
+        frame_times = []
+        detect_times = []
+
+        for frame_idx in tqdm(range(actual_n_frame), desc=''):
+            frame_start = time.perf_counter()
+            analyzer.update_frame(frame_idx)
+            frame_elapsed = time.perf_counter() - frame_start
+
+            detect_start = time.perf_counter()
+            interactions = analyzer.detector.detect_all(verbose=True)
+            detect_elapsed = time.perf_counter() - detect_start
+
+            frame_times.append(frame_elapsed)
+            detect_times.append(detect_elapsed)
+
+        total_interactions = sum(len(v) for v in interactions.values())
+
+        benchmark = {
+            "test_case": test_case,
+            "n_frame": actual_n_frame,
+            "n_frames_total": n_frames_total,
+            "timestamp": datetime.now().isoformat(),
+            "statistics": {
+                "coordinate_update": {
+                    "total_ms": sum(frame_times) * 1000,
+                    "mean_ms": statistics.mean(frame_times) * 1000,
+                    "stdev_ms": statistics.stdev(frame_times) * 1000 if len(frame_times) > 1 else 0,
+                },
+                "detect_all": {
+                    "total_ms": sum(detect_times) * 1000,
+                    "mean_ms": statistics.mean(detect_times) * 1000,
+                    "stdev_ms": statistics.stdev(detect_times) * 1000 if len(detect_times) > 1 else 0,
+                },
+                "total_per_frame": {
+                    "mean_ms": (statistics.mean(frame_times) + statistics.mean(detect_times)) * 1000,
+                }
+            },
+            "structure_info": {
+                "num_atoms": len(analyzer.mol.atom_container),
+                "num_residues": len(analyzer.mol.residues),
+                "total_interactions": total_interactions
+            }
+        }
+
+        # Save benchmark results
+        result_file = self.results_dir / f"{test_case}_performance.json"
+        with open(result_file, 'w') as f:
+            json.dump(benchmark, f, indent=2)
+
+        self._print_summary(benchmark)
+        return benchmark
+
+    def _print_summary(self, benchmark: Dict):
+        stats = benchmark["statistics"]
+        info = benchmark["structure_info"]
+
+        print(f"\n  Summary for {benchmark['test_case']}:")
+        print(f"    Structure: {info['num_atoms']} atoms, {info['num_residues']} residues")
+        print(f"    Frames: {benchmark['n_frame']} (total available: {benchmark['n_frames_total']})")
+        print(f"    Interactions (final frame): {info['total_interactions']}")
+        print(f"    Coordinate update:")
+        print(f"      Total: {stats['coordinate_update']['total_ms']:.2f} ms")
+        print(f"      Average per frame: {stats['coordinate_update']['mean_ms']:.2f} ms")
+        print(f"    detect_all:")
+        print(f"      Total: {stats['detect_all']['total_ms']:.2f} ms")
+        print(f"      Average per frame: {stats['detect_all']['mean_ms']:.2f} ms")
+        print(f"    Total per frame (update + detect):")
+        print(f"      Average: {stats['total_per_frame']['mean_ms']:.2f} ms")
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -607,6 +731,12 @@ def main():
         action='store_true',
         help='List all available test cases and exit'
     )
+    parser.add_argument(
+        '--n-frame',
+        type=int,
+        default=10,
+        help='Number of frames for trajectory benchmark (default: 10, max: 10, will cycle 0~10 if > 10)'
+    )
     
     args = parser.parse_args()
     
@@ -617,7 +747,13 @@ def main():
         print("="*60)
         for name, info in TEST_CASES.items():
             print(f"\n{name}:")
-            print(f"  File: {info['file']}")
+            if info.get("type") == "trajectory":
+                print(f"  Type: trajectory")
+                print(f"  TPR: {info['tpr']}")
+                print(f"  XTC: {info['xtc']}")
+                print(f"  GRO: {info['gro']}")
+            else:
+                print(f"  File: {info['file']}")
             print(f"  Description: {info['description']}")
             print(f"  Categories: {', '.join(info.get('categories', []))}")
             print(f"  Expected Interactions: {info['expected_interactions']}")
@@ -637,25 +773,49 @@ def main():
         print(f"\nSelected Test Cases: {', '.join(args.test_cases)}")
     else:
         print(f"\nRunning All Test Cases: {', '.join(TEST_CASES.keys())}")
-    
+
+    # Separate trajectory test cases from regular ones
+    regular_test_cases = None
+    trajectory_test_cases = None
+    if args.test_cases:
+        regular_test_cases = [c for c in args.test_cases if TEST_CASES[c].get("type") != "trajectory"]
+        trajectory_test_cases = [c for c in args.test_cases if TEST_CASES[c].get("type") == "trajectory"]
+    else:
+        regular_test_cases = [c for c in TEST_CASES if TEST_CASES[c].get("type") != "trajectory"]
+        trajectory_test_cases = [c for c in TEST_CASES if TEST_CASES[c].get("type") == "trajectory"]
+
     success = True
-    
-    # Run consistency tests
-    if args.test_type in ['consistency', 'all']:
+
+    # Run consistency tests (skip trajectory test cases)
+    if args.test_type in ['consistency', 'all'] and regular_test_cases:
         consistency_tester = ConsistencyTester()
         consistency_passed = consistency_tester.run_all_tests(
-            args.generate_baselines, 
-            test_cases=args.test_cases
+            args.generate_baselines,
+            test_cases=regular_test_cases
         )
         success = success and consistency_passed
-    
-    # Run performance tests
-    if args.test_type in ['performance', 'all']:
+
+    # Run performance tests (skip trajectory test cases)
+    if args.test_type in ['performance', 'all'] and regular_test_cases:
         performance_tester = PerformanceTester()
         performance_tester.run_all_benchmarks(
             args.num_runs,
-            test_cases=args.test_cases
+            test_cases=regular_test_cases
         )
+
+    # Run trajectory benchmarks
+    if args.test_type in ['performance', 'all'] and trajectory_test_cases:
+        print("\n" + "="*60)
+        print("TRAJECTORY PERFORMANCE BENCHMARKS")
+        print("="*60)
+        trajectory_tester = TrajectoryPerformanceTester()
+        for tc_name in trajectory_test_cases:
+            tc_info = TEST_CASES[tc_name]
+            trajectory_tester.run_benchmark(tc_name, tc_info, n_frame=args.n_frame)
+        print("\n" + "="*60)
+        print("TRAJECTORY BENCHMARKS COMPLETE")
+        print(f"Results saved to: {RESULTS_DIR}")
+        print("="*60)
     
     print("\n" + "="*60)
     if success:
