@@ -18,6 +18,8 @@ GPU-Centric Mode:
     Data is only transferred back to CPU when explicitly requested via to_numpy(force=True).
 """
 
+from __future__ import annotations
+
 from typing import Optional, Tuple, Union
 
 import numpy as np
@@ -49,7 +51,7 @@ class TorchBackend(ComputeBackend):
             import torch
             self._torch = torch
             self._device = torch.device(device)
-            self.bool = torch.bool            
+            self.bool = torch.bool
             if not self._device.type.startswith('cuda'):
                 import warnings
                 warnings.warn(
@@ -71,7 +73,7 @@ class TorchBackend(ComputeBackend):
     def is_gpu(self) -> bool:
         return self._device.type.startswith('cuda')
 
-    def to_device(self, arr: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
+    def to_device(self, arr: Union[np.ndarray, "torch.Tensor"]) -> "torch.Tensor":
         """Transfer array to GPU device.
 
         If arr is already a tensor on the correct device, return as-is.
@@ -82,7 +84,7 @@ class TorchBackend(ComputeBackend):
             return arr.to(self._device)
         return self._torch.from_numpy(np.asarray(arr)).to(self._device)
 
-    def to_numpy(self, arr: Union[np.ndarray, torch.Tensor]) -> Union[np.ndarray, torch.Tensor]:
+    def to_numpy(self, arr: Union[np.ndarray, "torch.Tensor"]) -> Union[np.ndarray, "torch.Tensor"]:
         """Convert array to numpy (CPU) if force=True, otherwise keep on device.
 
         GPU-Centric Mode:
@@ -93,7 +95,7 @@ class TorchBackend(ComputeBackend):
             return arr.detach().cpu().numpy()
         return arr
 
-    def cdist(self, A: Union[np.ndarray, torch.Tensor], B: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
+    def cdist(self, A: Union[np.ndarray, "torch.Tensor"], B: Union[np.ndarray, "torch.Tensor"]) -> "torch.Tensor":
         """Compute pairwise distance matrix. Result stays on GPU."""
         A = self.to_device(A)
         B = self.to_device(B)
@@ -103,17 +105,17 @@ class TorchBackend(ComputeBackend):
 
         return self._torch.cdist(A, B)
 
-    def norm(self, arr: Union[np.ndarray, torch.Tensor], axis: Optional[int] = None) -> torch.Tensor:
+    def norm(self, arr: Union[np.ndarray, "torch.Tensor"], axis: Optional[int] = None) -> "torch.Tensor":
         """Compute vector norm. Result stays on GPU."""
         arr = self.to_device(arr)
         return self._torch.linalg.norm(arr, dim=axis)
 
-    def arccos(self, arr: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
+    def arccos(self, arr: Union[np.ndarray, "torch.Tensor"]) -> "torch.Tensor":
         """Element-wise inverse cosine. Result stays on GPU."""
         arr = self.to_device(arr)
         return self._torch.arccos(arr)
 
-    def dot(self, A: Union[np.ndarray, torch.Tensor], B: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
+    def dot(self, A: Union[np.ndarray, "torch.Tensor"], B: Union[np.ndarray, "torch.Tensor"]) -> "torch.Tensor":
         """Matrix multiplication. Result stays on GPU."""
         A = self.to_device(A)
         B = self.to_device(B)
@@ -124,59 +126,59 @@ class TorchBackend(ComputeBackend):
         else:
             return self._torch.tensordot(A, B, dims=([-1], [-2]))
 
-    def argwhere(self, mask: Union[np.ndarray, torch.Tensor]) -> Tuple[torch.Tensor, ...]:
+    def argwhere(self, mask: Union[np.ndarray, "torch.Tensor"]) -> Tuple["torch.Tensor", ...]:
         """Find indices where mask is True. Result stays on GPU."""
         mask = self.to_device(mask)
         return self._torch.nonzero(mask, as_tuple=True)
 
-    def cross(self, A: Union[np.ndarray, torch.Tensor], B: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
+    def cross(self, A: Union[np.ndarray, "torch.Tensor"], B: Union[np.ndarray, "torch.Tensor"]) -> "torch.Tensor":
         """Element-wise cross product. Result stays on GPU."""
         A = self.to_device(A)
         B = self.to_device(B)
         return self._torch.cross(A, B, dim=-1)
 
-    def clip(self, arr: Union[np.ndarray, torch.Tensor], min_val: float, max_val: float) -> torch.Tensor:
+    def clip(self, arr: Union[np.ndarray, "torch.Tensor"], min_val: float, max_val: float) -> "torch.Tensor":
         """Clip array values. Result stays on GPU."""
         arr = self.to_device(arr)
         return self._torch.clamp(arr, min_val, max_val)
 
-    def mean(self, arr: Union[np.ndarray, torch.Tensor], axis: Optional[int] = None) -> torch.Tensor:
+    def mean(self, arr: Union[np.ndarray, "torch.Tensor"], axis: Optional[int] = None) -> "torch.Tensor":
         """Compute mean along axis. Result stays on GPU."""
         arr = self.to_device(arr)
         return self._torch.mean(arr, dim=axis)
 
-    def svd(self, arr: Union[np.ndarray, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def svd(self, arr: Union[np.ndarray, "torch.Tensor"]) -> Tuple["torch.Tensor", "torch.Tensor", "torch.Tensor"]:
         """Singular Value Decomposition. Results stay on GPU."""
         arr = self.to_device(arr)
         U, S, Vh = self._torch.linalg.svd(arr)
         return U, S, Vh
 
-    def sum(self, arr: Union[np.ndarray, torch.Tensor], axis: Optional[int] = None) -> torch.Tensor:
+    def sum(self, arr: Union[np.ndarray, "torch.Tensor"], axis: Optional[int] = None) -> "torch.Tensor":
         """Sum along axis. Result stays on GPU."""
         arr = self.to_device(arr)
         return self._torch.sum(arr, dim=axis)
 
-    def maximum(self, a: Union[np.ndarray, torch.Tensor], b: float) -> torch.Tensor:
+    def maximum(self, a: Union[np.ndarray, "torch.Tensor"], b: float) -> "torch.Tensor":
         """Element-wise maximum of array and scalar. Result stays on GPU."""
         a = self.to_device(a)
         return self._torch.maximum(a, self._torch.tensor(b, device=self._device))
-    
-    def max(self, arr: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
+
+    def max(self, arr: Union[np.ndarray, "torch.Tensor"]) -> "torch.Tensor":
         """Compute maximum along axis. Result stays on GPU."""
         arr = self.to_device(arr)
         return self._torch.max(arr)  # pyright: ignore[reportReturnType]
 
-    def min(self, arr: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
+    def min(self, arr: Union[np.ndarray, "torch.Tensor"]) -> "torch.Tensor":
         """Compute minimum along axis. Result stays on GPU."""
         arr = self.to_device(arr)
         return self._torch.min(arr)  # pyright: ignore[reportReturnType]
 
-    def sqrt(self, arr: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
+    def sqrt(self, arr: Union[np.ndarray, "torch.Tensor"]) -> "torch.Tensor":
         """Element-wise square root. Result stays on GPU."""
         arr = self.to_device(arr)
         return self._torch.sqrt(arr)
 
-    def where(self, condition: Union[np.ndarray, torch.Tensor], x, y) -> torch.Tensor:
+    def where(self, condition: Union[np.ndarray, "torch.Tensor"], x, y) -> "torch.Tensor":
         """Element-wise conditional selection. Result stays on GPU."""
         condition = self.to_device(condition)
         # Ensure condition is boolean type
@@ -188,17 +190,17 @@ class TorchBackend(ComputeBackend):
         if (not isinstance(y, (int, float))) and (not isinstance(y, self._torch.Tensor)):
             y = self._torch.tensor(y, device=self._device, dtype=self._torch.float64)
         return self._torch.where(condition, x, y)
-    
-    def where_on_condition(self, condition: torch.Tensor) -> Tuple[torch.Tensor, ...]:
+
+    def where_on_condition(self, condition: "torch.Tensor") -> Tuple["torch.Tensor", ...]:
         """Element-wise conditional selection. Result stays on GPU."""
         return self._torch.where(condition)
 
-    def degrees(self, arr: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
+    def degrees(self, arr: Union[np.ndarray, "torch.Tensor"]) -> "torch.Tensor":
         """Convert angles from radians to degrees. Result stays on GPU."""
         arr = self.to_device(arr)
         return self._torch.rad2deg(arr)
 
-    def expand_dims(self, arr: Union[np.ndarray, torch.Tensor], axis: int) -> torch.Tensor:
+    def expand_dims(self, arr: Union[np.ndarray, "torch.Tensor"], axis: int) -> "torch.Tensor":
         """Expand the shape of an array. Result stays on GPU."""
         arr = self.to_device(arr)
         return self._torch.unsqueeze(arr, dim=axis)
