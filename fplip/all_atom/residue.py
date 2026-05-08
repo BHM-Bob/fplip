@@ -71,11 +71,12 @@ class Residue:
         """Add an atom to this residue"""
         self.atoms.append(atom_info)
     
-    def finalize(self):
+    def finalize(self, precompute_charge_groups: bool = True):
         """Finalize residue after all atoms are added"""
         if self.atoms:
             self._determine_residue_type()
-            self._precompute_charge_groups()
+            if precompute_charge_groups:
+                self._precompute_charge_groups()
     
     def _precompute_charge_groups(self):
         """Pre-compute charge groups for salt bridge detection.
