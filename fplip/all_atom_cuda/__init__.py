@@ -33,6 +33,7 @@ from fplip.all_atom.simple_report import SimpleReport
 
 from fplip.all_atom_cuda.backend import ComputeBackend
 from fplip.all_atom_cuda.cuda_detector import CudaInteractionDetector
+from fplip.all_atom_cuda.numpy_backend import NumPyBackend
 
 
 def _get_cupy_backend():
@@ -68,6 +69,7 @@ __all__ = [
     'CudaInteractionDetector',
     'CuPyBackend',
     'TorchBackend',
+    'NumPyBackend',
 ]
 
 
