@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import polars as pl
 import scipy.spatial.distance
+from mbapy import opts_file
 from openbabel import pybel
 
 from fplip.all_atom.atom_container import AtomContainer, AtomInfo
@@ -62,7 +63,7 @@ class MoleculeComplex:
         self.sourcefiles: Dict[str, str] = {}
         
     def load_pdb(self, pdbpath: str, as_string: bool = False, 
-                 output_path: Optional[str] = None) -> None:
+                 fix_pdb: bool = True) -> None:
         """
         Load a PDB file and initialize all atom information.
         
@@ -72,14 +73,20 @@ class MoleculeComplex:
             Path to PDB file or PDB content as string
         as_string : bool
             If True, pdbpath is treated as PDB content string
-        output_path : str, optional
-            Path to write protonated structure
+        fix_pdb : bool, optional
+            If True, fix PDB structure before loading
         """
         self.pdb_path = pdbpath if not as_string else "from_string"
         
         # Parse and fix PDB
-        pdbparser = PDBParser(pdbpath, as_string=as_string)
-        self.corrected_pdb = pdbparser.corrected_pdb
+        if fix_pdb:
+            pdbparser = PDBParser(pdbpath, as_string=as_string)
+            self.corrected_pdb = pdbparser.corrected_pdb
+        else:
+            if as_string:
+                self.corrected_pdb = pdbpath
+            else:
+                self.corrected_pdb = opts_file(pdbpath, 'r', way='str') # type: ignore
         
         # Read the structure
         if not as_string and os.path.exists(pdbpath):
