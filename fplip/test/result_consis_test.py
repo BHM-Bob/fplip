@@ -36,11 +36,36 @@ logger = logger.get_logger()
 # Test Configuration
 # =============================================================================
 
-TEST_DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
-RESULTS_DIR = TEST_DATA_DIR / "test_results"
-BASELINE_DIR = TEST_DATA_DIR / "baselines"
+# Test data directories
+# Standard PLIP test PDB files
+PLIP_TEST_DATA_DIR = Path(__file__).parent.parent / "test/pdb"
+# Custom test data (if available)
+CUSTOM_TEST_DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
+
+RESULTS_DIR = CUSTOM_TEST_DATA_DIR / "test_results"
+BASELINE_DIR = CUSTOM_TEST_DATA_DIR / "baselines"
+
+
+def get_pdb_path(filename: str) -> Path:
+    """Get the full path to a PDB test file.
+
+    First checks custom test data directory, then falls back to PLIP test data.
+    """
+    # Check custom directory first
+    custom_path = CUSTOM_TEST_DATA_DIR / filename
+    if custom_path.exists():
+        return custom_path
+
+    # Fall back to PLIP test data directory
+    plip_path = PLIP_TEST_DATA_DIR / filename
+    if plip_path.exists():
+        return plip_path
+
+    # Return the path anyway (will be checked later for existence)
+    return plip_path
 
 # Test cases with expected characteristics
+# Selected to cover various interaction types for comprehensive testing
 TEST_CASES = {
     "GPCR_pep": {
         "file": "GPCR_pep.pdb",
@@ -51,7 +76,55 @@ TEST_CASES = {
             "hydrogen_bonds": ">=3",
             "hydrophobic": ">=2",
             "salt_bridges": ">=1"
-        }
+        },
+        "categories": ["peptide", "medium"]
+    },
+    "2w0s": {
+        "file": "2w0s.pdb",
+        "description": "Vacc-TK to TDP complex - halogen bond, pi-stacking, salt bridge",
+        "expected_ligands": 1,
+        "peptide": [],
+        "expected_interactions": {
+            "hydrogen_bonds": ">=2",
+            "halogen_bonds": ">=1",
+            "pi_stacking": ">=1",
+            "salt_bridges": ">=2"
+        },
+        "categories": ["halogen", "pi_stacking", "saltbridge", "small"]
+    },
+    "4kya": {
+        "file": "4kya.pdb",
+        "description": "TS inhibitor with hydrophobic, pi-stacking, salt bridge",
+        "expected_ligands": 1,
+        "peptide": [],
+        "expected_interactions": {
+            "hydrogen_bonds": ">=1",
+            "salt_bridges": ">=1",
+            "hydrophobic": ">=4",
+            "pi_stacking": ">=2"
+        },
+        "categories": ["hydrophobic", "pi_stacking", "saltbridge", "medium"]
+    },
+    "1rmd": {
+        "file": "1rmd.pdb",
+        "description": "Zinc coordination in RAG1 dimerization domain",
+        "expected_ligands": 1,
+        "peptide": [],
+        "expected_interactions": {
+            "metal_complexes": ">=4"
+        },
+        "categories": ["metal", "small"]
+    },
+    "2zoz": {
+        "file": "2zoz.pdb",
+        "description": "Cyclophilin A complex - extensive water bridges (357 waters, 100+ water bridges)",
+        "expected_ligands": 1,
+        "peptide": [],
+        "expected_interactions": {
+            "hydrogen_bonds": ">=5",
+            "water_bridges": ">=50"
+        },
+        "categories": ["water_bridge", "large"]
     }
 }
 
@@ -375,21 +448,21 @@ class ConsistencyTester:
         all_passed = True
         
         for test_name, test_info in TEST_CASES.items():
-            pdb_file = TEST_DATA_DIR / test_info["file"]
+            pdb_file = get_pdb_path(test_info["file"])
             if not pdb_file.exists():
                 print(f"\nWARNING: Test file not found: {pdb_file}")
                 continue
             cfg_kwgs = {"PEPTIDES": test_info["peptide"]}
             passed = self.run_test(test_name, cfg_kwgs, pdb_file, generate_baselines)
             all_passed = all_passed and passed
-        
+
         print("\n" + "="*60)
         if all_passed:
             print("ALL CONSISTENCY TESTS PASSED")
         else:
             print("SOME CONSISTENCY TESTS FAILED")
         print("="*60)
-        
+
         return all_passed
 
 
@@ -506,21 +579,21 @@ class PerformanceTester:
         results = []
         
         for test_name, test_info in TEST_CASES.items():
-            pdb_file = TEST_DATA_DIR / test_info["file"]
+            pdb_file = get_pdb_path(test_info["file"])
             if not pdb_file.exists():
                 print(f"\nWARNING: Test file not found: {pdb_file}")
                 continue
-            
+
             cfg_kwgs = {"PEPTIDES": test_info["peptide"]}
             benchmark = self.run_single_benchmark(test_name, cfg_kwgs, pdb_file, num_runs)
             self.print_benchmark_summary(benchmark)
             results.append(benchmark)
-        
+
         print("\n" + "="*60)
         print("PERFORMANCE BENCHMARKS COMPLETE")
         print(f"Results saved to: {self.results_dir}")
         print("="*60)
-        
+
         return results
 
 
@@ -554,16 +627,16 @@ def main():
         action='store_true',
         help='Enable verbose output'
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.verbose:
         logger.setLevel(10)  # DEBUG
-    
+
     print("\n" + "="*60)
     print("PLIP TESTING FRAMEWORK")
     print("="*60)
-    print(f"Test Data Directory: {TEST_DATA_DIR}")
+    print(f"Test Data Directory: {CUSTOM_TEST_DATA_DIR}")
     print(f"Results Directory: {RESULTS_DIR}")
     print(f"Baseline Directory: {BASELINE_DIR}")
     
