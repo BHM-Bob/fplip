@@ -16,7 +16,7 @@ from scipy.spatial import cKDTree
 from scipy.spatial.distance import cdist
 from tqdm import tqdm
 
-from fplip.all_atom.atom_container import AtomContainer
+from fplip.all_atom.atom_container import AtomContainer, AtomInfo
 from fplip.all_atom.atom_properties import AtomProperties
 from fplip.all_atom.residue import Residue
 from fplip.basic import config
@@ -357,7 +357,7 @@ class UnifiedInteractionDetector:
             mask[valid_idxs] = True
         return mask
     
-    def _group_charged_atoms_by_residue(self, atoms: List, charge_type: str) -> Dict:
+    def _group_charged_atoms_by_residue(self, atoms: List[AtomInfo], charge_type: str) -> Dict:
         """Group charged atoms by residue with special handling for phosphate groups.
         
         Also pre-computes charge centers for each group to avoid repeated calculations.
@@ -438,8 +438,10 @@ class UnifiedInteractionDetector:
     
     def _should_skip_interaction(self, residue: Residue, atom_a, atom_b) -> bool:
         """Determine if an interaction should be skipped due to self-filtering"""
+        # check if is ligand (not a standered amino acid), if is ligand, do not skip self-interaction
         if not residue.should_filter_self():
             return False  # Ligands don't filter self
+        # if is standard amino acid, skip self-interaction if same residue
         return self._is_same_residue(atom_a, atom_b)
     
     def _detect_hydrophobic(self, residue: Residue):
