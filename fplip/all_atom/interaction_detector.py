@@ -1394,7 +1394,7 @@ class UnifiedInteractionDetector:
             return
         
         # Use pre-computed coordinates (cached in _precompute_cached_data)
-        metals_coords = self._metals_coords
+        # metals_coords = self._metals_coords
         binding_coords = self._binding_coords
         
         # Case 1: Residue is metal
@@ -1424,9 +1424,9 @@ class UnifiedInteractionDetector:
                     res_b_name=binding.resname,
                     res_b_chain=binding.chain,
                     res_b_num=binding.resnum,
-                    atom_a_name=self._get_atom_name(metal),
+                    atom_a_name=metal.atom_name,
                     atom_a_idx=metal.idx,
-                    atom_b_name=self._get_atom_name(binding),
+                    atom_b_name=binding.atom_name,
                     atom_b_idx=binding.idx,
                     distance=float(dist_matrix[i, j]),
                     angle=None,
@@ -1434,42 +1434,43 @@ class UnifiedInteractionDetector:
                 )
                 self.interactions['metal'].append(interaction)
         
-        # Case 2: Residue has metal-binding atoms
-        if residue.metal_binding_atoms:
-            res_binding_coords = self.atom_container.get_atom_coords_array_from_atoms(residue.metal_binding_atoms)
+        # Case 2 is redundant with Case 1
+        # # Case 2: Residue has metal-binding atoms
+        # if residue.metal_binding_atoms:
+        #     res_binding_coords = self.atom_container.get_atom_coords_array_from_atoms(residue.metal_binding_atoms)
             
-            # Vectorized distance calculation using cdist
-            dist_matrix = cdist(res_binding_coords, metals_coords)
+        #     # Vectorized distance calculation using cdist
+        #     dist_matrix = cdist(res_binding_coords, metals_coords)
             
-            # Find valid pairs within distance threshold
-            valid_mask = dist_matrix < config.METAL_DIST_MAX
-            valid_indices = np.argwhere(valid_mask)
+        #     # Find valid pairs within distance threshold
+        #     valid_mask = dist_matrix < config.METAL_DIST_MAX
+        #     valid_indices = np.argwhere(valid_mask)
             
-            for i, j in valid_indices:
-                binding = residue.metal_binding_atoms[i]
-                metal = all_metals[j]
+        #     for i, j in valid_indices:
+        #         binding = residue.metal_binding_atoms[i]
+        #         metal = all_metals[j]
                 
-                # Skip if same residue (unless it's a ligand)
-                if self._should_skip_interaction(residue, binding, metal):
-                    continue
+        #         # Skip if same residue (unless it's a ligand)
+        #         if self._should_skip_interaction(residue, binding, metal):
+        #             continue
                 
-                interaction = Interaction(
-                    type='metal',
-                    res_a_name=binding.resname,
-                    res_a_chain=binding.chain,
-                    res_a_num=binding.resnum,
-                    res_b_name=metal.resname,
-                    res_b_chain=metal.chain,
-                    res_b_num=metal.resnum,
-                    atom_a_name=self._get_atom_name(binding),
-                    atom_a_idx=binding.idx,
-                    atom_b_name=self._get_atom_name(metal),
-                    atom_b_idx=metal.idx,
-                    distance=float(dist_matrix[i, j]),
-                    angle=None,
-                    details={}
-                )
-                self.interactions['metal'].append(interaction)
+        #         interaction = Interaction(
+        #             type='metal',
+        #             res_a_name=binding.resname,
+        #             res_a_chain=binding.chain,
+        #             res_a_num=binding.resnum,
+        #             res_b_name=metal.resname,
+        #             res_b_chain=metal.chain,
+        #             res_b_num=metal.resnum,
+        #             atom_a_name=binding.atom_name,
+        #             atom_a_idx=binding.idx,
+        #             atom_b_name=metal.atom_name,
+        #             atom_b_idx=metal.idx,
+        #             distance=float(dist_matrix[i, j]),
+        #             angle=None,
+        #             details={}
+        #         )
+        #         self.interactions['metal'].append(interaction)
 
     def _create_water_bridge_interaction(self, water_res, water_o, water_o_coords,
                                          pa_key, pa_info, pb_key, pb_info):
