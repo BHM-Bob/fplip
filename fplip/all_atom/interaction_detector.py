@@ -246,21 +246,17 @@ class UnifiedInteractionDetector:
                 self._all_hbd_h_coords = np.array([]).reshape(0, 3)
         
         # Pre-compute salt bridge data
-        all_pos = self.atom_props.get_pos_charged()
-        all_neg = self.atom_props.get_neg_charged()
-        self._pos_charged_mask = self._create_atom_mask([atom.idx for atom in all_pos])
-        self._neg_charged_mask = self._create_atom_mask([atom.idx for atom in all_neg])
+        self.all_pos_atoms = self.atom_props.get_pos_charged()
+        self.all_neg_atoms = self.atom_props.get_neg_charged()
         
         # Pre-compute grouped charged atoms and their centers for salt bridge detection
         # This avoids recomputing these for every residue in _detect_saltbridges
-        self._all_pos_grouped = self._group_charged_atoms_by_residue(all_pos, 'positive')
-        self._all_neg_grouped = self._group_charged_atoms_by_residue(all_neg, 'negative')
+        self._all_pos_grouped = self._group_charged_atoms_by_residue(self.all_pos_atoms, 'positive')
+        self._all_neg_grouped = self._group_charged_atoms_by_residue(self.all_neg_atoms, 'negative')
         
-        # Pre-compute metal and metal-binding atom masks
-        all_metals = self.atom_props.get_metals()
-        all_metal_binding = self.atom_props.get_metal_binding()
-        self._metal_mask = self._create_atom_mask([atom.idx for atom in all_metals])
-        self._metal_binding_mask = self._create_atom_mask([atom.idx for atom in all_metal_binding])
+        # # Pre-compute metal and metal-binding atom masks
+        self.all_metals_atoms = self.atom_props.get_metals()
+        self.all_metal_binding_atoms = self.atom_props.get_metal_binding()
         
         # Pre-compute halogen bond donors and acceptors
         # This avoids recomputing these for every residue in _detect_halogen
@@ -281,14 +277,12 @@ class UnifiedInteractionDetector:
             self._all_halogen_donor_coords = np.array([])
         
         # Pre-compute metal and metal-binding atom coordinates
-        all_metals = self.atom_props.get_metals()
-        all_binding = self.atom_props.get_metal_binding()
-        if all_metals:
-            self._metals_coords = self.atom_container.get_atom_coords_array_from_atoms(all_metals)
+        if self.all_metals_atoms:
+            self._metals_coords = self.atom_container.get_atom_coords_array_from_atoms(self.all_metals_atoms)
         else:
             self._metals_coords = np.array([]).reshape(0, 3)
-        if all_binding:
-            self._binding_coords = self.atom_container.get_atom_coords_array_from_atoms(all_binding)
+        if self.all_metal_binding_atoms:
+            self._binding_coords = self.atom_container.get_atom_coords_array_from_atoms(self.all_metal_binding_atoms)
         else:
             self._binding_coords = np.array([]).reshape(0, 3)
         
@@ -905,32 +899,26 @@ class UnifiedInteractionDetector:
 
         # Only detect from positive residues to avoid duplicates
         # Each functional group pair should generate only one salt bridge
-        if residue.pos_charged and residue.pos_charged_groups:
-            # Use pre-computed negative charge group arrays (cached in _precompute_cached_data)
-            neg_centers_array = self._neg_grouped_centers
-            neg_atoms_list = self._neg_grouped_atoms
-            neg_keys_list = self._neg_grouped_keys
+        if residue.pos_charged and residue.pos_charged_groups and len(self._neg_grouped_centers) > 0:
+            for pos_key, (pos_atoms, pos_center) in residue.pos_charged_groups.items():
+                # Vectorized distance calculation (all at once)
+                distances = np.linalg.norm(self._neg_grouped_centers - pos_center, axis=1)
 
-            if len(neg_centers_array) > 0:
-                for pos_key, (pos_atoms, pos_center) in residue.pos_charged_groups.items():
-                    # Vectorized distance calculation (all at once)
-                    distances = np.linalg.norm(neg_centers_array - pos_center, axis=1)
+                # Find all pairs within distance threshold
+                valid_indices = np.where(distances < config.SALTBRIDGE_DIST_MAX)[0]
 
-                    # Find all pairs within distance threshold
-                    valid_indices = np.where(distances < config.SALTBRIDGE_DIST_MAX)[0]
+                for idx in valid_indices:
+                    neg_atoms = self._neg_grouped_atoms[idx]
+                    neg_key = self._neg_grouped_keys[idx]
+                    distance = distances[idx]
+                    
+                    # Get representative atoms for residue/atom identification
+                    pos_atom = pos_atoms[0]
+                    neg_atom = neg_atoms[0]
 
-                    for idx in valid_indices:
-                        neg_atoms = neg_atoms_list[idx]
-                        neg_key = neg_keys_list[idx]
-                        distance = distances[idx]
-                        
-                        # Get representative atoms for residue/atom identification
-                        pos_atom = pos_atoms[0]
-                        neg_atom = neg_atoms[0]
-
-                        # Skip if same residue (unless it's a ligand) - consistent with other interaction types
-                        if self._should_skip_interaction(residue, pos_atom, neg_atom):
-                            continue
+                    # Skip if same residue (unless it's a ligand) - consistent with other interaction types
+                    if self._should_skip_interaction(residue, pos_atom, neg_atom):
+                        continue
 
                         interaction = Interaction(
                             type='saltbridge',
