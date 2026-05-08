@@ -11,6 +11,7 @@ from typing import Callable, Dict, List, Optional
 import numpy as np
 from MDAnalysis import Universe
 from scipy.spatial import cKDTree
+from scipy.spatial.distance import cdist
 
 from fplip.all_atom.interaction_detector import UnifiedInteractionDetector
 from fplip.all_atom.molecule_complex import MoleculeComplex
@@ -287,26 +288,24 @@ class TrajectoryAnalyzer:
                 water_res.is_skip = True
             return {"total": len(water_residues), "filtered": len(water_residues), "kept": 0}
 
-        kdtree = cKDTree(np.array(non_water_coords))
-
         filtered = 0
         kept = 0
-
+        o_coords = []
         for water_res in water_residues:
             oxygen_coords = None
             for atom in water_res.atoms:
                 if atom.atomic_num == 8:
-                    oxygen_coords = atom.coords
+                    o_coords.append(atom.coords)
                     break
 
             if oxygen_coords is None:
                 water_res.is_skip = True
                 filtered += 1
                 continue
-
-            dist, _ = kdtree.query(oxygen_coords)
-
-            if dist > distance_threshold:
+        o_coords = np.array(o_coords)
+        dist = cdist(o_coords, np.array(non_water_coords)).min(axis=1)
+        for i, water_res in enumerate(water_residues):
+            if dist[i] > distance_threshold:
                 water_res.is_skip = True
                 filtered += 1
             else:
