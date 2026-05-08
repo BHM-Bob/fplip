@@ -10,6 +10,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Dict, List, Optional, Set, Union
 
 import numpy as np
+from MDAnalysis.core import AtomGroup as MDAtomGroup
 
 from fplip.basic import config
 
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
 
 class AtomInfo:
     """Lightweight class to store atom information"""
-
+    _TYPE = 'AtomInfo'
     def __init__(self, idx: int, obatom, orig_idx: int):
         self.idx = idx
         self.obatom = obatom
@@ -82,6 +83,39 @@ class AtomInfo:
     
     def __repr__(self):
         return f"AtomInfo(idx={self.idx}, orig_idx={self.orig_idx}, {self.resname}:{self.chain}:{self.resnum})"
+
+
+class MDWAtomInfo(AtomInfo):
+    """MDAnalysis atom information for water molecules"""
+    _TYPE = 'MDWAtomInfo'
+    ELEMENT2NUM = {'H': 1, 'O': 8, 'N': 7, 'C': 6, 'S': 16, 'P': 15, 'Cl': 17, 'CL': 17}
+    def __init__(self, idx: int, org_idx: int, component_type: str, atom: MDAtomGroup):
+        self.idx = idx
+        self.obatom = None
+        self.orig_idx = org_idx
+        self.coords = atom.position
+
+        # Residue information (from OpenBabel)
+        residue = atom.residue
+        self.residue = None # do not mix OB residue with MDA residue
+        self.resname = residue.resname
+        self.resnum = residue.resnum
+        self.chain = atom.chainID if atom.chainID else " "
+
+        # Back-reference to Residue object (set by InteractionDetector after residue creation)
+        self.residue_obj: Optional['Residue'] = None
+        
+        # Atom properties
+        self.atom_type = atom.name
+        self.atom_name = atom.element
+        self.atomic_num = self.ELEMENT2NUM[atom.element]
+        self.is_hydrogen = self.atomic_num == 1
+        
+        # Component type (protein, ligand, dna, rna, water, ion)
+        self.component_type = component_type
+
+        # MDA index for trajectory coordinate updates (set by align_with_mda)
+        self.mda_idx: Optional[int] = atom.id
 
 
 class AtomContainer:
