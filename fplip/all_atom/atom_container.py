@@ -7,7 +7,7 @@ for all molecular components (proteins, ligands, DNA/RNA, etc.)
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Union
 
 import numpy as np
 
@@ -133,18 +133,18 @@ class AtomContainer:
     
     def build_coordinate_array(self):
         """Build numpy array of coordinates for vectorized operations"""
-        sorted_indices = sorted(self.atoms.keys())
-        self.coords_array = np.array([self.atoms[idx].coords for idx in sorted_indices])
-        self.idx_to_array_pos = {idx: i for i, idx in enumerate(sorted_indices)}
+        self.sorted_indices = sorted(self.atoms.keys())
+        self.coords_array = np.array([self.atoms[idx].coords for idx in self.sorted_indices])
+        self.idx_to_array_pos = {idx: i for i, idx in enumerate(self.sorted_indices)}
         
         # Build array-based index mapping for O(1) lookup
-        if sorted_indices:
-            max_idx = max(sorted_indices)
+        if self.sorted_indices:
+            max_idx = max(self.sorted_indices)
             self.idx_to_array_pos_array = np.full(max_idx + 1, -1, dtype=np.int32)
-            for array_pos, ob_idx in enumerate(sorted_indices):
+            for array_pos, ob_idx in enumerate(self.sorted_indices):
                 self.idx_to_array_pos_array[ob_idx] = array_pos
         # Build array-based index mapping for arr-pos-idx to ob-idx
-        self.array_pos_to_idx_array = np.array(sorted_indices)
+        self.array_pos_to_idx_array = np.array(self.sorted_indices)
     
     def get_atoms_by_component(self, component_type: str) -> List[AtomInfo]:
         """Get all atoms of a specific component type"""
@@ -167,6 +167,12 @@ class AtomContainer:
     def get_atom_coords_array_from_atoms(self, atoms: List[AtomInfo]) -> Optional[np.ndarray]:
         """Get coordinates array for specified atoms"""
         return self.get_atom_coords_array([atom.idx for atom in atoms])
+    
+    def get_atom_coords_idxs_from_atoms(self, atoms: List[AtomInfo], return_np: bool = False) -> Union[np.ndarray, List[int]]:
+        """Get coordinates idxs for specified atoms"""
+        if return_np:
+            return np.array([self.idx_to_array_pos[atom.idx] for atom in atoms], dtype=np.int32)
+        return [self.idx_to_array_pos[atom.idx] for atom in atoms]
 
     def update_coords_from_mda(self, mda_coords: np.ndarray, aligned_only: bool = True):
         """Update atom coordinates from MDAnalysis coordinates array.
