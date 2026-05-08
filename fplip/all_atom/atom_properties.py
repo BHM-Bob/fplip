@@ -122,16 +122,22 @@ class AtomProperties:
                 continue
             
             # Check if atom is H-bond acceptor
-            if obatom.IsHbondAcceptor():
+            ## MDWAtomInfo is a water mol, it's O atom can be both H-bond acceptor and donor
+            ## check MDWAtomInfo first as fast-path for MDWAtomInfo, H atom already filtered out
+            ## so here only pass when atom is MDWAtomInfo OR fallback to OpenBabel check if AtomInfo
+            if (atom._TYPE == 'MDWAtomInfo' and atom.atomic_num == 8) or obatom.IsHbondAcceptor():
                 self.hbond_acceptors.add(atom.idx)
             
             # Check if atom is H-bond donor
-            if obatom.IsHbondDonor():
+            if (atom._TYPE == 'MDWAtomInfo' and atom.atomic_num == 8) or obatom.IsHbondDonor():
                 # Find attached hydrogens
-                attached_h = []
-                for neighbor in pybel.ob.OBAtomAtomIter(obatom):
-                    if neighbor.GetAtomicNum() == 1:  # Hydrogen
-                        attached_h.append(neighbor.GetIdx())
+                if atom._TYPE == 'MDWAtomInfo':
+                    attached_h = [a.idx for a in atom.residue_obj.atoms if a.atomic_num == 1]
+                else:
+                    attached_h = []
+                    for neighbor in pybel.ob.OBAtomAtomIter(obatom):
+                        if neighbor.GetAtomicNum() == 1:  # Hydrogen
+                            attached_h.append(neighbor.GetIdx())
                 if attached_h:
                     self.hbond_donors[atom.idx] = sorted(attached_h)
             else:
@@ -207,7 +213,8 @@ class AtomProperties:
 
         for res_key, atoms in residue_atoms.items():
             resname = res_key[0]
-
+            if atoms[0]._TYPE == 'MDWAtomInfo':
+                continue
             # Identify positive charges (skip atoms already identified)
             self._find_positive_charges(atoms, resname)
 
@@ -225,6 +232,8 @@ class AtomProperties:
         in the input structure (e.g., from protonation tools).
         """
         for atom in self.atom_container:
+            if atom._TYPE == 'MDWAtomInfo':
+                continue
             obatom = atom.obatom
             formal_charge = obatom.GetFormalCharge()
             
@@ -575,7 +584,7 @@ class AtomProperties:
     def _identify_rings(self):
         """Identify aromatic rings and imidazolium rings."""
         # Get all atoms as OBAtom list
-        obatoms = [atom.obatom for atom in self.atom_container]
+        obatoms = [atom.obatom for atom in self.atom_container if atom._TYPE == 'AtomInfo']
         if not obatoms:
             return
 
@@ -763,6 +772,8 @@ class AtomProperties:
         atom are considered, ensuring clear receptor angle calculation.
         """
         for atom in self.atom_container:
+            if atom._TYPE == 'MDWAtomInfo':
+                continue
             atomic_num = atom.atomic_num
 
             # Halogen donors (F, Cl, Br, I bonded to carbon)
