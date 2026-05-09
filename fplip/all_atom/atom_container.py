@@ -237,14 +237,13 @@ class AtomContainer:
         This should be called after update_coords_from_mda() before
         running detect_all() if using cached coordinates.
         """
-        sorted_indices = sorted(self.atoms.keys())
-        self.coords_array = np.array([self.atoms[idx].coords for idx in sorted_indices])
+        self.coords_array = np.array([self.atoms[idx].coords for idx in self.sorted_indices])
 
     def __len__(self):
         return len(self.atoms)
     
     def __iter__(self):
-        return iter([self.atoms[idx] for idx in sorted(self.atoms.keys())])
+        return iter([self.atoms[idx] for idx in self.sorted_indices])
     
     def __getitem__(self, idx: int) -> AtomInfo:
         return self.atoms[idx]
