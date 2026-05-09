@@ -287,7 +287,8 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
         pair_idxs, acc_idxs = self.backend.argwhere(valid_mask)
         dists_ad, dists_ah, angles = dist_ad_matrix[pair_idxs, acc_idxs], dist_ah_matrix[pair_idxs, acc_idxs], angle_matrix[pair_idxs, acc_idxs]
         dists_ad, dists_ah, angles = self.backend.to_numpy(dists_ad), self.backend.to_numpy(dists_ah), self.backend.to_numpy(angles)
-        for pair_idx, acc_idx, dist_ad, dist_ah, angle in zip(pair_idxs, acc_idxs, dists_ad, dists_ah, angles):
+        hbond_types = np.where((dists_ad < 3.2) & (angles > 140), 'strong', 'weak')
+        for pair_idx, acc_idx, dist_ad, dist_ah, angle, htype in zip(pair_idxs, acc_idxs, dists_ad, dists_ah, angles, hbond_types):
             pair_idx, acc_idx = int(pair_idx), int(acc_idx)
             donor, h_atom = self._hbond_don_idxs[pair_idx], self._hbond_donh_idxs[pair_idx]
             donor, h_atom = self.atom_container.atoms[self.atom_container.array_pos_to_idx_array[donor]], self.atom_container.atoms[self.atom_container.array_pos_to_idx_array[h_atom]]
@@ -311,7 +312,7 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
                     'h_atom': h_atom.atom_name,
                     'h_idx': h_atom.idx,
                     'dist_ah': dist_ah,
-                    'type': 'strong' if dist_ad < 3.2 and angle > 140 else 'weak',
+                    'type': htype,
                     'donor_idx': donor.idx,
                     'acceptor_idx': hba.idx
                 },
