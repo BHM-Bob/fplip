@@ -92,6 +92,61 @@ class TrajectoryAnalyzer:
         self.mol = MoleculeComplex()
         self.mol.load_pdb(pdb_str, as_string=as_string, fix_pdb=fix_pdb)
         return self.mol
+    
+    def load_waters(self, water_chain: Union[str, List[str]]):
+        """Load water residues from MDA universe via PyMol parser.
+        Due to extreme low performance of OpenBabel and extreme number of waters in MD system,
+        and, if number of water residues is more than 10000, it will cause resi number overflow in PDB file.
+        So it is recommended to load water residues separately.
+        
+        Parameters
+        ----------
+        water_chain : str|list[str]
+            Chain ID for water residues (default 'W')
+        """
+        water_chain = [water_chain] if isinstance(water_chain, str) else water_chain
+        self.water_ags = filter_atoms_by_chains(self.u.atoms, water_chain)
+        self.water_atoms = []
+        idx = max(self.mol.atom_container.atoms.keys()) + 1
+        org_idx = max(self.mol.atom_container.atoms_by_orig_idx.keys()) + 1
+        for ag in self.water_ags:
+            atom_info = MDWAtomInfo(idx, org_idx, 'water', ag)
+            idx += 1
+            org_idx += 1
+            self.water_atoms.append(atom_info)
+            self.mol.atom_container.add_atom(atom_info)
+            # Track chains and residues
+            self.mol.chains.add(atom_info.chain)
+            res_key = (atom_info.resname, atom_info.chain, atom_info.resnum)
+            if res_key not in self.mol.residues_info:
+                self.mol.residues_info[res_key] = {
+                    'name': atom_info.resname,
+                    'chain': atom_info.chain,
+                    'num': atom_info.resnum,
+                    'component_type': atom_info.component_type
+                }
+        # Build coordinate array
+        self.mol.atom_container.build_coordinate_array()
+        # Build residues
+        ## Group atoms by residue
+        self.water_residues_dict = defaultdict(list)
+        for atom in self.water_atoms:
+            res_key = (atom.resname, atom.chain, atom.resnum)
+            self.mol.residue_groups[res_key].append(atom)
+            self.water_residues_dict[res_key].append(atom)
+        ## Create water residue objects
+        for res_key in self.water_residues_dict.keys():
+            atoms = self.water_residues_dict[res_key]
+            resname, chain, resnum = res_key
+            residue = Residue(resname, chain, resnum)
+
+            for atom in atoms:
+                residue.add_atom(atom)
+                # Set back-reference from atom to residue for efficient lookup
+                atom.residue_obj = residue
+            # Only AtomInfo supports pre-computed charge groups
+            residue.finalize(precompute_charge_groups=False)
+            self.mol.residues.append(residue)
 
     def align_with_mda(self, frame: int = 0) -> bool:
         """Align OpenBabel molecule with MDA universe using KD-tree.
@@ -401,10 +456,11 @@ if __name__ == "__main__":
     analyzer = TrajectoryAnalyzer(tpr, xtc, gro, tolerance=1e-4)
     analyzer.load_universe()
     analyzer.u.trajectory[0]
-    converter = PDBConverter(analyzer.u.atoms, reindex=False)
+    converter = PDBConverter(filter_atoms_by_chains(analyzer.u.atoms, ['A', 'B', 'CL']), reindex=False)
     pdb_str = converter.fast_convert()
     analyzer.load_molecule(pdb_str, as_string=True)
     analyzer.align_with_mda(frame=0)
+    analyzer.load_waters('SOL')
     analyzer.setup_detector()
     analyzer.precompute_detector_once()
 
