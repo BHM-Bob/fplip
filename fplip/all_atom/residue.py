@@ -49,6 +49,7 @@ class Residue:
         self.is_dna = False
         self.is_rna = False
         self.is_skip = False # Skip flag for distant water filtering in trajectory analysis
+        self._type_repr = None
 
         # Aggregated properties (populated by AtomProperties)
         self.hbond_acceptors: List = []
@@ -401,8 +402,27 @@ class Residue:
                 return atom
         return None
     
+    def _get_type_repr(self):
+        """Get type representation for this residue"""
+        if self._type_repr is None:
+            if self.is_protein:
+                self._type_repr = 'protein'
+            elif self.is_ligand:
+                self._type_repr = 'ligand'
+            elif self.is_water:
+                self._type_repr = 'water'
+            elif self.is_ion:
+                self._type_repr = 'ion'
+            elif self.is_dna:
+                self._type_repr = 'dna'
+            elif self.is_rna:
+                self._type_repr = 'rna'
+            else:
+                self._type_repr = 'other'
+        return self._type_repr
+    
     def __repr__(self):
-        return f"Residue({self.resid}, atoms={len(self.atoms)}, type={'protein' if self.is_protein else 'ligand' if self.is_ligand else 'other'})"
+        return f"Residue({self.resid}, atoms={len(self.atoms)}, type={self._get_type_repr()})"
     
     def __hash__(self):
         return self._hash
