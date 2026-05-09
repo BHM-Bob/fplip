@@ -73,35 +73,20 @@ class TrajectoryAnalyzer(_TrajectoryAnalyzer):
         self.non_water_atom_idxs = self.detector.atom_container.get_atom_coords_idxs_from_atoms(self.non_water_atoms)
         self.water_o_atom_idxs = self.detector.atom_container.get_atom_coords_idxs_from_atoms(self.water_o_atoms)
         return self.detector
-
-    def detect_frame_fast(self, frame_idx: int, verbose: bool = False) -> Dict[str, List]:
-        """Detect interactions for a frame using cached setup.
-
-        Assumes setup_detector_once() has been called. This method skips
-        the one-time setup methods and only does:
-        - Coordinate update
-        - Per-residue detection
-        - Post-processing (dedup, refine, water bridges)
+    
+    def detect_all(self, detect_water_bridges_plip_style: bool = False) -> Dict[str, List]:
+        """Update coordinates and detect interactions for a frame.
 
         Parameters
         ----------
-        frame_idx : int
-            Frame index to process
-        verbose : bool
-            Whether to show progress bars
+        detect_water_bridges_plip_style : bool, optional
+            Whether to detect water bridges in the style of PLIP
 
         Returns
         -------
         Dict[str, List]
             Dictionary of detected interactions
         """
-        if self.detector is None:
-            raise RuntimeError("Detector not setup. Call setup_detector() first.")
-
-        if not self._detector_precomputed:
-            self.precompute_detector_once()
-
-        self.update_frame(frame_idx)
         # _precompute_cached_data include coords precompute, so no need to call it again
         self.detector._precompute_cached_data()
 
@@ -144,12 +129,43 @@ class TrajectoryAnalyzer(_TrajectoryAnalyzer):
         self.detector._remove_duplicates()
         self.detector._refine_hbonds()
         self.detector._detect_water_bridges()
-        # self.detector._all_hba_coords = self.detector.backend.to_numpy(self.detector._all_hba_coords)
-        # self.detector._all_hbd_don_coords = self.detector.backend.to_numpy(self.detector._all_hbd_don_coords)
-        # self.detector._all_hbd_h_coords = self.detector.backend.to_numpy(self.detector._all_hbd_h_coords)
-        # self.detector._detect_water_bridges_plip_style()
+        if detect_water_bridges_plip_style:
+            self.detector._all_hba_coords = self.detector.backend.to_numpy(self.detector._all_hba_coords) # type: ignore
+            self.detector._all_hbd_don_coords = self.detector.backend.to_numpy(self.detector._all_hbd_don_coords) # type: ignore
+            self.detector._all_hbd_h_coords = self.detector.backend.to_numpy(self.detector._all_hbd_h_coords) # type: ignore
+            self.detector._detect_water_bridges_plip_style()
 
         return self.detector.interactions
+
+    def detect_frame_fast(self, frame_idx: int, verbose: bool = False) -> Dict[str, List]:
+        """Detect interactions for a frame using cached setup.
+
+        Assumes setup_detector_once() has been called. This method skips
+        the one-time setup methods and only does:
+        - Coordinate update
+        - Per-residue detection
+        - Post-processing (dedup, refine, water bridges)
+
+        Parameters
+        ----------
+        frame_idx : int
+            Frame index to process
+        verbose : bool
+            Whether to show progress bars
+
+        Returns
+        -------
+        Dict[str, List]
+            Dictionary of detected interactions
+        """
+        if self.detector is None:
+            raise RuntimeError("Detector not setup. Call setup_detector() first.")
+
+        if not self._detector_precomputed:
+            self.precompute_detector_once()
+
+        self.update_frame(frame_idx)
+        return self.detect_all(verbose=verbose)
 
     def filter_distant_waters(self, distance_threshold: float = 5.0) -> Dict[str, int]:
         """Filter out water molecules distant from other molecules.

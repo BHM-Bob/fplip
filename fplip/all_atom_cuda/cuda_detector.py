@@ -669,3 +669,4 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
         self.atom_container.update_coords_from_mda(mda_coords, aligned_only=True)
         self.atom_container.rebuild_coords_array()
         self.atom_container.coords_array = self.backend.to_device(self.atom_container.coords_array) # type: ignore
+        self.all_coords = self.atom_container.coords_array
