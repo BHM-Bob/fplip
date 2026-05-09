@@ -67,6 +67,9 @@ class Residue:
         # Format: {residue_key: (atoms_list, charge_center)}
         self.pos_charged_groups: Dict = {}
         self.neg_charged_groups: Dict = {}
+        
+        # fast atom index
+        self.atom_idxs = []
     
     def add_atom(self, atom_info):
         """Add an atom to this residue"""
@@ -78,6 +81,7 @@ class Residue:
             self._determine_residue_type()
             if precompute_charge_groups:
                 self._precompute_charge_groups()
+            self.atom_idxs = [atom.idx for atom in self.atoms]
     
     def _precompute_charge_groups(self):
         """Pre-compute charge groups for salt bridge detection.
