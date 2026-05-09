@@ -31,7 +31,45 @@ class ComputeBackend(ABC):
     This design maximizes performance by minimizing CPU-GPU data transfers.
     The interaction detection code works with device arrays directly.
     """
+    bool = bool
+    long = int
+    
+    @abstractmethod
+    def arange(self, stop: int) -> np.ndarray:
+        """Generate a sequence of numbers from 0 to stop-1.
 
+        Parameters
+        ----------
+        stop : int
+            Stop value (exclusive)
+
+        Returns
+        -------
+        Device array (backend-specific type)
+            Array of numbers from 0 to stop-1
+        """
+        pass
+    
+    @abstractmethod
+    def full(self, shape: Tuple[int], fill: Union[bool, int], dtype: Union[bool, int] = None)  -> np.ndarray:
+        """Create a new array filled with a constant value.
+
+        Parameters
+        ----------
+        shape : Tuple[int]
+            Shape of the array
+        fill : Union[bool, int]
+            Value to fill the array with
+        dtype : Union[bool, int], optional
+            Data type of the output array
+
+        Returns
+        -------
+        Device array (backend-specific type)
+        """
+        pass
+        
+    
     @abstractmethod
     def to_device(self, arr: np.ndarray):
         """Transfer a numpy array to the compute device.

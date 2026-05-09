@@ -44,6 +44,12 @@ class NumPyBackend(ComputeBackend):
     @property
     def is_gpu(self) -> bool:
         return False
+    
+    def arange(self, stop: int) -> np.ndarray:
+        return np.arange(stop)
+
+    def full(self, shape: Tuple[int], fill: Union[bool, int], dtype: Union[bool, int] = None) -> np.ndarray:
+        return np.full(shape, fill, dtype=dtype)
 
     def to_device(self, arr: Union[np.ndarray, list, tuple]) -> np.ndarray:
         """Convert input to numpy array.

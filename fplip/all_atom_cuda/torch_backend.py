@@ -52,6 +52,7 @@ class TorchBackend(ComputeBackend):
             self._torch = torch
             self._device = torch.device(device)
             self.bool = torch.bool
+            self.long = torch.long
             if not self._device.type.startswith('cuda'):
                 import warnings
                 warnings.warn(
@@ -72,6 +73,12 @@ class TorchBackend(ComputeBackend):
     @property
     def is_gpu(self) -> bool:
         return self._device.type.startswith('cuda')
+    
+    def arange(self, stop: int) -> "torch.Tensor":
+        return self._torch.arange(stop, device=self._device)
+    
+    def full(self, shape: Tuple[int], fill: Union[bool, int], dtype: Union[bool, int] = None) -> "torch.Tensor":
+        return self._torch.full(shape, fill, dtype=dtype, device=self._device)
 
     def to_device(self, arr: Union[np.ndarray, "torch.Tensor"]) -> "torch.Tensor":
         """Transfer array to GPU device.
@@ -168,10 +175,10 @@ class TorchBackend(ComputeBackend):
         arr = self.to_device(arr)
         return self._torch.max(arr)  # pyright: ignore[reportReturnType]
 
-    def min(self, arr: Union[np.ndarray, "torch.Tensor"]) -> "torch.Tensor":
+    def min(self, arr: Union[np.ndarray, "torch.Tensor"], dim: Optional[int] = None) -> "torch.Tensor":
         """Compute minimum along axis. Result stays on GPU."""
         arr = self.to_device(arr)
-        return self._torch.min(arr)  # pyright: ignore[reportReturnType]
+        return self._torch.min(arr, dim=dim).values  # pyright: ignore[reportReturnType]
 
     def sqrt(self, arr: Union[np.ndarray, "torch.Tensor"]) -> "torch.Tensor":
         """Element-wise square root. Result stays on GPU."""

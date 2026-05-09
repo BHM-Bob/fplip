@@ -49,6 +49,8 @@ class CuPyBackend(ComputeBackend):
             self._cp = cp
             cp.cuda.Device(device_id).use()
             self._device_id = device_id
+            self.bool = cp.bool_
+            self.long = cp.int64
         except ImportError:
             raise ImportError(
                 "CuPy is not installed. Install it with: "
@@ -63,6 +65,12 @@ class CuPyBackend(ComputeBackend):
     @property
     def is_gpu(self) -> bool:
         return True
+    
+    def arange(self, stop: int) -> 'cupy.ndarray':
+        return self._cp.arange(stop)
+    
+    def full(self, shape: Tuple[int], fill: Union[bool, int], dtype: Union[bool, int] = None) -> 'cupy.ndarray':
+        return self._cp.full(shape, fill, dtype=dtype)
 
     def to_device(self, arr: Union[np.ndarray, 'cupy.ndarray']) -> 'cupy.ndarray':
         """Transfer array to GPU device.
@@ -153,10 +161,10 @@ class CuPyBackend(ComputeBackend):
         arr = self.to_device(arr)
         return self._cp.max(arr)
     
-    def min(self, arr: Union[np.ndarray, 'cupy.ndarray']) -> 'cupy.ndarray':
+    def min(self, arr: Union[np.ndarray, 'cupy.ndarray'], dim: Optional[int] = None) -> 'cupy.ndarray':
         """Compute minimum along axis. Result stays on GPU."""
         arr = self.to_device(arr)
-        return self._cp.min(arr)
+        return self._cp.min(arr, axis=dim)
 
     def sqrt(self, arr: Union[np.ndarray, 'cupy.ndarray']) -> 'cupy.ndarray':
         """Element-wise square root. Result stays on GPU."""
