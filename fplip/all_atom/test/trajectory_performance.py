@@ -146,22 +146,31 @@ class TrajectoryAnalyzerPerformanceTest(unittest.TestCase):
         self.analyzer.align_with_mda(frame=0)
         self.analyzer.setup_detector()
 
-        times = []
-        for frame_idx in range(20):
+        read_times, times, water_filter_times = [], [], []
+        for frame_idx in tqdm(range(10), desc="test_coordinate_update_performance"):
+            start = time.perf_counter()
             self.analyzer.u.trajectory[frame_idx]
             mda_coords = self.analyzer.u.atoms.positions
+            read_times.append(time.perf_counter() - start)
 
             start = time.perf_counter()
             self.analyzer.detector.update_coords(mda_coords)
-            elapsed = time.perf_counter() - start
-            times.append(elapsed)
+            times.append(time.perf_counter() - start)
+            
+            start = time.perf_counter()
+            self.analyzer.filter_distant_waters()
+            water_filter_times.append(time.perf_counter() - start)
 
         print(f"\n[PERF] Coordinate update per frame (73644 atoms):")
-        print(f"  Average: {np.mean(times)*1000:.2f} ms")
-        print(f"  Min: {np.min(times)*1000:.2f} ms")
-        print(f"  Max: {np.max(times)*1000:.2f} ms")
-        print(f"  Std: {np.std(times)*1000:.2f} ms")
-        print(f"  Per atom: {np.mean(times)/73644*1000000:.3f} µs")
+        print(f"  Read Average: {np.mean(read_times)*1000:.2f} ms")
+        print(f"  Read Min: {np.min(read_times)*1000:.2f} ms")
+        print(f"  Read Per atom: {np.mean(read_times)/73644*1000000:.3f} µs")
+        print(f"  Update coords Average: {np.mean(times)*1000:.2f} ms")
+        print(f"  Update coords Min: {np.min(times)*1000:.2f} ms")
+        print(f"  Update coords Per atom: {np.mean(times)/73644*1000000:.3f} µs")
+        print(f"  Filter water Average: {np.mean(water_filter_times)*1000:.2f} ms")
+        print(f"  Filter water Min: {np.min(water_filter_times)*1000:.2f} ms")
+        print(f"  Filter water Per atom: {np.mean(water_filter_times)/73644*1000000:.3f} µs")
 
     def test_detect_all_performance(self):
         """Benchmark detect_all for a single frame."""
@@ -175,11 +184,10 @@ class TrajectoryAnalyzerPerformanceTest(unittest.TestCase):
         self.analyzer.update_frame(0)
 
         times = []
-        for _ in tqdm(range(3), desc="test_detect_all_performance"):
+        for _ in tqdm(range(5), desc="test_detect_all_performance"):
             start = time.perf_counter()
             interactions = self.analyzer.detector.detect_all(verbose=True)
-            elapsed = time.perf_counter() - start
-            times.append(elapsed)
+            times.append(time.perf_counter() - start)
 
         total_interactions = sum(len(v) for v in interactions.values())
 
@@ -204,26 +212,21 @@ class TrajectoryAnalyzerPerformanceTest(unittest.TestCase):
         frame_times = []
         detect_times = []
 
-        for frame_idx in range(n_frames):
-            frame_start = time.perf_counter()
+        for frame_idx in tqdm(range(n_frames), desc="test_full_iteration_performance"):
+            start = time.perf_counter()
             self.analyzer.update_frame(frame_idx)
-            frame_elapsed = time.perf_counter() - frame_start
+            frame_times.append(time.perf_counter() - start)
 
-            detect_start = time.perf_counter()
+            start = time.perf_counter()
             interactions = self.analyzer.detector.detect_all(verbose=True)
-            detect_elapsed = time.perf_counter() - detect_start
-
-            frame_times.append(frame_elapsed)
-            detect_times.append(detect_elapsed)
+            detect_times.append(time.perf_counter() - start)
 
         total_interactions = sum(len(v) for v in interactions.values())
 
         print(f"\n[PERF] Full iteration ({n_frames} frames, 73644 atoms):")
         print(f"  Coordinate update:")
-        print(f"    Total: {sum(frame_times)*1000:.2f} ms")
         print(f"    Average per frame: {np.mean(frame_times)*1000:.2f} ms")
         print(f"  detect_all:")
-        print(f"    Total: {sum(detect_times)*1000:.2f} ms")
         print(f"    Average per frame: {np.mean(detect_times)*1000:.2f} ms")
         print(f"  Total per frame (update + detect):")
         print(f"    Average: {(np.mean(frame_times) + np.mean(detect_times))*1000:.2f} ms")

@@ -482,4 +482,5 @@ if __name__ == "__main__":
 
     analyzer.update_frame(0)
     interactions = analyzer.detector.detect_all(verbose=True)
+    interactions = analyzer.detect_frame_fast(0, verbose=True)
     pass

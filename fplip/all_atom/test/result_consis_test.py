@@ -24,6 +24,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from lazydock.gmx.mda.convert import PDBConverter
+from lazydock.gmx.mda.utils import filter_atoms_by_chains
 from tqdm import tqdm
 
 from fplip.all_atom.atom_properties import AtomProperties
@@ -597,7 +599,6 @@ class TrajectoryPerformanceTester:
             test_info: Test case configuration dict
             n_frame: Number of frames to iterate (will cycle 0~10 if > 10)
         """
-        from lazydock.gmx.mda.convert import PDBConverter
         from fplip.all_atom.trajectory_analyzer import TrajectoryAnalyzer
 
         tpr = str(CUSTOM_TEST_DATA_DIR / test_info["tpr"])
@@ -609,10 +610,11 @@ class TrajectoryPerformanceTester:
         analyzer = TrajectoryAnalyzer(tpr, xtc, gro, tolerance=1e-4)
         analyzer.load_universe()
         analyzer.u.trajectory[0]
-        converter = PDBConverter(analyzer.u.atoms, reindex=False)
+        converter = PDBConverter(filter_atoms_by_chains(analyzer.u.atoms, ['A', 'B', 'CL']), reindex=False)
         pdb_str = converter.fast_convert()
         analyzer.load_molecule(pdb_str, as_string=True)
         analyzer.align_with_mda(frame=0)
+        analyzer.load_waters('SOL')
         analyzer.setup_detector()
         analyzer.precompute_detector_once()
 
