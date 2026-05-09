@@ -12,14 +12,14 @@ Design principles:
 4. Graceful fallback: if no backend is specified, behaves identically to parent
 """
 
-import numpy as np
 from typing import Dict, List, Optional
 
-from tqdm import tqdm
+import numpy as np
 
 from fplip.all_atom.atom_container import AtomContainer
 from fplip.all_atom.atom_properties import AtomProperties
-from fplip.all_atom.interaction_detector import Interaction, UnifiedInteractionDetector
+from fplip.all_atom.interaction_detector import (Interaction,
+                                                 UnifiedInteractionDetector)
 from fplip.all_atom.residue import Residue
 from fplip.all_atom_cuda.backend import ComputeBackend
 from fplip.all_atom_cuda.torch_backend import TorchBackend
@@ -172,7 +172,11 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
         self._all_halogen_acceptor_coords = self.backend.to_device(self._all_halogen_acceptor_coords) \
             if isinstance(self._all_halogen_acceptor_coords, np.ndarray) and len(self._all_halogen_acceptor_coords) > 0 else None
         # calcu all-atom distance matrix
-        self._all_atom_dist_matrix = self.backend.cdist(self.atom_container.coords_array, self.atom_container.coords_array)
+        if self.atom_container.remain_atom_idxs is None:
+            self._all_atom_dist_matrix = self.backend.cdist(self.atom_container.coords_array, self.atom_container.coords_array)
+        else:
+            coords = self.atom_container.coords_array[self.atom_container.remain_atom_idxs]
+            self._all_atom_dist_matrix = self.backend.cdist(coords, coords)
         # special atoms idxs
         self._hydrophobic_atoms_idxs = self.atom_container.get_atom_coords_idxs_from_atoms(self._hydrophobic_atoms_list)
         self._hbond_acc_idxs = self.atom_container.get_atom_coords_idxs_from_atoms(self._all_hba)
@@ -184,23 +188,41 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
         self._hbond_don_idxs = self.atom_container.idx_to_array_pos_array[self._hbond_don_idxs]
         self._hbond_donh_idxs = self.atom_container.idx_to_array_pos_array[self._hbond_donh_idxs]
         # special atoms skip-attr vector
-        self._is_std_aa = self.backend.to_device([self.atom_container.atoms[i].residue_obj.should_filter_self() for i in self.atom_container.sorted_indices])
-        self._res_uids = self.backend.to_device([self.atom_container.atoms[i].residue_obj._hash for i in self.atom_container.sorted_indices])
+        if self.atom_container.remain_atom_mask is not None:
+            sorted_indices = np.array(self.atom_container.sorted_indices)[self.atom_container.remain_atom_mask]
+            self._n_to_k_map = self.backend.full((self.atom_container.coords_array.shape[0],), -1, dtype=self.backend.long)
+            self._n_to_k_map[self.atom_container.remain_atom_idxs] = self.backend.arange(self._all_atom_dist_matrix.shape[0])
+        else:
+            sorted_indices = self.atom_container.sorted_indices
+        self._is_std_aa = self.backend.to_device([self.atom_container.atoms[i].residue_obj.should_filter_self() for i in sorted_indices])
+        self._res_uids = self.backend.to_device([self.atom_container.atoms[i].residue_obj._hash for i in sorted_indices])
         self._skip_mask = self._res_uids[None, :] == self._res_uids[:, None]
         self._skip_mask &= (self._is_std_aa[None, :] & self._is_std_aa[:, None])
         self._remain_mask = ~self._skip_mask
         
+    def _index_dist_matrix(self, i_idxs, j_idxs, matrix=None):
+        if matrix is None:
+            matrix = self._all_atom_dist_matrix
+        if self.atom_container.remain_atom_mask is None:
+            return matrix[i_idxs][:, j_idxs]
+        mapped_k_i = self._n_to_k_map[i_idxs]
+        mapped_k_j = self._n_to_k_map[j_idxs]
+        assert (mapped_k_i != -1).all(), "n_i_idxs including skipped atoms"
+        assert (mapped_k_j != -1).all(), "n_j_idxs including skipped atoms"
+        return matrix[mapped_k_i][:, mapped_k_j]
+        
     def _detect_hydrophobic(self):
         """Detect hydrophobic interactions with backend-accelerated distance calculation."""
-        dist_matrix = self._all_atom_dist_matrix[self._hydrophobic_atoms_idxs][:, self._hydrophobic_atoms_idxs]
+        dist_matrix = self._index_dist_matrix(self._hydrophobic_atoms_idxs, self._hydrophobic_atoms_idxs)
         valid_mask = (dist_matrix < config.HYDROPH_DIST_MAX) & \
                      (dist_matrix > config.MIN_DIST)
-        remain_mask = self._remain_mask[self._hydrophobic_atoms_idxs][:, self._hydrophobic_atoms_idxs]
+        remain_mask = self._index_dist_matrix(self._hydrophobic_atoms_idxs, self._hydrophobic_atoms_idxs, self._remain_mask)
         final_mask = valid_mask & remain_mask
         if not final_mask.any():
             return 
         
-        for i, j in zip(*self.backend.argwhere(final_mask)):
+        idxs_i, idxs_j = self.backend.argwhere(final_mask)
+        for i, j in zip(idxs_i, idxs_j):
             atom_a = self._hydrophobic_atoms_list[i]
             atom_b = self._hydrophobic_atoms_list[j]
 
@@ -255,11 +277,11 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
         h_coords = self.atom_container.coords_array[self._hbond_donh_idxs]    # [n_pairs, 3]
         acc_coords = self._all_hba_coords  # [n_hba, 3]
 
-        dist_ad_matrix = self._all_atom_dist_matrix[self._hbond_don_idxs][:, self._hbond_acc_idxs]
-        dist_ah_matrix = self._all_atom_dist_matrix[self._hbond_donh_idxs][:, self._hbond_acc_idxs]
+        dist_ad_matrix = self._index_dist_matrix(self._hbond_don_idxs, self._hbond_acc_idxs)
+        dist_ah_matrix = self._index_dist_matrix(self._hbond_donh_idxs, self._hbond_acc_idxs)
 
         dist_mask = (dist_ad_matrix > config.MIN_DIST) & (dist_ad_matrix < config.HBOND_DIST_MAX)
-        remain_mask = self._remain_mask[self._hbond_don_idxs][:, self._hbond_acc_idxs]
+        remain_mask = self._index_dist_matrix(self._hbond_don_idxs, self._hbond_acc_idxs, self._remain_mask)
         final_mask = dist_mask & remain_mask
 
         vec_hd = don_coords - h_coords
@@ -323,10 +345,10 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
     def _detect_hbonds_without_h(self):
         """Detect H-bonds without explicit hydrogens (backend-accelerated)."""
         # Convert all coordinates to backend arrays for consistency
-        dist_ad_matrix = self._all_atom_dist_matrix[self._hbond_don_idxs][:, self._hbond_acc_idxs]
+        dist_ad_matrix = self._index_dist_matrix(self._hbond_don_idxs, self._hbond_acc_idxs)
 
         dist_mask = (dist_ad_matrix >= 2.5) & (dist_ad_matrix <= 3.5)
-        remain_mask = self._remain_mask[self._hbond_don_idxs][:, self._hbond_acc_idxs]
+        remain_mask = self._index_dist_matrix(self._hbond_don_idxs, self._hbond_acc_idxs, self._remain_mask)
         final_mask = dist_mask & remain_mask
 
         if not final_mask.any():
@@ -544,9 +566,9 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
         don_atoms = list(map(lambda x: x[0], self._all_halogen_donors))
         don_idxs = self.atom_container.get_atom_coords_idxs_from_atoms(don_atoms)
         acc_idxs = self.atom_container.get_atom_coords_idxs_from_atoms(self._all_halogen_acceptors)
-        dist_matrix = self._all_atom_dist_matrix[don_idxs][:, acc_idxs]
+        dist_matrix = self._index_dist_matrix(don_idxs, acc_idxs)
         valid_mask = (dist_matrix > config.MIN_DIST) & (dist_matrix < config.HALOGEN_DIST_MAX)
-        remain_mask = self._remain_mask[don_idxs][:, acc_idxs]
+        remain_mask = self._index_dist_matrix(don_idxs, acc_idxs, self._remain_mask)
         final_mask = valid_mask & remain_mask
         if not final_mask.any():
             return 
@@ -602,9 +624,9 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
         metal_idxs = self.atom_container.get_atom_coords_idxs_from_atoms(self.all_metals_atoms)
         binding_idxs = self.atom_container.get_atom_coords_idxs_from_atoms(self.all_metal_binding_atoms)
 
-        dist_matrix = self._all_atom_dist_matrix[metal_idxs][:, binding_idxs]
+        dist_matrix = self._index_dist_matrix(metal_idxs, binding_idxs)
         dist_mask = (dist_matrix < config.METAL_DIST_MAX)
-        remain_mask = self._remain_mask[metal_idxs][:, binding_idxs]
+        remain_mask = self._index_dist_matrix(metal_idxs, binding_idxs, self._remain_mask)
         final_mask = dist_mask & remain_mask
         if not final_mask.any():
             return 
@@ -632,3 +654,18 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
                 details={}
             )
             self.interactions['metal'].append(interaction)
+
+    def update_coords(self, mda_coords: np.ndarray):
+        """Update coordinates from MDAnalysis coordinates array.
+
+        This method updates atom coordinates and refreshes all cached coordinate
+        arrays for rapid trajectory analysis.
+
+        Parameters
+        ----------
+        mda_coords : np.ndarray
+            MDA atoms positions array, shape (n_atoms, 3)
+        """
+        self.atom_container.update_coords_from_mda(mda_coords, aligned_only=True)
+        self.atom_container.rebuild_coords_array()
+        self.atom_container.coords_array = self.backend.to_device(self.atom_container.coords_array) # type: ignore
