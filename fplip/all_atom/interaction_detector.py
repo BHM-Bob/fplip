@@ -289,9 +289,9 @@ class UnifiedInteractionDetector:
         # Pre-compute ring data for pistacking and pication detection
         all_rings = self.atom_props.rings
         if all_rings:
-            self._all_ring_centers = np.array([r['center'] for r in all_rings])
-            self._all_ring_normals = np.array([r['normal'] for r in all_rings])
-            self._aromatic_ring_mask = np.array([r.get('is_aromatic', False) for r in all_rings])
+            self._all_ring_centers = np.array([r['center'] for r in all_rings], dtype=np.float64)
+            self._all_ring_normals = np.array([r['normal'] for r in all_rings], dtype=np.float64)
+            self._aromatic_ring_mask = np.array([r.get('is_aromatic', False) for r in all_rings], dtype=bool)
             # Pre-compute aromatic rings list to avoid rebuilding in _detect_pication
             self._aromatic_rings = [r for r in all_rings if r.get('is_aromatic', False)]
 
@@ -312,7 +312,7 @@ class UnifiedInteractionDetector:
         # Pre-compute positive charge coordinates for pication detection
         all_pos = self.atom_props.get_pos_charged()
         if all_pos:
-            self._pos_coords = np.array([p.coords for p in all_pos])
+            self._pos_coords = np.array([p.coords for p in all_pos], dtype=np.float64)
         else:
             self._pos_coords = np.array([]).reshape(0, 3)
         
@@ -321,7 +321,7 @@ class UnifiedInteractionDetector:
         # For negative charge groups: keys, centers, and atoms list
         if self._all_neg_grouped:
             self._neg_grouped_keys = list(self._all_neg_grouped.keys())
-            self._neg_grouped_centers = np.array([center for _, center in self._all_neg_grouped.values()])
+            self._neg_grouped_centers = np.array([center for _, center in self._all_neg_grouped.values()], dtype=np.float64)
             self._neg_grouped_atoms = [atoms for atoms, _ in self._all_neg_grouped.values()]
         else:
             self._neg_grouped_keys = []
@@ -331,7 +331,7 @@ class UnifiedInteractionDetector:
         # For positive charge groups: keys, centers, and atoms list
         if self._all_pos_grouped:
             self._pos_grouped_keys = list(self._all_pos_grouped.keys())
-            self._pos_grouped_centers = np.array([center for _, center in self._all_pos_grouped.values()])
+            self._pos_grouped_centers = np.array([center for _, center in self._all_pos_grouped.values()], dtype=np.float64)
             self._pos_grouped_atoms = [atoms for atoms, _ in self._all_pos_grouped.values()]
         else:
             self._pos_grouped_keys = []
