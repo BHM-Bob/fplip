@@ -806,32 +806,44 @@ class AtomProperties:
                 if len(y_neighbors) == 1:
                     self.halogen_acceptors.add(atom.idx)
                     self.halogen_acceptor_y_atoms[atom.idx] = y_neighbors[0]
+                    
+    def filter_remain_atoms(self, atoms: List[AtomInfo]) -> List[AtomInfo]:
+        """Filter atoms to remain atoms."""
+        if self.atom_container.remain_atom_idxs_set is None:
+            return atoms
+        return [a for a in atoms if a.idx in self.atom_container.remain_atom_idxs_set]
     
     # Accessor methods - return pre-computed lists for performance
     def get_hba(self) -> List[AtomInfo]:
         """Get all hydrogen bond acceptors (pre-computed)"""
-        return self._hba_list
+        return self.filter_remain_atoms(self._hba_list)
     
     def get_hbd(self) -> List[Tuple[AtomInfo, List[AtomInfo]]]:
         """Get all hydrogen bond donors with their attached hydrogens (pre-computed)"""
-        return self._hbd_list
+        if self.atom_container.remain_atom_idxs_set is None:
+            return self._hbd_list
+        filtered = []
+        for atom, hydrogens in self._hbd_list:
+            if atom.idx in self.atom_container.remain_atom_idxs_set:
+                filtered.append((atom, [h for h in hydrogens if h.idx in self.atom_container.remain_atom_idxs_set]))
+        return filtered
     
     def get_pos_charged(self) -> List[AtomInfo]:
         """Get all positively charged atoms (pre-computed)"""
-        return self._pos_charged_list
+        return self.filter_remain_atoms(self._pos_charged_list)
     
     def get_neg_charged(self) -> List[AtomInfo]:
         """Get all negatively charged atoms (pre-computed)"""
-        return self._neg_charged_list
+        return self.filter_remain_atoms(self._neg_charged_list)
     
     def get_hydrophobic(self) -> List[AtomInfo]:
         """Get all hydrophobic atoms (pre-computed)"""
-        return self._hydrophobic_list
+        return self.filter_remain_atoms(self._hydrophobic_list)
     
     def get_metals(self) -> List[AtomInfo]:
         """Get all metal ions (pre-computed)"""
-        return self._metals_list
+        return self.filter_remain_atoms(self._metals_list)
     
     def get_metal_binding(self) -> List[AtomInfo]:
         """Get all metal-binding atoms (pre-computed)"""
-        return self._metal_binding_list
+        return self.filter_remain_atoms(self._metal_binding_list)

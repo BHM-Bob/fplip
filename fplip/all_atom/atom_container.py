@@ -132,6 +132,9 @@ class AtomContainer:
         # All atoms storage
         self.atoms: Dict[int, AtomInfo] = {}  # idx -> AtomInfo
         self.atoms_by_orig_idx: Dict[int, AtomInfo] = {}  # orig_idx -> AtomInfo
+        self.remain_atom_mask: Optional[np.ndarray] = None
+        self.remain_atom_idxs: Optional[np.ndarray] = None
+        self.remain_atom_idxs_set: Optional[Set[int]] = None
         
         # Component-based organization
         self.component_atoms: Dict[str, List[int]] = {
