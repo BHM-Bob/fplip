@@ -307,13 +307,15 @@ class NumPyBackend(ComputeBackend):
         arr = self.to_device(arr)
         return np.max(arr)
 
-    def min(self, arr: Union[np.ndarray, list, tuple]) -> np.ndarray:
+    def min(self, arr: Union[np.ndarray, list, tuple], dim: Optional[int] = None) -> np.ndarray:
         """Compute minimum value.
 
         Parameters
         ----------
         arr : np.ndarray
             Input array
+        dim : int, optional
+            Dimension along which to compute minimum value
 
         Returns
         -------
@@ -321,7 +323,7 @@ class NumPyBackend(ComputeBackend):
             Minimum value
         """
         arr = self.to_device(arr)
-        return np.min(arr)
+        return np.min(arr, axis=dim)
 
     def sqrt(self, arr: Union[np.ndarray, list, tuple]) -> np.ndarray:
         """Element-wise square root.
