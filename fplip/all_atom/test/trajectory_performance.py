@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 from lazydock.gmx.mda.convert import PDBConverter
+from lazydock.gmx.mda.utils import filter_atoms_by_chains
 from tqdm import tqdm
 
 from fplip.all_atom.trajectory_analyzer import TrajectoryAnalyzer
@@ -197,14 +198,41 @@ class TrajectoryAnalyzerPerformanceTest(unittest.TestCase):
         print(f"  Max: {np.max(times)*1000:.2f} ms")
         print(f"  Interactions detected: {total_interactions}")
 
+    def test_water_loading_performance(self):
+        """Benchmark water molecule loading via load_waters()."""
+        self.analyzer.load_universe()
+        self.analyzer.u.trajectory[0]
+        converter = PDBConverter(filter_atoms_by_chains(self.analyzer.u.atoms, ['A', 'B', 'CL']), reindex=False)
+        pdb_str = converter.fast_convert()
+        self.analyzer.load_molecule(pdb_str, as_string=True)
+        self.analyzer.align_with_mda(frame=0)
+
+        times = []
+        for _ in range(3):
+            start = time.perf_counter()
+            self.analyzer.load_waters('SOL')
+            elapsed = time.perf_counter() - start
+            times.append(elapsed)
+
+        n_waters = len(self.analyzer.water_atoms)
+        n_water_residues = len(self.analyzer.water_residues)
+
+        print(f"\n[PERF] Water loading (load_waters):")
+        print(f"  Average: {np.mean(times)*1000:.2f} ms")
+        print(f"  Min: {np.min(times)*1000:.2f} ms")
+        print(f"  Max: {np.max(times)*1000:.2f} ms")
+        print(f"  Water atoms loaded: {n_waters}")
+        print(f"  Water residues loaded: {n_water_residues}")
+
     def test_full_iteration_performance(self):
         """Benchmark full iteration over multiple frames."""
         self.analyzer.load_universe()
         self.analyzer.u.trajectory[0]
-        converter = PDBConverter(self.analyzer.u.atoms, reindex=False)
+        converter = PDBConverter(filter_atoms_by_chains(self.analyzer.u.atoms, ['A', 'B', 'CL']), reindex=False)
         pdb_str = converter.fast_convert()
         self.analyzer.load_molecule(pdb_str, as_string=True)
         self.analyzer.align_with_mda(frame=0)
+        self.analyzer.load_waters('SOL')
         self.analyzer.setup_detector()
         self.analyzer.precompute_detector_once()
 
@@ -223,7 +251,7 @@ class TrajectoryAnalyzerPerformanceTest(unittest.TestCase):
 
         total_interactions = sum(len(v) for v in interactions.values())
 
-        print(f"\n[PERF] Full iteration ({n_frames} frames, 73644 atoms):")
+        print(f"\n[PERF] Full iteration ({n_frames} frames, with waters):")
         print(f"  Coordinate update:")
         print(f"    Average per frame: {np.mean(frame_times)*1000:.2f} ms")
         print(f"  detect_all:")
