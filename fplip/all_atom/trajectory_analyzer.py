@@ -5,16 +5,21 @@ Provides fast trajectory analysis using MDAnalysis for coordinate loading
 and OpenBabel for interaction detection.
 """
 
+from collections import defaultdict
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Union
 
 import numpy as np
+from lazydock.gmx.mda.utils import filter_atoms_by_chains
 from MDAnalysis import Universe
 from scipy.spatial import cKDTree
 from scipy.spatial.distance import cdist
+from tqdm import tqdm
 
+from fplip.all_atom.atom_container import MDWAtomInfo
 from fplip.all_atom.interaction_detector import UnifiedInteractionDetector
 from fplip.all_atom.molecule_complex import MoleculeComplex
+from fplip.all_atom.residue import Residue
 from fplip.basic import config
 
 
@@ -73,7 +78,7 @@ class TrajectoryAnalyzer:
             self.u = Universe(self.tpr_file, self.xtc_file)
         return self.u
 
-    def load_molecule(self, pdb_str: str, as_string: bool = True):
+    def load_molecule(self, pdb_str: str, as_string: bool = True, fix_pdb: bool = True):
         """Load OpenBabel molecule from PDB string.
 
         Parameters
@@ -85,7 +90,7 @@ class TrajectoryAnalyzer:
         """
         config.NOHYDRO = True
         self.mol = MoleculeComplex()
-        self.mol.load_pdb(pdb_str, as_string=as_string)
+        self.mol.load_pdb(pdb_str, as_string=as_string, fix_pdb=fix_pdb)
         return self.mol
 
     def align_with_mda(self, frame: int = 0) -> bool:
@@ -146,6 +151,8 @@ class TrajectoryAnalyzer:
             atom_props,
             self.mol.residues
         )
+        # pre-collect data for distant water filter
+        self.water_residues = [r for r in self.detector.residues if r.is_water]
         return self.detector
 
     def precompute_detector_once(self):
@@ -192,10 +199,10 @@ class TrajectoryAnalyzer:
 
         if not self._detector_precomputed:
             self.precompute_detector_once()
-        # _precompute_cached_data include coords precompute, so no need to call it again
-        self.detector._precompute_cached_data()
 
         self.update_frame(frame_idx)
+        # _precompute_cached_data include coords precompute, so no need to call it again
+        self.detector._precompute_cached_data()
 
         self.detector.interactions = {
             'hydrophobic': [],
@@ -211,7 +218,8 @@ class TrajectoryAnalyzer:
             'water_bridge_possible': [],
         }
 
-        for residue in self.detector.residues:
+        for residue in tqdm(self.detector.residues, desc="Processing residues",
+                            disable=not verbose, leave=False):
             self.detector._detect_for_residue(residue)
 
         self.detector._remove_duplicates()
@@ -273,9 +281,7 @@ class TrajectoryAnalyzer:
         if self.detector is None:
             raise RuntimeError("Detector not setup. Call setup_detector() first.")
 
-        water_residues = [r for r in self.detector.residues if r.is_water]
-
-        if not water_residues:
+        if not self.water_residues:
             return {"total": 0, "filtered": 0, "kept": 0}
 
         non_water_coords = []
@@ -284,27 +290,24 @@ class TrajectoryAnalyzer:
                 non_water_coords.append(atom.coords)
 
         if not non_water_coords:
-            for water_res in water_residues:
+            for water_res in self.water_residues:
                 water_res.is_skip = True
-            return {"total": len(water_residues), "filtered": len(water_residues), "kept": 0}
+            return {"total": len(self.water_residues), "filtered": len(self.water_residues), "kept": 0}
 
-        filtered = 0
-        kept = 0
+        filtered, kept = 0, 0
         o_coords = []
-        for water_res in water_residues:
-            oxygen_coords = None
+        for water_res in self.water_residues:
             for atom in water_res.atoms:
                 if atom.atomic_num == 8:
                     o_coords.append(atom.coords)
                     break
-
-            if oxygen_coords is None:
+            else:
                 water_res.is_skip = True
                 filtered += 1
                 continue
         o_coords = np.array(o_coords)
         dist = cdist(o_coords, np.array(non_water_coords)).min(axis=1)
-        for i, water_res in enumerate(water_residues):
+        for i, water_res in enumerate(self.water_residues):
             if dist[i] > distance_threshold:
                 water_res.is_skip = True
                 filtered += 1
@@ -312,7 +315,7 @@ class TrajectoryAnalyzer:
                 water_res.is_skip = False
                 kept += 1
 
-        return {"total": len(water_residues), "filtered": filtered, "kept": kept}
+        return {"total": len(self.water_residues), "filtered": filtered, "kept": kept}
 
     def detect_all(self, frame_idx: int, verbose: bool = False) -> Dict[str, List]:
         """Update coordinates and detect interactions for a frame.
