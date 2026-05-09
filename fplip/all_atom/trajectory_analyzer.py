@@ -109,8 +109,24 @@ class TrajectoryAnalyzer:
         self.water_atoms = []
         idx = max(self.mol.atom_container.atoms.keys()) + 1
         org_idx = max(self.mol.atom_container.atoms_by_orig_idx.keys()) + 1
-        for ag in self.water_ags:
-            atom_info = MDWAtomInfo(idx, org_idx, 'water', ag)
+        # resids and resnames are per residue, so repeat them for HOH atom
+        resis = self.water_ags.residues.resids.reshape(1, -1).repeat(3, axis=0).T.flatten()
+        resns = self.water_ags.residues.resnames.reshape(1, -1).repeat(3, axis=0).T.flatten()
+        coords = self.water_ags.positions
+        chains = self.water_ags.chainIDs
+        a_types = self.water_ags.names
+        a_names = self.water_ags.elements
+        a_ids = self.water_ags.ids
+        for resi, resn, coord, chain, atype, aname, aid in zip(resis, resns, coords, chains, a_types, a_names, a_ids):
+            atom_info = MDWAtomInfo(idx, org_idx, 'water', None, {
+                'resid': resi,
+                'resname': resn,
+                'coords': coord,
+                'chain': chain,
+                'atom_type': atype,
+                'atom_name': aname,
+                'mda_idx': aid
+            })
             idx += 1
             org_idx += 1
             self.water_atoms.append(atom_info)

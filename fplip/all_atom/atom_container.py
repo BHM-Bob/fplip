@@ -89,33 +89,37 @@ class MDWAtomInfo(AtomInfo):
     """MDAnalysis atom information for water molecules"""
     _TYPE = 'MDWAtomInfo'
     ELEMENT2NUM = {'H': 1, 'O': 8, 'N': 7, 'C': 6, 'S': 16, 'P': 15, 'Cl': 17, 'CL': 17}
-    def __init__(self, idx: int, org_idx: int, component_type: str, atom: MDAtomGroup):
+    def __init__(self, idx: int, org_idx: int, component_type: str, atom: MDAtomGroup, atom_dict: Dict):
         self.idx = idx
-        self.obatom = None
         self.orig_idx = org_idx
-        self.coords = atom.position
 
-        # Residue information (from OpenBabel)
-        residue = atom.residue
+        self.obatom = None # do not mix OB atom with MDA atom
         self.residue = None # do not mix OB residue with MDA residue
-        self.resname = residue.resname
-        self.resnum = residue.resnum
-        self.chain = atom.chainID if atom.chainID else " "
+        if atom:
+            self.coords = atom.position
+            residue = atom.residue
+            self.resname = residue.resname
+            self.resnum = residue.resnum
+            self.chain = atom.chainID if atom.chainID else " "
+            self.atom_type = atom.name
+            self.atom_name = atom.element
+            self.mda_idx = atom.id
+        else:
+            self.coords = atom_dict['coords']
+            self.resname = atom_dict['resname']
+            self.resnum = atom_dict['resid']
+            self.chain = atom_dict['chain']
+            self.atom_type = atom_dict['atom_type']
+            self.atom_name = atom_dict['atom_name']
+            self.mda_idx = atom_dict['mda_idx']
 
         # Back-reference to Residue object (set by InteractionDetector after residue creation)
         self.residue_obj: Optional['Residue'] = None
-        
         # Atom properties
-        self.atom_type = atom.name
-        self.atom_name = atom.element
-        self.atomic_num = self.ELEMENT2NUM[atom.element]
+        self.atomic_num = self.ELEMENT2NUM[self.atom_name]
         self.is_hydrogen = self.atomic_num == 1
-        
         # Component type (protein, ligand, dna, rna, water, ion)
         self.component_type = component_type
-
-        # MDA index for trajectory coordinate updates (set by align_with_mda)
-        self.mda_idx: Optional[int] = atom.id
 
 
 class AtomContainer:
