@@ -36,6 +36,8 @@
                 <div id="conformationInfo" class="text-light me-3 small" style="display: none;">
                     <!-- Vina score display -->
                 </div>
+                <button class="btn btn-outline-light btn-sm me-2" onclick="toggleLeftPanel()" title="Toggle Left Panel" id="toggleLeftBtn">◀ Left</button>
+                <button class="btn btn-outline-light btn-sm me-2" onclick="toggleRightPanel()" title="Toggle Right Panel" id="toggleRightBtn">Right ▶</button>
                 <button class="btn btn-outline-light btn-sm me-2" onclick="showHelp()">Help</button>
                 <button class="btn btn-primary btn-sm" onclick="exportPyMOL()">Export PyMOL</button>
             </div>
@@ -43,156 +45,162 @@
     </nav>
 
     <!-- Main Content -->
-    <div class="container-fluid mt-3">
-        <div class="row">
-            <!-- Left Panel: Controls -->
-            <div class="col-md-3">
-                <!-- Filter Panel -->
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h5 class="mb-0">Filters</h5>
-                    </div>
-                    <div class="card-body">
-                        <!-- Interaction Types -->
-                        <div class="mb-3">
-                            <label class="form-label">Interaction Types</label>
-                            <div id="typeFilters">
-                                <!-- Populated by JavaScript -->
-                            </div>
-                        </div>
-
-                        <!-- Residue Filter -->
-                        <div class="mb-3">
-                            <label class="form-label">Residues</label>
-                            <select class="form-select form-select-sm" id="residueSelect" multiple size="5">
-                                <!-- Populated by JavaScript -->
-                            </select>
-                        </div>
-
-                        <!-- Distance Filter -->
-                        <div class="mb-3">
-                            <label class="form-label">Distance (Å)</label>
-                            <div class="row">
-                                <div class="col">
-                                    <input type="number" class="form-control form-control-sm" id="distMin" placeholder="Min" step="0.1">
-                                </div>
-                                <div class="col">
-                                    <input type="number" class="form-control form-control-sm" id="distMax" placeholder="Max" step="0.1">
-                                </div>
-                            </div>
-                        </div>
-
-                        <button class="btn btn-primary btn-sm w-100" onclick="applyFilters()">Apply Filters</button>
-                        <button class="btn btn-secondary btn-sm w-100 mt-2" onclick="clearFilters()">Clear</button>
-                    </div>
+    <div class="container-fluid mt-3 main-container">
+        <!-- Left Panel: Controls -->
+        <div class="side-panel" id="leftPanel">
+            <!-- Filter Panel -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Filters</h5>
                 </div>
-
-                <!-- Focus Mode Panel -->
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h5 class="mb-0">Focus Mode</h5>
-                    </div>
-                    <div class="card-body">
-                        <!-- Center Chains -->
-                        <div class="mb-3">
-                            <label class="form-label">Center Chains</label>
-                            <select class="form-select form-select-sm" id="focusChains" multiple size="3">
-                                <!-- Populated by JavaScript -->
-                            </select>
-                            <small class="text-muted">Select chain(s) as center</small>
-                        </div>
-
-                        <!-- Radius -->
-                        <div class="mb-3">
-                            <label class="form-label">Radius (Å)</label>
-                            <input type="number" class="form-control form-control-sm" id="focusRadius" value="5.0" min="1" max="50" step="0.5">
-                            <small class="text-muted">Default: 5 Å</small>
-                        </div>
-
-                        <button class="btn btn-warning btn-sm w-100" id="focusToggleBtn" onclick="toggleFocusMode()">Enable Focus</button>
-                        <button class="btn btn-secondary btn-sm w-100 mt-2" onclick="resetFocusMode()" id="focusResetBtn" disabled>Reset</button>
-                    </div>
-                </div>
-
-                <!-- Groups Panel -->
-                <div class="card mb-3">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Groups</h5>
-                        <button class="btn btn-success btn-sm" onclick="createGroup()">+ New</button>
-                    </div>
-                    <div class="card-body">
-                        <div id="groupsList">
+                <div class="card-body">
+                    <!-- Interaction Types -->
+                    <div class="mb-3">
+                        <label class="form-label">Interaction Types</label>
+                        <div id="typeFilters">
                             <!-- Populated by JavaScript -->
                         </div>
                     </div>
-                </div>
 
-                <!-- Statistics Panel -->
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">Statistics</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="statistics">
+                    <!-- Residue Filter -->
+                    <div class="mb-3">
+                        <label class="form-label">Residues</label>
+                        <select class="form-select form-select-sm" id="residueSelect" multiple size="5">
                             <!-- Populated by JavaScript -->
+                        </select>
+                    </div>
+
+                    <!-- Distance Filter -->
+                    <div class="mb-3">
+                        <label class="form-label">Distance (Å)</label>
+                        <div class="row">
+                            <div class="col">
+                                <input type="number" class="form-control form-control-sm" id="distMin" placeholder="Min" step="0.1">
+                            </div>
+                            <div class="col">
+                                <input type="number" class="form-control form-control-sm" id="distMax" placeholder="Max" step="0.1">
+                            </div>
                         </div>
+                    </div>
+
+                    <button class="btn btn-primary btn-sm w-100" onclick="applyFilters()">Apply Filters</button>
+                    <button class="btn btn-secondary btn-sm w-100 mt-2" onclick="clearFilters()">Clear</button>
+                </div>
+            </div>
+
+            <!-- Focus Mode Panel -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Focus Mode</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Center Chains -->
+                    <div class="mb-3">
+                        <label class="form-label">Center Chains</label>
+                        <select class="form-select form-select-sm" id="focusChains" multiple size="3">
+                            <!-- Populated by JavaScript -->
+                        </select>
+                        <small class="text-muted">Select chain(s) as center</small>
+                    </div>
+
+                    <!-- Radius -->
+                    <div class="mb-3">
+                        <label class="form-label">Radius (Å)</label>
+                        <input type="number" class="form-control form-control-sm" id="focusRadius" value="5.0" min="1" max="50" step="0.5">
+                        <small class="text-muted">Default: 5 Å</small>
+                    </div>
+
+                    <button class="btn btn-warning btn-sm w-100" id="focusToggleBtn" onclick="toggleFocusMode()">Enable Focus</button>
+                    <button class="btn btn-secondary btn-sm w-100 mt-2" onclick="resetFocusMode()" id="focusResetBtn" disabled>Reset</button>
+                </div>
+            </div>
+
+            <!-- Groups Panel -->
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Groups</h5>
+                    <button class="btn btn-success btn-sm" onclick="createGroup()">+ New</button>
+                </div>
+                <div class="card-body">
+                    <div id="groupsList">
+                        <!-- Populated by JavaScript -->
                     </div>
                 </div>
             </div>
 
-            <!-- Center Panel: 3D Viewer -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">3D View</h5>
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-secondary" onclick="setRepresentation('cartoon')">Cartoon</button>
-                            <button class="btn btn-outline-secondary" onclick="setRepresentation('ball+stick')">Ball+Stick</button>
-                            <button class="btn btn-outline-secondary" onclick="setRepresentation('surface')">Surface</button>
-                        </div>
+            <!-- Statistics Panel -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div id="statistics">
+                        <!-- Populated by JavaScript -->
                     </div>
-                    <div class="card-body p-0">
-                        <div id="viewport" style="width: 100%; height: 500px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Left Resize Handle -->
+        <div class="resize-handle" id="leftResizeHandle"></div>
+
+        <!-- Center Panel: 3D Viewer -->
+        <div class="center-panel" id="centerPanel">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">3D View</h5>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" onclick="setRepresentation('cartoon')">Cartoon</button>
+                        <button class="btn btn-outline-secondary" onclick="setRepresentation('ball+stick')">Ball+Stick</button>
+                        <button class="btn btn-outline-secondary" onclick="setRepresentation('surface')">Surface</button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="viewport" style="width: 100%; height: 100%; min-height: 500px;"></div>
+                </div>
+            </div>
+            <!-- Bottom Resize Handle for NGL height -->
+            <div class="resize-handle-v" id="bottomResizeHandle" title="Drag to resize NGL height. Double-click to reset."></div>
+        </div>
+
+        <!-- Right Resize Handle -->
+        <div class="resize-handle" id="rightResizeHandle"></div>
+
+        <!-- Right Panel: Interaction Table and Details -->
+        <div class="side-panel" id="rightPanel">
+            <!-- Interaction Table -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Interactions</h5>
+                    <small class="text-muted" id="interactionCount">0 interactions</small>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                        <table class="table table-sm table-hover" id="interactionTable">
+                            <thead class="sticky-top bg-light">
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Res A</th>
+                                    <th>Res B</th>
+                                    <th>Dist</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="interactionTableBody">
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
 
-            <!-- Right Panel: Interaction Table and Details -->
-            <div class="col-md-3">
-                <!-- Interaction Table -->
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h5 class="mb-0">Interactions</h5>
-                        <small class="text-muted" id="interactionCount">0 interactions</small>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-                            <table class="table table-sm table-hover" id="interactionTable">
-                                <thead class="sticky-top bg-light">
-                                    <tr>
-                                        <th>Type</th>
-                                        <th>Res A</th>
-                                        <th>Res B</th>
-                                        <th>Dist</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="interactionTableBody">
-                                    <!-- Populated by JavaScript -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+            <!-- Selected Interaction Details -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Selected Interaction</h5>
                 </div>
-
-                <!-- Selected Interaction Details -->
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">Selected Interaction</h5>
-                    </div>
-                    <div class="card-body" id="selectedInteractionDetails">
-                        <p class="text-muted">Click on an interaction line in the 3D view to see details</p>
-                    </div>
+                <div class="card-body" id="selectedInteractionDetails">
+                    <p class="text-muted">Click on an interaction line in the 3D view to see details</p>
                 </div>
             </div>
         </div>
@@ -266,6 +274,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 
     <!-- Custom JavaScript -->
-    <script src="{{ url_for('static', filename='js/app.js') }}?v=19"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=20"></script>
 </body>
 </html>

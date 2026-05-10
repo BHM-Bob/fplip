@@ -25,7 +25,9 @@ const appState = {
         centerChains: [],
         radius: 5.0
     },
-    structureComponent: null        // NGL structure component
+    structureComponent: null,        // NGL structure component
+    residueColors: {},               // Custom residue colors: {"chain:resNum": [r,g,b]}
+    residueColorReprs: {}            // NGL representations for colored residues
 };
 
 // Color scheme matching main PLIP (CSS uses 0-255 range)
@@ -126,9 +128,338 @@ function setInteractionColor(type, color) {
     showToast(`Color updated for ${formatTypeName(type)}`, 'success');
 }
 
+// ============================================
+// Panel Toggle Functions
+// ============================================
+
+/**
+ * Toggle left panel visibility
+ */
+function toggleLeftPanel() {
+    const panel = document.getElementById('leftPanel');
+    const handle = document.getElementById('leftResizeHandle');
+    const btn = document.getElementById('toggleLeftBtn');
+    const isHidden = panel.classList.toggle('panel-hidden');
+    handle.classList.toggle('handle-hidden', isHidden);
+    btn.classList.toggle('panel-hidden', isHidden);
+    btn.innerHTML = isHidden ? '▶ Left' : '◀ Left';
+    handleNGLResize();
+}
+
+/**
+ * Toggle right panel visibility
+ */
+function toggleRightPanel() {
+    const panel = document.getElementById('rightPanel');
+    const handle = document.getElementById('rightResizeHandle');
+    const btn = document.getElementById('toggleRightBtn');
+    const isHidden = panel.classList.toggle('panel-hidden');
+    handle.classList.toggle('handle-hidden', isHidden);
+    btn.classList.toggle('panel-hidden', isHidden);
+    btn.innerHTML = isHidden ? 'Right ◀' : 'Right ▶';
+    handleNGLResize();
+}
+
+// ============================================
+// Resize Handle Drag Logic
+// ============================================
+
+let isResizing = false;
+let currentResizeHandle = null;
+let startX = 0;
+let startPanelWidth = 0;
+
+/**
+ * Initialize resize handles
+ */
+function initResizeHandles() {
+    const leftHandle = document.getElementById('leftResizeHandle');
+    const rightHandle = document.getElementById('rightResizeHandle');
+
+    if (leftHandle) {
+        leftHandle.addEventListener('mousedown', function(e) {
+            startResize(e, 'left');
+        });
+    }
+
+    if (rightHandle) {
+        rightHandle.addEventListener('mousedown', function(e) {
+            startResize(e, 'right');
+        });
+    }
+
+    // Global mouseup to stop resizing
+    document.addEventListener('mouseup', stopResize);
+    document.addEventListener('mousemove', doResize);
+}
+
+/**
+ * Start resize operation
+ */
+function startResize(e, side) {
+    isResizing = true;
+    currentResizeHandle = side;
+    startX = e.clientX;
+
+    const panel = side === 'left'
+        ? document.getElementById('leftPanel')
+        : document.getElementById('rightPanel');
+
+    startPanelWidth = panel.offsetWidth;
+
+    // Add active class to handle
+    const handleId = side === 'left' ? 'leftResizeHandle' : 'rightResizeHandle';
+    document.getElementById(handleId).classList.add('active');
+
+    // Prevent text selection during resize
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    e.preventDefault();
+}
+
+/**
+ * Perform resize operation
+ */
+function doResize(e) {
+    if (!isResizing) return;
+
+    const panel = currentResizeHandle === 'left'
+        ? document.getElementById('leftPanel')
+        : document.getElementById('rightPanel');
+
+    const dx = e.clientX - startX;
+
+    let newWidth;
+    if (currentResizeHandle === 'left') {
+        // Left handle: resize left panel
+        newWidth = startPanelWidth + dx;
+    } else {
+        // Right handle: resize right panel
+        newWidth = startPanelWidth - dx;
+    }
+
+    // Apply min/max constraints
+    const minWidth = 200;
+    const maxWidth = 500;
+    newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+
+    panel.style.flex = `0 0 ${newWidth}px`;
+}
+
+/**
+ * Stop resize operation
+ */
+function stopResize() {
+    if (!isResizing) return;
+
+    isResizing = false;
+
+    // Remove active class from handle
+    const handleId = currentResizeHandle === 'left' ? 'leftResizeHandle' : 'rightResizeHandle';
+    const handle = document.getElementById(handleId);
+    if (handle) {
+        handle.classList.remove('active');
+    }
+
+    currentResizeHandle = null;
+
+    // Restore cursor
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+
+    // Resize NGL once after drag ends
+    handleNGLResize();
+}
+
+/**
+ * Handle NGL resize after panel changes
+ */
+function handleNGLResize() {
+    if (appState.stage) {
+        // Small delay to allow layout to settle
+        setTimeout(function() {
+            appState.stage.handleResize();
+        }, 50);
+    }
+}
+
+// ============================================
+// Vertical Resize (NGL height)
+// ============================================
+
+let isResizingV = false;
+let startY = 0;
+let startCenterHeight = 0;
+
+/**
+ * Initialize vertical resize handle
+ */
+function initVerticalResize() {
+    const bottomHandle = document.getElementById('bottomResizeHandle');
+    if (!bottomHandle) return;
+
+    bottomHandle.addEventListener('mousedown', function(e) {
+        startResizeV(e);
+    });
+
+    bottomHandle.addEventListener('dblclick', function() {
+        resetCenterPanelHeight();
+    });
+
+    document.addEventListener('mouseup', stopResizeV);
+    document.addEventListener('mousemove', doResizeV);
+}
+
+/**
+ * Start vertical resize operation
+ */
+function startResizeV(e) {
+    isResizingV = true;
+    startY = e.clientY;
+    const panel = document.getElementById('centerPanel');
+    startCenterHeight = panel.offsetHeight;
+
+    document.getElementById('bottomResizeHandle').classList.add('active');
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+}
+
+/**
+ * Perform vertical resize operation
+ */
+function doResizeV(e) {
+    if (!isResizingV) return;
+
+    const panel = document.getElementById('centerPanel');
+    const dy = e.clientY - startY;
+    let newHeight = startCenterHeight + dy;
+
+    // Apply min/max constraints
+    const minHeight = 300;
+    const maxHeight = window.innerHeight - 100;
+    newHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
+
+    panel.style.height = newHeight + 'px';
+}
+
+/**
+ * Stop vertical resize operation
+ */
+function stopResizeV() {
+    if (!isResizingV) return;
+
+    isResizingV = false;
+
+    document.getElementById('bottomResizeHandle').classList.remove('active');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+
+    handleNGLResize();
+}
+
+/**
+ * Reset center panel height to auto
+ */
+function resetCenterPanelHeight() {
+    const panel = document.getElementById('centerPanel');
+    panel.style.height = '';
+    handleNGLResize();
+}
+
+// ============================================
+// Residue Color Functions
+// ============================================
+
+/**
+ * Set custom color for a residue in NGL
+ */
+function setResidueColor(chain, resNum, color) {
+    const key = chain + ':' + resNum;
+    appState.residueColors[key] = color;
+
+    if (!appState.structureComponent) {
+        showToast('No structure loaded', 'warning');
+        return;
+    }
+
+    // Remove existing custom representation for this residue
+    if (appState.residueColorReprs[key]) {
+        appState.structureComponent.removeRepresentation(appState.residueColorReprs[key]);
+    }
+
+    // Add new representation with custom color
+    const selection = resNum + ':' + chain;
+    const hexColor = rgbToHex(color);
+
+    const repr = appState.structureComponent.addRepresentation('ball+stick', {
+        sele: selection,
+        color: hexColor,
+        radius: 0.3
+    });
+
+    appState.residueColorReprs[key] = repr;
+
+    showToast('Residue color updated', 'success');
+}
+
+/**
+ * Reset custom color for a residue
+ */
+function resetResidueColor(chain, resNum) {
+    const key = chain + ':' + resNum;
+
+    if (appState.residueColorReprs[key]) {
+        appState.structureComponent.removeRepresentation(appState.residueColorReprs[key]);
+        delete appState.residueColorReprs[key];
+    }
+
+    delete appState.residueColors[key];
+    showToast('Residue color reset', 'info');
+}
+
+/**
+ * Re-apply all custom residue colors (called after structure display update)
+ */
+function applyResidueColors() {
+    if (!appState.structureComponent) return;
+
+    // Clear existing residue color representations
+    Object.keys(appState.residueColorReprs).forEach(function(key) {
+        try {
+            appState.structureComponent.removeRepresentation(appState.residueColorReprs[key]);
+        } catch (e) {
+            // Ignore errors if representation was already removed
+        }
+    });
+    appState.residueColorReprs = {};
+
+    // Re-apply all custom residue colors
+    Object.keys(appState.residueColors).forEach(function(key) {
+        const parts = key.split(':');
+        const chain = parts[0];
+        const resNum = parts[1];
+        const color = appState.residueColors[key];
+
+        const selection = resNum + ':' + chain;
+        const hexColor = rgbToHex(color);
+
+        const repr = appState.structureComponent.addRepresentation('ball+stick', {
+            sele: selection,
+            color: hexColor,
+            radius: 0.3
+        });
+
+        appState.residueColorReprs[key] = repr;
+    });
+}
+
 // Initialize application
 document.addEventListener('DOMContentLoaded', function() {
     initNGL();
+    initResizeHandles();
+    initVerticalResize();
     loadInitialData();
 });
 
@@ -221,6 +552,8 @@ async function loadPDBStructure() {
                     color: 'chainname'
                 });
                 component.autoView();
+                // Re-apply custom residue colors
+                applyResidueColors();
                 showToast('PDB structure loaded', 'success');
             }).catch(function(error) {
                 console.error('Error loading PDB into NGL:', error);
@@ -236,6 +569,8 @@ async function loadPDBStructure() {
                         color: 'chainname'
                     });
                     component.autoView();
+                    // Re-apply custom residue colors
+                    applyResidueColors();
                     showToast('PDB structure loaded from RCSB', 'success');
                 }).catch(function(error) {
                     console.error('Error loading from RCSB:', error);
@@ -502,6 +837,9 @@ function updateStructureDisplay() {
             color: 'chainname'
         });
     }
+
+    // Re-apply custom residue colors
+    applyResidueColors();
 }
 
 /**
@@ -831,6 +1169,14 @@ function selectInteraction(interaction) {
     const detailsDiv = document.getElementById('selectedInteractionDetails');
     if (!detailsDiv) return;
 
+    // Get current residue colors (or defaults)
+    const keyA = interaction.res_a_chain + ':' + interaction.res_a_num;
+    const keyB = interaction.res_b_chain + ':' + interaction.res_b_num;
+    const colorA = appState.residueColors[keyA] || [255, 200, 50];
+    const colorB = appState.residueColors[keyB] || [50, 200, 255];
+    const hexA = rgbToHex(colorA);
+    const hexB = rgbToHex(colorB);
+
     // Build detailed info HTML
     let html = `
         <div class="interaction-details">
@@ -840,12 +1186,26 @@ function selectInteraction(interaction) {
                 <strong>Residue A:</strong><br>
                 <span class="ms-2">${interaction.res_a_name} ${interaction.res_a_chain}:${interaction.res_a_num}</span><br>
                 <span class="ms-2 text-muted">Atom: ${interaction.atom_a_name} (idx: ${interaction.atom_a_idx})</span>
+                <div class="residue-color-row ms-2">
+                    <span class="residue-color-btn" style="background-color: ${hexA};" title="Click to change color">
+                        <input type="color" class="color-picker-input" value="${hexA}" data-chain="${interaction.res_a_chain}" data-resnum="${interaction.res_a_num}" data-resname="${interaction.res_a_name}">
+                    </span>
+                    <span class="residue-color-label">Color</span>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="resetResidueColor('${interaction.res_a_chain}', ${interaction.res_a_num})" title="Reset color" style="font-size: 0.7rem; padding: 0 4px;">↺</button>
+                </div>
             </div>
 
             <div class="mb-3">
                 <strong>Residue B:</strong><br>
                 <span class="ms-2">${interaction.res_b_name} ${interaction.res_b_chain}:${interaction.res_b_num}</span><br>
                 <span class="ms-2 text-muted">Atom: ${interaction.atom_b_name} (idx: ${interaction.atom_b_idx})</span>
+                <div class="residue-color-row ms-2">
+                    <span class="residue-color-btn" style="background-color: ${hexB};" title="Click to change color">
+                        <input type="color" class="color-picker-input" value="${hexB}" data-chain="${interaction.res_b_chain}" data-resnum="${interaction.res_b_num}" data-resname="${interaction.res_b_name}">
+                    </span>
+                    <span class="residue-color-label">Color</span>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="resetResidueColor('${interaction.res_b_chain}', ${interaction.res_b_num})" title="Reset color" style="font-size: 0.7rem; padding: 0 4px;">↺</button>
+                </div>
             </div>
 
             <div class="mb-3">
@@ -913,6 +1273,20 @@ function selectInteraction(interaction) {
     `;
 
     detailsDiv.innerHTML = html;
+
+    // Add color picker event listeners
+    const colorInputs = detailsDiv.querySelectorAll('.color-picker-input');
+    colorInputs.forEach(function(input) {
+        input.addEventListener('change', function() {
+            const chain = this.dataset.chain;
+            const resNum = parseInt(this.dataset.resnum);
+            const color = hexToRgb(this.value);
+            setResidueColor(chain, resNum, color);
+            // Update the button background color
+            const btn = this.parentElement;
+            btn.style.backgroundColor = this.value;
+        });
+    });
 
     // Highlight the interaction in the table
     highlightInteractionInTable(interaction);

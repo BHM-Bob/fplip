@@ -3,6 +3,159 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
     background-color: #f5f5f5;
+    overflow-x: hidden;
+}
+
+/* ============================================
+   Flexbox Layout for Main Container
+   ============================================ */
+.main-container {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    height: calc(100vh - 70px);
+    padding-left: 12px;
+    padding-right: 12px;
+    gap: 0;
+}
+
+/* Side Panels */
+.side-panel {
+    flex: 0 0 280px;
+    min-width: 200px;
+    max-width: 500px;
+    overflow-y: auto;
+    padding-right: 8px;
+    transition: flex 0.3s ease, min-width 0.3s ease, max-width 0.3s ease, opacity 0.3s ease;
+}
+
+.side-panel.panel-hidden {
+    flex: 0 0 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    padding: 0 !important;
+    overflow: hidden;
+    opacity: 0;
+}
+
+/* Center Panel */
+.center-panel {
+    flex: 1 1 auto;
+    min-width: 300px;
+    display: flex;
+    flex-direction: column;
+}
+
+.center-panel .card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.center-panel .card-body {
+    flex: 1;
+    display: flex;
+    padding: 0;
+}
+
+.center-panel #viewport {
+    width: 100%;
+    height: 100%;
+    min-height: 500px;
+    border-radius: 0 0 4px 4px;
+}
+
+/* ============================================
+   Resize Handles
+   ============================================ */
+.resize-handle {
+    width: 6px;
+    cursor: col-resize;
+    background-color: transparent;
+    position: relative;
+    flex-shrink: 0;
+    transition: background-color 0.2s;
+    z-index: 5;
+}
+
+.resize-handle:hover,
+.resize-handle.active {
+    background-color: #0d6efd;
+}
+
+.resize-handle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 2px;
+    height: 30px;
+    background-color: #ccc;
+    border-radius: 1px;
+    transition: background-color 0.2s;
+}
+
+.resize-handle:hover::after,
+.resize-handle.active::after {
+    background-color: #fff;
+}
+
+/* Hide resize handles when adjacent panel is hidden */
+.resize-handle.handle-hidden {
+    display: none;
+}
+
+/* ============================================
+   Vertical Resize Handle (NGL height)
+   ============================================ */
+.resize-handle-v {
+    height: 6px;
+    cursor: row-resize;
+    background-color: transparent;
+    position: relative;
+    flex-shrink: 0;
+    transition: background-color 0.2s;
+    z-index: 5;
+}
+
+.resize-handle-v:hover,
+.resize-handle-v.active {
+    background-color: #0d6efd;
+}
+
+.resize-handle-v::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    height: 2px;
+    width: 30px;
+    background-color: #ccc;
+    border-radius: 1px;
+    transition: background-color 0.2s;
+}
+
+.resize-handle-v:hover::after,
+.resize-handle-v.active::after {
+    background-color: #fff;
+}
+
+/* ============================================
+   Panel Toggle Buttons
+   ============================================ */
+#toggleLeftBtn,
+#toggleRightBtn {
+    min-width: 85px;
+    transition: all 0.2s;
+}
+
+#toggleLeftBtn.panel-hidden,
+#toggleRightBtn.panel-hidden {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
 }
 
 /* Card Styles */
@@ -20,7 +173,6 @@ body {
 /* 3D Viewport */
 #viewport {
     background-color: #000;
-    border-radius: 0 0 4px 4px;
 }
 
 /* Interaction Table */
@@ -163,14 +315,74 @@ body {
     z-index: 1050;
 }
 
+/* ============================================
+   Residue Color Picker Styles
+   ============================================ */
+.residue-color-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    border: 2px solid #ddd;
+    cursor: pointer;
+    display: inline-block;
+    position: relative;
+    transition: border-color 0.2s;
+}
+
+.residue-color-btn:hover {
+    border-color: #0d6efd;
+}
+
+.residue-color-btn .color-picker-input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.residue-color-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.residue-color-label {
+    font-size: 0.8rem;
+    color: #666;
+}
+
 /* Responsive Adjustments */
 @media (max-width: 768px) {
-    .col-md-3, .col-md-6 {
-        margin-bottom: 1rem;
+    .main-container {
+        flex-direction: column;
+        height: auto;
+    }
+
+    .side-panel {
+        flex: none !important;
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+    }
+
+    .center-panel {
+        min-height: 400px;
+    }
+
+    .resize-handle {
+        display: none;
+    }
+
+    .resize-handle-v {
+        display: none;
     }
 
     #viewport {
-        height: 300px;
+        min-height: 300px;
     }
 }
 
