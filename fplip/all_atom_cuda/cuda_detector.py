@@ -196,9 +196,11 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
             sorted_indices = self.atom_container.sorted_indices
         self._is_std_aa = self.backend.to_device([self.atom_container.atoms[i].residue_obj.should_filter_self() for i in sorted_indices])
         self._res_uids = self.backend.to_device([self.atom_container.atoms[i].residue_obj._hash for i in sorted_indices])
-        self._skip_mask = self._res_uids[None, :] == self._res_uids[:, None]
-        self._skip_mask &= (self._is_std_aa[None, :] & self._is_std_aa[:, None])
-        self._remain_mask = ~self._skip_mask
+        # use direct calculation to avoid useless self._skip_mask to save cuda memory
+        # self._skip_mask = self._res_uids[None, :] == self._res_uids[:, None]
+        # self._skip_mask &= (self._is_std_aa[None, :] & self._is_std_aa[:, None])
+        # self._remain_mask = ~self._skip_mask
+        self._remain_mask = ~((self._res_uids[None, :] == self._res_uids[:, None]) & (self._is_std_aa[None, :] & self._is_std_aa[:, None]))
         
     def _index_dist_matrix(self, i_idxs, j_idxs, matrix=None):
         if matrix is None:
