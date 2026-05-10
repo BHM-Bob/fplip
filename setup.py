@@ -116,8 +116,8 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "fplip = plip.plipcmd:main",
-            "fplip-aa = plip.all_atom.cli:main",
+            "fplip = fplip.plipcmd:main",
+            "fplip-aa = fplip.all_atom.cli:main",
         ]
     },
     package_data={
