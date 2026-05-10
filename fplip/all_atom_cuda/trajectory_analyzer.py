@@ -12,11 +12,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 import numpy as np
-from MDAnalysis import Universe
-from scipy.spatial import cKDTree
 
-from fplip.all_atom.interaction_detector import UnifiedInteractionDetector
-from fplip.all_atom.molecule_complex import MoleculeComplex
 from fplip.all_atom.trajectory_analyzer import \
     TrajectoryAnalyzer as _TrajectoryAnalyzer
 from fplip.all_atom_cuda.backend import ComputeBackend
@@ -137,7 +133,8 @@ class TrajectoryAnalyzer(_TrajectoryAnalyzer):
 
         return self.detector.interactions
 
-    def detect_frame_fast(self, frame_idx: int, verbose: bool = False) -> Dict[str, List]:
+    def detect_frame_fast(self, frame_idx: int, filter_waters: Optional[float] = 5.0, verbose: bool = False,
+                          detect_water_bridges_plip_style: bool = False) -> Dict[str, List]:
         """Detect interactions for a frame using cached setup.
 
         Assumes setup_detector_once() has been called. This method skips
@@ -150,6 +147,10 @@ class TrajectoryAnalyzer(_TrajectoryAnalyzer):
         ----------
         frame_idx : int
             Frame index to process
+        filter_waters : Optional[float]
+            Distance threshold to filter out distant molecules (default None, no filter)
+        detect_water_bridges_plip_style : bool, optional
+            Whether to detect water bridges in the style of PLIP
         verbose : bool
             Whether to show progress bars
 
@@ -164,8 +165,8 @@ class TrajectoryAnalyzer(_TrajectoryAnalyzer):
         if not self._detector_precomputed:
             self.precompute_detector_once()
 
-        self.update_frame(frame_idx)
-        return self.detect_all(verbose=verbose)
+        self.update_frame(frame_idx, filter_waters, precompute_coords=True, verbose=verbose)
+        return self.detect_all(detect_water_bridges_plip_style)
 
     def filter_distant_waters(self, distance_threshold: float = 5.0) -> Dict[str, int]:
         """Filter out water molecules distant from other molecules.

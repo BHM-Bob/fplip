@@ -141,7 +141,7 @@ class TrajectoryAnalyzer:
                     'num': atom_info.resnum,
                     'component_type': atom_info.component_type
                 }
-        # Build coordinate array
+        # Build coordinate array again after load_pdb
         self.mol.atom_container.build_coordinate_array()
         # Build residues
         ## Group atoms by residue
@@ -244,7 +244,7 @@ class TrajectoryAnalyzer:
 
         self._detector_precomputed = True
 
-    def detect_frame_fast(self, frame_idx: int, verbose: bool = False) -> Dict[str, List]:
+    def detect_frame_fast(self, frame_idx: int, filter_waters: Optional[float] = None, verbose: bool = False) -> Dict[str, List]:
         """Detect interactions for a frame using cached setup.
 
         Assumes setup_detector_once() has been called. This method skips
@@ -257,6 +257,8 @@ class TrajectoryAnalyzer:
         ----------
         frame_idx : int
             Frame index to process
+        filter_waters : Optional[float]
+            Distance threshold to filter out distant molecules (default None, no filter)
         verbose : bool
             Whether to show progress bars
 
@@ -271,9 +273,7 @@ class TrajectoryAnalyzer:
         if not self._detector_precomputed:
             self.precompute_detector_once()
 
-        self.update_frame(frame_idx)
-        # _precompute_cached_data include coords precompute, so no need to call it again
-        self.detector._precompute_cached_data()
+        self.update_frame(frame_idx, filter_waters, precompute_coords=True, verbose=verbose)
 
         self.detector.interactions = {
             'hydrophobic': [],
@@ -300,7 +300,7 @@ class TrajectoryAnalyzer:
 
         return self.detector.interactions
 
-    def update_frame(self, frame_idx: int, filter_waters: bool = True,
+    def update_frame(self, frame_idx: int, filter_waters: Optional[float] = 5.0,
                      precompute_coords: bool = True, verbose: bool = False):
         """Update coordinates for a specific frame.
 
@@ -308,8 +308,8 @@ class TrajectoryAnalyzer:
         ----------
         frame_idx : int
             Frame index to load
-        filter_waters : bool
-            Whether to filter out distant molecules
+        filter_waters : Optional[float]
+            Distance threshold to filter out distant molecules (default None, no filter)
         precompute_coords : bool
             Whether to precompute coordinates, call self.detector._precompute_cached_data() if True
         verbose : bool
@@ -321,8 +321,8 @@ class TrajectoryAnalyzer:
         self.u.trajectory[frame_idx]
         mda_coords = self.u.atoms.positions
         self.detector.update_coords(mda_coords)
-        if filter_waters:
-            info = self.filter_distant_waters()
+        if filter_waters is not None:
+            info = self.filter_distant_waters(distance_threshold=filter_waters)
             if verbose:
                 print(info)
         if precompute_coords:
