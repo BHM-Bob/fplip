@@ -63,6 +63,15 @@ class AllAtomCUDAWaterBridgeTest(unittest.TestCase):
         """Set up test fixtures."""
         self.test_data_dir = str(TEST_DIR / 'pdb') + '/'
         self.backend = get_backend()
+        
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.nohydro = config.NOHYDRO
+        config.NOHYDRO = False
+        
+    @classmethod
+    def tearDownClass(cls) -> None:
+        config.NOHYDRO = cls.nohydro
 
     def _analyze_complex(self, pdb_file: str):
         """Helper method to analyze a PDB file using CudaInteractionDetector."""

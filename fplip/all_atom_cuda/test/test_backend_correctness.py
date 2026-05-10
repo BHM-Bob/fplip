@@ -13,10 +13,6 @@ import numpy as np
 
 from fplip.basic import config
 
-# Use hydrogen atoms from PDB file for deterministic results
-# OpenBabel's AddPolarHydrogens() produces non-deterministic hydrogen positions
-config.NOHYDRO = True
-
 from fplip.all_atom.atom_properties import AtomProperties
 from fplip.all_atom.molecule_complex import MoleculeComplex
 from fplip.all_atom_cuda.cuda_detector import CudaInteractionDetector
@@ -62,6 +58,17 @@ class BackendCorrectnessTest(unittest.TestCase):
         if len(self.backends) == 0:
             self.skipTest("No available backends to test.")
         self.backends = dict(self.backends)
+        
+    @staticmethod
+    def setUpClass():
+        # Use hydrogen atoms from PDB file for deterministic results
+        # OpenBabel's AddPolarHydrogens() produces non-deterministic hydrogen positions
+        config.NOHYDRO = True
+        
+    @staticmethod
+    def tearDownClass():
+        # Reset the hydrogen flag to the original value
+        config.NOHYDRO = False
 
     def _to_numpy_array(self, arr):
         """Convert backend array to numpy array for comparison.
