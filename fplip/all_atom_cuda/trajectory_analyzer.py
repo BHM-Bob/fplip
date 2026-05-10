@@ -83,9 +83,6 @@ class TrajectoryAnalyzer(_TrajectoryAnalyzer):
         Dict[str, List]
             Dictionary of detected interactions
         """
-        # _precompute_cached_data include coords precompute, so no need to call it again
-        self.detector._precompute_cached_data()
-
         self.detector.interactions = {
             'hydrophobic': [],
             'hbond': [],
