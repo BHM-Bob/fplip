@@ -294,21 +294,33 @@ class UnifiedInteractionDetector:
             self._aromatic_ring_mask = np.array([r.get('is_aromatic', False) for r in all_rings], dtype=bool)
             # Pre-compute aromatic rings list to avoid rebuilding in _detect_pication
             self._aromatic_rings = [r for r in all_rings if r.get('is_aromatic', False)]
-
-            # Pre-compute aromatic ring membership for hydrophobic interaction filtering
-            # atom_idx -> set of aromatic ring indices (for filtering intra-ring hydrophobic interactions)
-            self._aromatic_ring_atom_sets = {}
-            for ring_idx, ring in enumerate(self._aromatic_rings):
-                for atom_idx in ring['indices']:
-                    if atom_idx not in self._aromatic_ring_atom_sets:
-                        self._aromatic_ring_atom_sets[atom_idx] = set()
-                    self._aromatic_ring_atom_sets[atom_idx].add(ring_idx)
         else:
             self._all_ring_centers = np.array([]).reshape(0, 3)
             self._all_ring_normals = np.array([]).reshape(0, 3)
             self._aromatic_ring_mask = np.array([])
             self._aromatic_rings = []
-            self._aromatic_ring_atom_sets = {}
+
+        # Pre-compute 3~6 ring membership for hydrophobic interaction filtering
+        # Use all_sssr_rings to include non-aromatic, non-planar rings (e.g., saturated rings in ligands)
+        # self.atom_props.rings only stores aromatic/planar/imidazolium rings, which is insufficient
+        # for filtering intra-ring hydrophobic interactions in non-aromatic rings.
+        all_sssr_rings = self.atom_props.all_sssr_rings
+        self._small_rings = [r for r in all_sssr_rings if 3 <= len(r['indices']) <= 6]
+        self._small_ring_atom_sets = {}
+        for ring_idx, ring in enumerate(self._small_rings):
+            for atom_idx in ring['indices']:
+                if atom_idx not in self._small_ring_atom_sets:
+                    self._small_ring_atom_sets[atom_idx] = set()
+                self._small_ring_atom_sets[atom_idx].add(ring_idx)
+        # # Pre-compute aromatic ring membership for hydrophobic interaction filtering
+        # # atom_idx -> set of aromatic ring indices (for filtering intra-ring hydrophobic interactions)
+        # self._aromatic_ring_atom_sets = {}
+        # for ring_idx, ring in enumerate(self._aromatic_rings):
+        #     for atom_idx in ring['indices']:
+        #         if atom_idx not in self._aromatic_ring_atom_sets:
+        #             self._aromatic_ring_atom_sets[atom_idx] = set()
+        #         self._aromatic_ring_atom_sets[atom_idx].add(ring_idx)
+
         # Pre-compute positive charge coordinates for pication detection
         all_pos = self.atom_props.get_pos_charged()
         if all_pos:
@@ -474,12 +486,11 @@ class UnifiedInteractionDetector:
             # Skip if same residue (unless it's a ligand)
             if self._should_skip_interaction(residue, atom_a, atom_b):
                 continue
-
-            # Skip if both atoms belong to the same aromatic ring
-            # (intra-aromatic-ring carbon interactions are covalent bonds, not hydrophobic)
-            rings_a = self._aromatic_ring_atom_sets.get(atom_a.idx, set())
-            rings_b = self._aromatic_ring_atom_sets.get(atom_b.idx, set())
-            if rings_a & rings_b:  # intersection - same aromatic ring
+            
+            # Skip if both atoms belong to the same 3~6 ring
+            rings_a = self._small_ring_atom_sets.get(atom_a.idx, set())
+            rings_b = self._small_ring_atom_sets.get(atom_b.idx, set())
+            if rings_a & rings_b:  # intersection - same 3~6 ring
                 continue
 
             # Skip if one atom is connected to the other's aromatic ring via chemical bond
@@ -490,14 +501,14 @@ class UnifiedInteractionDetector:
                 neighbors_a = self.atom_props.atom_neighbors.get(atom_a.idx, set())
                 ring_atoms_b = set()
                 for ring_idx in rings_b:
-                    ring_atoms_b.update(self._aromatic_rings[ring_idx]['indices'])
+                    ring_atoms_b.update(self._small_rings[ring_idx]['indices'])
                 if neighbors_a & ring_atoms_b:
                     continue
             if rings_a:
                 neighbors_b = self.atom_props.atom_neighbors.get(atom_b.idx, set())
                 ring_atoms_a = set()
                 for ring_idx in rings_a:
-                    ring_atoms_a.update(self._aromatic_rings[ring_idx]['indices'])
+                    ring_atoms_a.update(self._small_rings[ring_idx]['indices'])
                 if neighbors_b & ring_atoms_a:
                     continue
 

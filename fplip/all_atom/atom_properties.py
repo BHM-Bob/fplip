@@ -44,7 +44,8 @@ class AtomProperties:
         # atom_idx -> set of neighbor atom indices (connected by chemical bonds)
         self.atom_neighbors: Dict[int, Set[int]] = {}
 
-        self.rings: List[Dict] = []  # List of ring information dicts
+        self.rings: List[Dict] = []  # Aromatic/planar/imidazolium rings for pi-stacking and pi-cation detection
+        self.all_sssr_rings: List[Dict] = []  # All SSSR rings (including non-aromatic, non-planar) for hydrophobic filtering
         
         self.metal_binding: Set[int] = set()
         self.metals: Set[int] = set()
@@ -82,7 +83,7 @@ class AtomProperties:
                    f'{len(self.pos_charged)} pos, '
                    f'{len(self.neg_charged)} neg, '
                    f'{len(self.hydrophobic_atoms)} hydrophobic, '
-                   f'{len(self.rings)} rings, '
+                   f'{len(self.rings)} rings ({len(self.all_sssr_rings)} SSSR), '
                    f'{len(self.metals)} metals')
     
     def _precompute_atom_lists(self):
@@ -596,6 +597,11 @@ class AtomProperties:
 
         # Find all rings
         rings = []
+        # Store all SSSR rings (including non-aromatic, non-planar) for hydrophobic filtering
+        # self.rings only stores aromatic/planar/imidazolium rings needed for pi-stacking and
+        # pi-cation detection. Non-aromatic, non-planar rings (e.g., saturated rings in ligands)
+        # are excluded from self.rings but are needed for intra-ring hydrophobic filtering.
+        self.all_sssr_rings = []
         # Store imidazolium ring info for charge detection: list of (ring_indices, n_indices)
         self.imidazolium_rings: List[Tuple[List[int], List[int]]] = []
 
@@ -607,6 +613,12 @@ class AtomProperties:
             # Check if all atoms are in our container
             if not all(idx in self.atom_container.atoms for idx in ring_indices):
                 continue
+            
+            # Store all rings for hydrophobic filtering
+            self.all_sssr_rings.append({
+                'indices': ring_indices,
+                'size': len(ring_indices),
+            })
 
             # Check aromaticity
             is_aromatic = all(atom.IsAromatic() for atom in ring_atoms)
