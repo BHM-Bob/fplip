@@ -71,3 +71,6 @@ result.cvf
 # Cython
 fplip/structure/_pdb_parser.c
 fplip/structure/_pdb_parser.html
+
+# NGL JS
+fplip/all_atom/visualization/static/js/ngl.js

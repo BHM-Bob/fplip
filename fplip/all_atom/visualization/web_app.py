@@ -366,6 +366,11 @@ def create_app(json_path: Optional[str] = None, pdb_path: Optional[str] = None) 
     else:
         logger.info("Creating app without initial data")
 
+    # Check for local NGL dev mode (set NGL_DEV_MODE=true to use local ngl.js)
+    app.config['NGL_DEV_MODE'] = os.environ.get('NGL_DEV_MODE', '').lower() == 'true'
+    if app.config['NGL_DEV_MODE']:
+        logger.info("NGL_DEV_MODE enabled: using local ngl.js")
+
     # Register routes
     _register_routes(app)
 
@@ -379,7 +384,7 @@ def _register_routes(app: Flask):
     def index():
         """Main page."""
         logger.info("Serving index page")
-        return render_template('index.html')
+        return render_template('index.html', ngl_dev_mode=app.config['NGL_DEV_MODE'])
 
     @app.route('/api/interactions')
     def get_interactions():
