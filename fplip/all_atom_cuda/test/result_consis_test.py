@@ -7,21 +7,21 @@ This module provides comprehensive testing for all-atom module analysis results:
 
 Usage:
     # Run all tests with default NumPy backend
-    python -m plip.all_atom_cuda.test.result_consis_test
+    python -m fplip.all_atom_cuda.test.result_consis_test
     
     # Run with specific backend
-    python -m plip.all_atom_cuda.test.result_consis_test --backend numpy
-    python -m plip.all_atom_cuda.test.result_consis_test --backend cupy
-    python -m plip.all_atom_cuda.test.result_consis_test --backend torch
-    python -m plip.all_atom_cuda.test.result_consis_test --backend original
+    python -m fplip.all_atom_cuda.test.result_consis_test --backend numpy
+    python -m fplip.all_atom_cuda.test.result_consis_test --backend cupy
+    python -m fplip.all_atom_cuda.test.result_consis_test --backend torch
+    python -m fplip.all_atom_cuda.test.result_consis_test --backend original
     
     # Run specific test types
-    python -m plip.all_atom_cuda.test.result_consis_test --test-type consistency
-    python -m plip.all_atom_cuda.test.result_consis_test --test-type performance
-    python -m plip.all_atom_cuda.test.result_consis_test --test-type all --verbose
+    python -m fplip.all_atom_cuda.test.result_consis_test --test-type consistency
+    python -m fplip.all_atom_cuda.test.result_consis_test --test-type performance
+    python -m fplip.all_atom_cuda.test.result_consis_test --test-type all --verbose
     
     # Run specific test cases with specific backend
-    python -m plip.all_atom_cuda.test.result_consis_test --backend cupy --test-cases 2w0s 4kya
+    python -m fplip.all_atom_cuda.test.result_consis_test --backend cupy --test-cases 2w0s 4kya
 """
 
 import argparse
