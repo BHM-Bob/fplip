@@ -39,6 +39,7 @@ class MoleculeComplex:
         self.pdb_id: str = "Unknown"
         self.filetype: str = "PDB"
         self.corrected_pdb: Optional[str] = None
+        self.hydro_pdb: Optional[str] = None
 
         # OpenBabel molecule
         self.ob_molecule: Optional[pybel.Molecule] = None
@@ -114,6 +115,9 @@ class MoleculeComplex:
         if not config.NOHYDRO:
             self.ob_molecule.OBMol.AddPolarHydrogens()
             logger.info('Added polar hydrogens')
+            # Save the PDB with hydrogens for visualization
+            self.hydro_pdb = self.ob_molecule.write("pdb")
+            logger.info(f'Saved corrected PDB with hydrogens ({len(self.hydro_pdb)} chars)')
         
         # Initialize all atoms
         self._initialize_atoms()

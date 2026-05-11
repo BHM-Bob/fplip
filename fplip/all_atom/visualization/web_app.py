@@ -191,6 +191,13 @@ class WebAppState:
         """Load PDB file for 3D visualization."""
         self.pdb_path = pdb_path
 
+        # Priority 1: Use embedded PDB content from JSON (with hydrogens if NOHYDRO=False)
+        if 'pdb_content' in self._raw_data:
+            self.pdb_content = self._raw_data['pdb_content']
+            logger.info(f"Using embedded PDB content from JSON ({len(self.pdb_content)} chars)")
+            return
+
+        # Priority 2: Use provided or inferred PDB file path
         if self.pdb_path is None and self.data_manager:
             # Try to infer from metadata
             metadata = self.data_manager.metadata
@@ -215,7 +222,7 @@ class WebAppState:
             try:
                 with open(self.pdb_path, 'r') as f:
                     self.pdb_content = f.read()
-                logger.info(f"Loaded PDB content: {len(self.pdb_content)} characters")
+                logger.info(f"Loaded PDB content from file: {len(self.pdb_content)} characters")
             except Exception as e:
                 logger.error(f"Error loading PDB content: {e}")
         else:

@@ -26,6 +26,7 @@ from fplip.all_atom.atom_properties import AtomProperties
 from fplip.all_atom.interaction_detector import UnifiedInteractionDetector
 from fplip.all_atom.molecule_complex import MoleculeComplex
 from fplip.basic import config
+from fplip.basic.logger import logger
 from fplip.structure.pdb import PDBParser
 
 
@@ -400,6 +401,11 @@ def cmd_analyze(args):
         'atom_coords': {},  # Store atom coordinates for visualization
         'interactions': {}
     }
+
+    # Save corrected PDB content (with hydrogens if NOHYDRO=False) for visualization
+    if not nohydro and mol.hydro_pdb:
+        output_data['pdb_content'] = mol.hydro_pdb
+        logger.info(f"Embedded corrected PDB content in JSON ({len(mol.hydro_pdb)} chars)")
 
     # Store atom coordinates (needed for 3D visualization)
     # Atom indices in interactions are 1-based and correspond to processed molecule
