@@ -1021,6 +1021,7 @@ function updateInteractionTable() {
         }
 
         row.innerHTML = `
+            <td><input type="checkbox" class="row-checkbox" data-id="${interaction.id}" ${appState.selectedInteractions.has(interaction.id) ? 'checked' : ''} onchange="toggleInteractionSelection(${interaction.id})"></td>
             <td>${formatTypeName(interaction.type)}</td>
             <td>${interaction.res_a_name}:${interaction.res_a_chain}:${interaction.res_a_num}</td>
             <td>${interaction.res_b_name}:${interaction.res_b_chain}:${interaction.res_b_num}</td>
@@ -1033,13 +1034,41 @@ function updateInteractionTable() {
         `;
 
         row.addEventListener('click', function(e) {
-            if (!e.target.closest('button')) {
+            if (!e.target.closest('button') && !e.target.closest('input[type="checkbox"]')) {
                 toggleInteractionSelection(interaction.id);
             }
         });
 
         tbody.appendChild(row);
     });
+
+    // Update Select All checkbox state
+    updateSelectAllCheckbox();
+}
+
+/**
+ * Toggle select all / deselect all interactions
+ */
+function toggleSelectAll(checked) {
+    if (checked) {
+        appState.interactions.forEach(i => appState.selectedInteractions.add(i.id));
+    } else {
+        appState.selectedInteractions.clear();
+    }
+    updateInteractionTable();
+    updateSelectedCount();
+}
+
+/**
+ * Update the Select All checkbox state based on current selections
+ */
+function updateSelectAllCheckbox() {
+    const selectAll = document.getElementById('selectAllCheckbox');
+    if (!selectAll) return;
+    const total = appState.interactions.length;
+    const selected = appState.interactions.filter(i => appState.selectedInteractions.has(i.id)).length;
+    selectAll.checked = total > 0 && selected === total;
+    selectAll.indeterminate = selected > 0 && selected < total;
 }
 
 /**
