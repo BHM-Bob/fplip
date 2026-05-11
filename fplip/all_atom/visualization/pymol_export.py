@@ -6,7 +6,7 @@ molecular interactions.
 
 The generated script follows the same approach as the main PLIP:
 1. Loads the PDB structure
-2. Selects atoms by PDB index using cmd.select()
+2. Creates atom objects by PDB index using cmd.create()
 3. Creates distance measurement objects using cmd.distance()
 4. Groups interactions by type and spatial category with distinct styling
 5. Organizes everything into PyMOL groups for easy toggling
@@ -74,15 +74,6 @@ def _dash_params(category: str) -> Tuple[float, float, float]:
     return params.get(category, (0.0, 0.0, 0.05))
 
 
-def _category_label(category: str) -> str:
-    labels = {
-        'intra': 'Intra-Residue (dashed)',
-        'inter': 'Inter-Residue (solid)',
-        'cross': 'Cross-Chain (thick)',
-    }
-    return labels.get(category, category)
-
-
 def _rgb_to_hex(r: int, g: int, b: int) -> str:
     return f'#{r:02x}{g:02x}{b:02x}'
 
@@ -97,10 +88,28 @@ def _get_ring_coords(interaction, atom_coords):
     coords_b = None
     if interaction.atom_a_name == 'RING' and interaction.details:
         coords_a = interaction.details.get('ring_center')
+        if coords_a is None and 'ring_a_atoms' in interaction.details:
+            ring_atoms = interaction.details['ring_a_atoms']
+            ring_coords = [
+                atom_coords[idx] for idx in ring_atoms
+                if idx in atom_coords
+            ]
+            if ring_coords:
+                coords_a = [sum(c[i] for c in ring_coords) / len(ring_coords)
+                            for i in range(3)]
     else:
         coords_a = atom_coords.get(interaction.atom_a_idx)
     if interaction.atom_b_name == 'RING' and interaction.details:
         coords_b = interaction.details.get('ring_center')
+        if coords_b is None and 'ring_b_atoms' in interaction.details:
+            ring_atoms = interaction.details['ring_b_atoms']
+            ring_coords = [
+                atom_coords[idx] for idx in ring_atoms
+                if idx in atom_coords
+            ]
+            if ring_coords:
+                coords_b = [sum(c[i] for c in ring_coords) / len(ring_coords)
+                            for i in range(3)]
     else:
         coords_b = atom_coords.get(interaction.atom_b_idx)
     return coords_a, coords_b
@@ -121,7 +130,7 @@ def _generate_header() -> List[str]:
         '#   - Colors:    Edit RGB values in set_color() calls below',
         '#   - Dashes:    Adjust dash_gap / dash_radius per group',
         '#   - Toggle:    Use the PyMOL object panel to show/hide groups',
-        '#   - Labels:    cmd.show("labels", "dist_*") to see distances',
+        '#   - Labels:    Labels show distance per interaction',
         '#',
         '# ============================================================',
         '#',
@@ -198,12 +207,10 @@ def _generate_interaction_visualizations(
         '# SECTION 4: Interaction Visualizations',
         '# ============================================================',
         '#',
-        '# Each interaction type is split into three distance objects:',
-        '#   {type}_intra  - same residue (dashed)',
-        '#   {type}_inter  - different residue, same chain (solid)',
-        '#   {type}_cross  - different chain (thick solid)',
-        '#',
-        '# Use the PyMOL object panel to toggle individual groups.',
+        '# Each interaction is an individual group containing its distance',
+        '# object and residue selections. Groups are nested by type under',
+        '# the "Interactions" master group for hierarchical toggling.',
+        '# Use the PyMOL object panel to expand/collapse groups.',
         '#',
     ]
 
@@ -211,7 +218,7 @@ def _generate_interaction_visualizations(
     for interaction in interactions:
         by_type[interaction.type].append(interaction)
 
-    all_group_names = []
+    type_group_names = []
 
     for inter_type in sorted(by_type.keys()):
         type_interactions = by_type[inter_type]
@@ -220,88 +227,99 @@ def _generate_interaction_visualizations(
             'color': (200, 200, 200),
         })
 
+        lines.append('')
         lines.append(f'# --- {style["label"]} ---')
 
-        by_category = defaultdict(list)
-        for interaction in type_interactions:
+        individual_group_names = []
+
+        for i, interaction in enumerate(type_interactions):
             category = _classify_category(
                 interaction.res_a_chain, interaction.res_a_num,
                 interaction.res_b_chain, interaction.res_b_num,
             )
-            by_category[category].append(interaction)
-
-        for category in ['intra', 'inter', 'cross']:
-            cat_interactions = by_category.get(category)
-            if not cat_interactions:
-                continue
-
-            group_name = f'{inter_type}_{category}'
-            all_group_names.append(group_name)
             dash_gap, _, dash_radius = _dash_params(category)
 
-            lines.append(f'')
-            lines.append(f'    # {_category_label(category)}'
-                        f' ({len(cat_interactions)} interactions)')
+            dist_name = f'{inter_type}_{i}'
+            grp_name = f'{inter_type}_{i}_grp'
+            sel_a = f'sel_{inter_type}_{i}_a'
+            sel_b = f'sel_{inter_type}_{i}_b'
 
-            for i, interaction in enumerate(cat_interactions):
-                sel_a = f'tmp_{inter_type}_{category}_{i}_a'
-                sel_b = f'tmp_{inter_type}_{category}_{i}_b'
-
-                if _needs_pseudoatom(interaction):
-                    coords_a, coords_b = _get_ring_coords(
-                        interaction, atom_coords)
-                    if coords_a:
-                        lines.append(
-                            f'    cmd.pseudoatom(\'{sel_a}\', '
-                            f'pos=[{coords_a[0]:.3f}, {coords_a[1]:.3f}, '
-                            f'{coords_a[2]:.3f}])')
-                    else:
-                        lines.append(
-                            f'    cmd.select(\'{sel_a}\', '
-                            f'\'id {interaction.atom_a_idx}\')')
-                    if coords_b:
-                        lines.append(
-                            f'    cmd.pseudoatom(\'{sel_b}\', '
-                            f'pos=[{coords_b[0]:.3f}, {coords_b[1]:.3f}, '
-                            f'{coords_b[2]:.3f}])')
-                    else:
-                        lines.append(
-                            f'    cmd.select(\'{sel_b}\', '
-                            f'\'id {interaction.atom_b_idx}\')')
+            # Create residue atom objects (using create instead of select
+            # so they appear in the object panel and can be grouped)
+            if _needs_pseudoatom(interaction):
+                coords_a, coords_b = _get_ring_coords(
+                    interaction, atom_coords)
+                if coords_a:
+                    lines.append(
+                        f'cmd.pseudoatom(\'{sel_a}\', '
+                        f'pos=[{coords_a[0]:.3f}, {coords_a[1]:.3f}, '
+                        f'{coords_a[2]:.3f}])')
                 else:
                     lines.append(
-                        f'    cmd.select(\'{sel_a}\', '
+                        f'cmd.create(\'{sel_a}\', '
                         f'\'id {interaction.atom_a_idx}\')')
+                if coords_b:
                     lines.append(
-                        f'    cmd.select(\'{sel_b}\', '
+                        f'cmd.pseudoatom(\'{sel_b}\', '
+                        f'pos=[{coords_b[0]:.3f}, {coords_b[1]:.3f}, '
+                        f'{coords_b[2]:.3f}])')
+                else:
+                    lines.append(
+                        f'cmd.create(\'{sel_b}\', '
                         f'\'id {interaction.atom_b_idx}\')')
-
+            else:
                 lines.append(
-                    f'    cmd.distance(\'{group_name}\', '
-                    f'\'{sel_a}\', \'{sel_b}\')')
+                    f'cmd.create(\'{sel_a}\', '
+                    f'\'id {interaction.atom_a_idx}\')')
+                lines.append(
+                    f'cmd.create(\'{sel_b}\', '
+                    f'\'id {interaction.atom_b_idx}\')')
 
-            lines.append(f'')
-            lines.append(f'    # Style: {_category_label(category)}')
+            # Create individual distance object
+            lines.append(
+                f'cmd.distance(\'{dist_name}\', '
+                f'\'{sel_a}\', \'{sel_b}\')')
+
+            # Apply category-specific styling
             if dash_gap > 0:
                 lines.append(
-                    f'    cmd.set(\'dash_gap\', {dash_gap}, '
-                    f'\'{group_name}\')')
+                    f'cmd.set(\'dash_gap\', {dash_gap}, '
+                    f'\'{dist_name}\')')
             if dash_radius != 0.05:
                 lines.append(
-                    f'    cmd.set(\'dash_radius\', {dash_radius}, '
-                    f'\'{group_name}\')')
+                    f'cmd.set(\'dash_radius\', {dash_radius}, '
+                    f'\'{dist_name}\')')
             lines.append(
-                f'    cmd.set(\'dash_color\', \'color_{inter_type}\', '
-                f'\'{group_name}\')')
+                f'cmd.set(\'dash_color\', \'color_{inter_type}\', '
+                f'\'{dist_name}\')')
+
+            # Add distance label
+            lines.append(
+                f'cmd.label(\'{sel_a}\', '
+                f'\'\"Distance: {interaction.distance:.2f} Å\"\')')
+
+            # Group this individual interaction (selections + distance)
+            lines.append(
+                f'cmd.group(\'{grp_name}\', '
+                f'\'{sel_a} {sel_b} {dist_name}\')')
+
+            individual_group_names.append(grp_name)
+            lines.append('')
+
+        # Group all individual interaction groups under this type
+        if individual_group_names:
+            members_str = ' '.join(individual_group_names)
+            lines.append(
+                f'cmd.group(\'{inter_type}\', \'{members_str}\')')
+            type_group_names.append(inter_type)
 
         lines.append('')
-        lines.append('')
 
-    # Group all interaction distance objects
-    if all_group_names:
-        members_str = ' '.join(all_group_names)
+    # Group all types under Interactions master group
+    if type_group_names:
+        members_str = ' '.join(type_group_names)
         lines.extend([
-            '# Group all interaction distance objects',
+            '# Group all interaction types under master group',
             f'cmd.group(\'Interactions\', \'{members_str}\')',
             '',
         ])
@@ -313,11 +331,14 @@ def _generate_cleanup() -> List[str]:
     return [
         '#',
         '# ============================================================',
-        '# SECTION 5: Cleanup Temporary Selections',
+        '# SECTION 5: Hide Temporary Atom Objects',
         '# ============================================================',
-        '# Remove temporary atom selections used for distance creation.',
+        '# Hide sel_* objects to avoid visual duplication in 3D view.',
+        '# They remain in the object panel for hierarchical grouping.',
+        '# Uncomment the delete line to remove them entirely.',
         '#',
-        'cmd.delete(\'tmp_*\')',
+        'cmd.hide(\'everything\', \'sel_*\')',
+        '# cmd.delete(\'sel_*\')',
         '',
     ]
 
@@ -392,11 +413,11 @@ def generate_pymol_script(
     Generate a complete PyMOL Python script for visualizing interactions.
 
     Uses the same approach as the main PLIP:
-    - cmd.select('name', 'id N') to select atoms by PDB index
+    - cmd.create('name', 'id N') to create atom objects by PDB index
     - cmd.distance('ObjName', 'sel1', 'sel2') to create distance objects
     - cmd.pseudoatom() only for ring centers (pi-stacking, cation-pi)
-    - cmd.group() to organize distance objects
-    - cmd.delete('tmp_*') to clean up temporary selections
+    - cmd.group() to organize distance objects by type
+    - cmd.hide('everything', '_sel_*') to hide atom objects in 3D view
 
     Args:
         interactions: List of interaction objects

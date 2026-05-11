@@ -1061,6 +1061,7 @@ class UnifiedInteractionDetector:
                 details={
                     'type': ptype,
                     'offset': float(offset),
+                    'ring_center': ring_a['center'],
                     'ring_a_atoms': ring_a['indices'],
                     'ring_b_atoms': ring_b['indices']
                 }

@@ -336,8 +336,11 @@ def _serialize_details(details) -> Optional[dict]:
 
     serialized = {}
     for key, value in details.items():
+        # Handle numpy arrays (e.g., ring_center coordinates)
+        if hasattr(value, 'tolist'):
+            serialized[key] = value.tolist()
         # Keep only primitive types
-        if isinstance(value, (str, int, float, bool, type(None))):
+        elif isinstance(value, (str, int, float, bool, type(None))):
             serialized[key] = value
         elif isinstance(value, (list, tuple)):
             # Only keep primitive items from lists
