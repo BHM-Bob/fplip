@@ -39,7 +39,27 @@
                 <button class="btn btn-outline-light btn-sm me-2" onclick="toggleLeftPanel()" title="Toggle Left Panel" id="toggleLeftBtn">◀ Left</button>
                 <button class="btn btn-outline-light btn-sm me-2" onclick="toggleRightPanel()" title="Toggle Right Panel" id="toggleRightBtn">Right ▶</button>
                 <button class="btn btn-outline-light btn-sm me-2" onclick="showHelp()">Help</button>
-                <button class="btn btn-primary btn-sm" onclick="exportPyMOL()">Export PyMOL</button>
+                <div class="btn-group me-2">
+                    <button class="btn btn-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        Export PyMOL
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" style="min-width: 200px;">
+                        <li><label class="dropdown-item">
+                            <input type="radio" name="exportScope" value="all" checked onchange="updateExportBtnLabel()">
+                            All interactions
+                        </label></li>
+                        <li><label class="dropdown-item">
+                            <input type="radio" name="exportScope" value="visible" onchange="updateExportBtnLabel()">
+                            Visible only
+                        </label></li>
+                        <li><label class="dropdown-item">
+                            <input type="radio" name="exportScope" value="selected" onchange="updateExportBtnLabel()">
+                            Selected only
+                        </label></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><button class="dropdown-item btn-primary" onclick="exportPyMOL()">Export Now</button></li>
+                    </ul>
+                </div>
             </div>
         </div>
     </nav>

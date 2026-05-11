@@ -415,8 +415,9 @@ body {
 }
 
 /* Navbar */
-.navbar-brand {
+.navbar {
     font-weight: 600;
+    z-index: 1030;
 }
 
 /* Modal */

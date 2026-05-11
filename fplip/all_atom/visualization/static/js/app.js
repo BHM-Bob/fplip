@@ -1505,10 +1505,55 @@ async function deleteGroup(name) {
 }
 
 /**
+ * Update Export PyMOL button label based on selected scope
+ */
+function updateExportBtnLabel() {
+    const scopeRadios = document.getElementsByName('exportScope');
+    let scope = 'All';
+    for (const radio of scopeRadios) {
+        if (radio.checked) {
+            scope = radio.value.charAt(0).toUpperCase() + radio.value.slice(1);
+            break;
+        }
+    }
+    const btn = document.querySelector('.btn-group .btn-primary');
+    if (btn) {
+        btn.textContent = `Export PyMOL (${scope})`;
+    }
+}
+
+/**
  * Export to PyMOL
  */
 async function exportPyMOL() {
-    const interactionIds = appState.interactions.map(i => i.id);
+    // Determine export scope
+    const scopeRadios = document.getElementsByName('exportScope');
+    let scope = 'all';
+    for (const radio of scopeRadios) {
+        if (radio.checked) {
+            scope = radio.value;
+            break;
+        }
+    }
+
+    let interactionIds;
+    if (scope === 'visible') {
+        // Use currently displayed interactions
+        interactionIds = appState.interactions.map(i => i.id);
+    } else if (scope === 'selected') {
+        // Use selected interactions
+        interactionIds = Array.from(appState.selectedInteractions);
+    } else {
+        // Fetch all interactions from server
+        try {
+            const response = await fetch('/api/interactions');
+            const data = await response.json();
+            interactionIds = data.interactions.map(i => i.id);
+        } catch (error) {
+            showToast('Error fetching all interactions', 'danger');
+            return;
+        }
+    }
 
     if (interactionIds.length === 0) {
         showToast('No interactions to export', 'warning');
@@ -1521,7 +1566,10 @@ async function exportPyMOL() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ interaction_ids: interactionIds })
+            body: JSON.stringify({
+                interaction_ids: interactionIds,
+                residue_colors: appState.residueColors
+            })
         });
 
         if (response.ok) {

@@ -12,7 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from flask import Flask, jsonify, render_template, request, send_file, send_from_directory
+from flask import (Flask, jsonify, render_template, request, send_file,
+                   send_from_directory)
 
 from .data_manager import InteractionDataManager
 
@@ -720,18 +721,33 @@ def _register_routes(app: Flask):
 
         data = request.get_json()
         interaction_ids = data.get('interaction_ids', [])
+        residue_colors = data.get('residue_colors', {})
         logger.info(f"Exporting {len(interaction_ids)} interactions to PyMOL")
 
-        # Get interactions by ID
+        # Get interactions by sequential ID (frontend uses sequential IDs,
+        # not Python memory addresses)
+        seq_id_to_interaction = {}
+        for interaction in app_state.data_manager.all_interactions:
+            seq_id = app_state._interaction_id_map.get(id(interaction))
+            if seq_id is not None:
+                seq_id_to_interaction[seq_id] = interaction
+
         interactions = [
-            i for i in app_state.data_manager.all_interactions
-            if id(i) in interaction_ids
+            seq_id_to_interaction[seq_id]
+            for seq_id in interaction_ids
+            if seq_id in seq_id_to_interaction
         ]
 
         # Create temporary file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
             temp_path = f.name
-            app_state.data_manager.export_to_pymol(temp_path, interactions)
+            app_state.data_manager.export_to_pymol(
+                temp_path,
+                interactions,
+                pdb_path=app_state.pdb_path,
+                pdb_content=app_state.pdb_content,
+                residue_colors=residue_colors
+            )
 
         logger.info(f"PyMOL script saved to: {temp_path}")
 
@@ -767,11 +783,18 @@ def _register_routes(app: Flask):
         interaction_ids = data.get('interaction_ids', [])
         logger.info(f"Exporting {len(interaction_ids)} interactions to JSON")
 
-        # Get interactions by ID
+        # Get interactions by sequential ID (frontend uses sequential IDs,
+        # not Python memory addresses)
+        seq_id_to_interaction = {}
+        for interaction in app_state.data_manager.all_interactions:
+            seq_id = app_state._interaction_id_map.get(id(interaction))
+            if seq_id is not None:
+                seq_id_to_interaction[seq_id] = interaction
+
         interactions = [
-            app_state._interaction_to_dict(i)
-            for i in app_state.data_manager.all_interactions
-            if id(i) in interaction_ids
+            app_state._interaction_to_dict(seq_id_to_interaction[seq_id])
+            for seq_id in interaction_ids
+            if seq_id in seq_id_to_interaction
         ]
 
         return jsonify({
