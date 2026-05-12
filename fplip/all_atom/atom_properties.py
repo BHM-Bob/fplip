@@ -682,6 +682,86 @@ class AtomProperties:
 
         self.rings = rings
 
+        # Detect fused ring systems and add merged rings for pi-stacking detection
+        # Merged rings represent the union of fused sub-rings (e.g., indole = 5-ring + 6-ring),
+        # allowing pi-stacking detection when a partner ring stacks on the junction of the fused system
+        # where individual sub-ring offsets might exceed the threshold.
+        if config.DETECT_FUSED_RINGS:
+            self._detect_fused_rings()
+
+    def _detect_fused_rings(self):
+        """Detect fused ring systems and add merged rings to self.rings.
+        
+        Fused rings are groups of rings that share >= 2 atoms (i.e., share an edge).
+        For each fused group, a merged ring is computed as the union of all sub-ring atoms,
+        with center at the centroid of sub-ring centers and normal from the first sub-ring.
+        
+        This allows pi-stacking detection when a partner ring stacks on the junction
+        of a fused system (e.g., indole, purine, naphthalene), where individual sub-ring
+        offsets might exceed PISTACK_OFFSET_MAX but the merged ring offset is within range.
+        """
+        rings = self.rings
+        n_rings = len(rings)
+        if n_rings < 2:
+            return
+
+        # Build adjacency: two rings are fused if they share >= 2 atoms
+        adjacency = [[] for _ in range(n_rings)]
+        for i in range(n_rings):
+            ring_i_set = set(rings[i]['indices'])
+            for j in range(i + 1, n_rings):
+                shared = ring_i_set.intersection(rings[j]['indices'])
+                if len(shared) >= 2:
+                    adjacency[i].append(j)
+                    adjacency[j].append(i)
+
+        # Find connected components (fused ring groups) via BFS
+        visited = [False] * n_rings
+        for i in range(n_rings):
+            if visited[i] or not adjacency[i]:
+                continue
+            # BFS to find all rings in this fused group
+            group = []
+            stack = [i]
+            while stack:
+                idx = stack.pop()
+                if not visited[idx]:
+                    visited[idx] = True
+                    group.append(idx)
+                    for nb in adjacency[idx]:
+                        if not visited[nb]:
+                            stack.append(nb)
+
+            if len(group) < 2:
+                continue
+
+            # Compute merged ring properties
+            all_indices = set()
+            for ri in group:
+                all_indices.update(rings[ri]['indices'])
+            all_indices = sorted(all_indices)
+
+            # Merged center = centroid of all sub-ring centers
+            merged_center = np.mean([rings[ri]['center'] for ri in group], axis=0)
+
+            # Normal = normal of first sub-ring (fused aromatic systems are coplanar)
+            merged_normal = rings[group[0]]['normal']
+
+            # is_aromatic = True only if ALL sub-rings are aromatic
+            merged_aromatic = all(rings[ri].get('is_aromatic', False) for ri in group)
+
+            rings.append({
+                'indices': all_indices,
+                'center': merged_center,
+                'normal': merged_normal,
+                'is_aromatic': merged_aromatic,
+                'size': len(all_indices),
+                'is_fused': True,
+                'sub_rings': group,  # Indices into self.rings for the sub-rings
+            })
+
+        self.rings = rings
+
     def _check_ring_planarity(self, coords: np.ndarray) -> tuple[bool, np.ndarray]:
         """
         Check if a ring is planar by computing the deviation from the best-fit plane.

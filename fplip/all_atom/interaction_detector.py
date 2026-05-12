@@ -101,6 +101,11 @@ class UnifiedInteractionDetector:
         # Remove duplicates (each interaction detected twice: A-B and B-A)
         self._remove_duplicates()
 
+        # Remove sub-ring pi-stacking interactions in favor of fused ring interactions
+        # Fused ring systems (e.g., indole) have delocalized π electrons across the entire system,
+        # so the merged ring is the correct unit for reporting π-π stacking.
+        self._remove_subring_duplicates()
+
         # Refine hydrogen bonds (filter by salt bridges and duplicate donors)
         self._refine_hbonds()
 
@@ -1874,6 +1879,71 @@ class UnifiedInteractionDetector:
                     seen.add(key)
                     unique.append(inter)
             self.interactions[itype] = unique
+
+    def _remove_subring_duplicates(self):
+        """Remove pi-stacking interactions involving sub-rings when the parent fused ring also detected the same interaction.
+        
+        Scientific rationale: Fused ring systems (e.g., indole, purine, naphthalene) have
+        delocalized π electrons across the entire fused system. When a partner ring stacks
+        on a fused system, the interaction is with the entire π system, not just one sub-ring.
+        Therefore, the fused ring (merged ring) should be reported instead of individual sub-rings.
+        """
+        if not config.DETECT_FUSED_RINGS:
+            return 
+        
+        pistacking = self.interactions['pistacking']
+        if not pistacking:
+            return
+        
+        all_rings = self.atom_props.rings
+        fused_rings = [r for r in all_rings if r.get('is_fused', False)]
+        if not fused_rings:
+            return
+        
+        # Build reverse mapping: sub_ring atom set -> fused ring atom set
+        sub_to_fused = {}
+        for fused in fused_rings:
+            fused_atoms = frozenset(fused['indices'])
+            for sub_idx in fused['sub_rings']:
+                sub_atoms = frozenset(all_rings[sub_idx]['indices'])
+                sub_to_fused[sub_atoms] = fused_atoms
+        
+        # Find sub-ring interactions to remove
+        to_remove = set()
+        for idx, ps in enumerate(pistacking):
+            ring_a_atoms = frozenset(ps.details.get('ring_a_atoms', []))
+            ring_b_atoms = frozenset(ps.details.get('ring_b_atoms', []))
+            
+            # Check if ring_a is a sub-ring of a fused ring
+            if ring_a_atoms in sub_to_fused:
+                fused_atoms = sub_to_fused[ring_a_atoms]
+                # Check if the parent fused ring also detected this interaction
+                for other_idx, other_ps in enumerate(pistacking):
+                    if other_idx == idx:
+                        continue
+                    other_a = frozenset(other_ps.details.get('ring_a_atoms', []))
+                    other_b = frozenset(other_ps.details.get('ring_b_atoms', []))
+                    if (other_a == fused_atoms and other_b == ring_b_atoms) or \
+                       (other_b == fused_atoms and other_a == ring_b_atoms):
+                        to_remove.add(idx)
+                        break
+            
+            # Check if ring_b is a sub-ring of a fused ring
+            if ring_b_atoms in sub_to_fused:
+                fused_atoms = sub_to_fused[ring_b_atoms]
+                for other_idx, other_ps in enumerate(pistacking):
+                    if other_idx == idx:
+                        continue
+                    other_a = frozenset(other_ps.details.get('ring_a_atoms', []))
+                    other_b = frozenset(other_ps.details.get('ring_b_atoms', []))
+                    if (other_a == fused_atoms and other_b == ring_a_atoms) or \
+                       (other_b == fused_atoms and other_a == ring_a_atoms):
+                        to_remove.add(idx)
+                        break
+        
+        if to_remove:
+            self.interactions['pistacking'] = [ps for idx, ps in enumerate(pistacking) if idx not in to_remove]
+            logger.info(f'Removed {len(to_remove)} sub-ring pi-stacking interaction(s) in favor of fused ring')
 
     def _refine_hbonds(self):
         """Refine hydrogen bonds by filtering out those involved in salt bridges and duplicate donors.

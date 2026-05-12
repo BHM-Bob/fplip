@@ -120,6 +120,7 @@ class TrajectoryAnalyzer(_TrajectoryAnalyzer):
         self.detector._detect_metal()
 
         self.detector._remove_duplicates()
+        self.detector._remove_subring_duplicates()
         self.detector._refine_hbonds()
         self.detector._detect_water_bridges()
         if detect_water_bridges_plip_style:

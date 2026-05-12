@@ -135,6 +135,11 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
         # Remove duplicates (each interaction detected twice: A-B and B-A)
         self._remove_duplicates()
 
+        # Remove sub-ring pi-stacking interactions in favor of fused ring interactions
+        # Fused ring systems (e.g., indole) have delocalized π electrons across the entire system,
+        # so the merged ring is the correct unit for reporting π-π stacking.
+        self._remove_subring_duplicates()
+
         # Refine hydrogen bonds (filter by salt bridges and duplicate donors)
         self._refine_hbonds()
 
