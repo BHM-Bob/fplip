@@ -75,6 +75,7 @@ class UnifiedInteractionDetector:
             'pication': [],
             'halogen': [],
             'metal': [],
+            'metal_possible': [],  # Metal interactions filtered by geometry analysis
             'water_bridge': [],
             'water_bridge_possible': [],  # PLIP-style water bridges (distance-based)
         }
@@ -111,6 +112,9 @@ class UnifiedInteractionDetector:
 
         # Refine hydrophobic interactions (stacking exclusion and nearest distance)
         self._refine_hydrophobic()
+
+        # Analyze metal coordination geometry (post-processing)
+        self._analyze_metal_geometry()
 
         # Detect water bridges (H-bond based)
         self._detect_water_bridges(verbose)
@@ -1484,6 +1488,11 @@ class UnifiedInteractionDetector:
     def _detect_metal(self, residue: Residue):
         """Detect metal complexation using vectorized distance calculation.
         
+        Uses metal-specific distance thresholds:
+        - Zn/Mg/Fe: 2.5 Å (tighter, avoids false positives with transition metals)
+        - K: 3.2 Å (looser, avoids false negatives for larger K+ ion)
+        - Other metals: 3.0 Å (default)
+        
         Optimized: Uses pre-computed coordinates and vectorized numpy operations
         for distance calculations instead of individual euclidean3d calls.
         """
@@ -1497,6 +1506,17 @@ class UnifiedInteractionDetector:
         if not all_metals or not all_binding:
             return
         
+        # Metal-specific distance thresholds
+        METAL_DIST_THRESHOLDS = {
+            'ZN': config.METAL_DIST_MAX_ZN,
+            'MG': config.METAL_DIST_MAX_MG,
+            'FE': config.METAL_DIST_MAX_FE,
+            'FE2': config.METAL_DIST_MAX_FE,
+            'FE3': config.METAL_DIST_MAX_FE,
+            'FE4': config.METAL_DIST_MAX_FE,
+            'K': config.METAL_DIST_MAX_K,
+        }
+        
         # Use pre-computed coordinates (cached in _precompute_cached_data)
         # metals_coords = self._metals_coords
         binding_coords = self._binding_coords
@@ -1508,13 +1528,19 @@ class UnifiedInteractionDetector:
             # Vectorized distance calculation using cdist
             dist_matrix = cdist(res_metals_coords, binding_coords)
             
-            # Find valid pairs within distance threshold
-            valid_mask = dist_matrix < config.METAL_DIST_MAX
+            # Use most permissive threshold for initial vectorized filter
+            valid_mask = dist_matrix < config.METAL_DIST_MAX_K
             valid_indices = np.argwhere(valid_mask)
             
             for i, j in valid_indices:
                 metal = residue.metal_atoms[i]
                 binding = all_binding[j]
+                
+                # Apply metal-specific distance threshold
+                dist_threshold = METAL_DIST_THRESHOLDS.get(metal.resname, config.METAL_DIST_MAX)
+                distance = float(dist_matrix[i, j])
+                if distance >= dist_threshold:
+                    continue
                 
                 # Skip if same residue (unless it's a ligand)
                 if self._should_skip_interaction(residue, metal, binding):
@@ -1532,7 +1558,7 @@ class UnifiedInteractionDetector:
                     atom_a_idx=metal.idx,
                     atom_b_name=binding.atom_name,
                     atom_b_idx=binding.idx,
-                    distance=float(dist_matrix[i, j]),
+                    distance=distance,
                     angle=None,
                     details={}
                 )
@@ -2179,6 +2205,190 @@ class UnifiedInteractionDetector:
             logger.info(f'  Refined hydrophobic: {len(refined)} (removed {len(filtered) - len(refined)} redundant)')
 
         self.interactions['hydrophobic'] = refined
+
+    def _analyze_metal_geometry(self):
+        """Analyze metal coordination geometry and filter by geometric criteria.
+
+        This method performs post-processing on detected metal interactions:
+        1. Groups metal interactions by metal ion
+        2. For each metal with >= 2 ligands, calculates all ligand-metal-ligand angles
+        3. Matches observed angles against ideal geometry templates
+        4. Computes RMS deviation from the best-matching template
+        5. Interactions with RMS > METAL_GEOM_RMS_MAX are moved to 'metal_possible'
+        6. Remaining interactions are annotated with geometry information
+
+        Ideal geometry templates (angles in degrees):
+        - Linear (CN=2): 180
+        - Trigonal planar (CN=3): 120
+        - Tetrahedral (CN=4): 109.5
+        - Trigonal bipyramidal (CN=5): 90, 120, 180
+        - Octahedral (CN=6): 90, 180
+
+        This is a post-processing step that uses real-time coordinates,
+        making it fully compatible with MD trajectory analysis.
+        """
+        metal_inters = self.interactions.get('metal', [])
+        if not metal_inters:
+            return
+
+        # Step 1: Group interactions by metal ion (atom_a_idx is the metal)
+        metal_groups = defaultdict(list)
+        for inter in metal_inters:
+            metal_groups[inter.atom_a_idx].append(inter)
+
+        # Ideal geometry templates: coordination_number -> list of ideal angles
+        # For each CN, generate all unique ligand-metal-ligand angles
+        geometry_templates = {
+            2: [180.0],  # Linear: 1 angle
+            3: [120.0, 120.0, 120.0],  # Trigonal planar: 3 angles
+            4: [109.5, 109.5, 109.5, 109.5, 109.5, 109.5],  # Tetrahedral: 6 angles
+            5: [90.0, 90.0, 90.0, 90.0,  # Trigonal bipyramidal: equatorial-equatorial (4)
+                120.0, 120.0, 120.0,  # equatorial-equatorial (3)
+                90.0, 90.0, 90.0, 90.0, 90.0, 90.0,  # axial-equatorial (6)
+                180.0, 180.0],  # axial-axial (2)
+            6: [90.0] * 12 + [180.0] * 3,  # Octahedral: 12 cis (90°) + 3 trans (180°)
+        }
+
+        geometry_names = {
+            2: 'linear',
+            3: 'trigonal_planar',
+            4: 'tetrahedral',
+            5: 'trigonal_bipyramidal',
+            6: 'octahedral',
+        }
+
+        confirmed = []
+        possible = []
+
+        for metal_idx, interactions in metal_groups.items():
+            n_ligands = len(interactions)
+            if n_ligands < 2:
+                # Single-ligand metals: no geometry to check, keep as confirmed
+                for inter in interactions:
+                    confirmed.append(inter)
+                continue
+
+            # Get metal coordinates
+            metal_atom = self.atom_container[metal_idx]
+            metal_coords = metal_atom.coords
+
+            # Get ligand atom coordinates
+            ligand_coords = []
+            for inter in interactions:
+                ligand_atom = self.atom_container[inter.atom_b_idx]
+                ligand_coords.append(ligand_atom.coords)
+            ligand_coords = np.array(ligand_coords, dtype=np.float64)
+
+            # Calculate all unique ligand-metal-ligand angles
+            observed_angles = []
+            for i in range(n_ligands):
+                for j in range(i + 1, n_ligands):
+                    vec_i = ligand_coords[i] - metal_coords
+                    vec_j = ligand_coords[j] - metal_coords
+                    norm_i = np.linalg.norm(vec_i)
+                    norm_j = np.linalg.norm(vec_j)
+                    if norm_i == 0 or norm_j == 0:
+                        continue
+                    cos_angle = np.dot(vec_i, vec_j) / (norm_i * norm_j)
+                    cos_angle = np.clip(cos_angle, -1.0, 1.0)
+                    angle = np.degrees(np.arccos(cos_angle))
+                    observed_angles.append(angle)
+
+            if not observed_angles:
+                for inter in interactions:
+                    confirmed.append(inter)
+                continue
+
+            observed_angles = np.array(observed_angles, dtype=np.float64)
+            observed_sorted = np.sort(observed_angles)
+
+            # Find best-matching geometry template
+            best_rms = float('inf')
+            best_geometry = None
+
+            # Consider CN = n_ligands as primary, but also allow CN = n_ligands - 1
+            # (e.g., if one ligand is very far, the effective CN might be lower)
+            candidate_cns = [n_ligands]
+            if n_ligands > 2:
+                candidate_cns.append(n_ligands - 1)
+
+            for cn in candidate_cns:
+                if cn not in geometry_templates:
+                    continue
+                template = np.array(geometry_templates[cn], dtype=np.float64)
+                template_sorted = np.sort(template)
+
+                # Compute RMS deviation between observed and template angles
+                # If observed has more angles than template, use template size
+                # If observed has fewer angles, pad template
+                min_len = min(len(observed_sorted), len(template_sorted))
+                if min_len == 0:
+                    continue
+                rms = np.sqrt(np.mean((observed_sorted[:min_len] - template_sorted[:min_len]) ** 2))
+                if rms < best_rms:
+                    best_rms = rms
+                    best_geometry = geometry_names.get(cn, f'cn_{cn}')
+
+            # Classify based on RMS deviation
+            if best_rms <= config.METAL_GEOM_RMS_MAX:
+                # Good geometry: keep as confirmed with geometry annotation
+                for inter in interactions:
+                    inter_dict = inter._asdict()
+                    details = dict(inter_dict['details'])
+                    details['geometry'] = best_geometry
+                    details['geometry_rms'] = float(best_rms)
+                    details['n_ligands'] = n_ligands
+                    confirmed.append(Interaction(
+                        type='metal',
+                        res_a_name=inter_dict['res_a_name'],
+                        res_a_chain=inter_dict['res_a_chain'],
+                        res_a_num=inter_dict['res_a_num'],
+                        res_b_name=inter_dict['res_b_name'],
+                        res_b_chain=inter_dict['res_b_chain'],
+                        res_b_num=inter_dict['res_b_num'],
+                        atom_a_name=inter_dict['atom_a_name'],
+                        atom_a_idx=inter_dict['atom_a_idx'],
+                        atom_b_name=inter_dict['atom_b_name'],
+                        atom_b_idx=inter_dict['atom_b_idx'],
+                        distance=inter_dict['distance'],
+                        angle=inter_dict['angle'],
+                        details=details,
+                        objs=inter_dict['objs'],
+                    ))
+            else:
+                # Poor geometry: move to possible
+                for inter in interactions:
+                    inter_dict = inter._asdict()
+                    details = dict(inter_dict['details'])
+                    details['geometry'] = best_geometry or 'unknown'
+                    details['geometry_rms'] = float(best_rms)
+                    details['n_ligands'] = n_ligands
+                    details['filter_reason'] = f'geometry_rms_{best_rms:.1f}_exceeds_max_{config.METAL_GEOM_RMS_MAX}'
+                    possible.append(Interaction(
+                        type='metal_possible',
+                        res_a_name=inter_dict['res_a_name'],
+                        res_a_chain=inter_dict['res_a_chain'],
+                        res_a_num=inter_dict['res_a_num'],
+                        res_b_name=inter_dict['res_b_name'],
+                        res_b_chain=inter_dict['res_b_chain'],
+                        res_b_num=inter_dict['res_b_num'],
+                        atom_a_name=inter_dict['atom_a_name'],
+                        atom_a_idx=inter_dict['atom_a_idx'],
+                        atom_b_name=inter_dict['atom_b_name'],
+                        atom_b_idx=inter_dict['atom_b_idx'],
+                        distance=inter_dict['distance'],
+                        angle=inter_dict['angle'],
+                        details=details,
+                        objs=inter_dict['objs'],
+                    ))
+
+        # Update interactions
+        self.interactions['metal'] = confirmed
+        self.interactions['metal_possible'] = possible
+
+        if possible:
+            logger.info(f'  Metal geometry analysis: {len(confirmed)} confirmed, '
+                       f'{len(possible)} moved to possible (geometry mismatch)')
 
     def _get_atom_name(self, atom_info) -> str:
         """Get atom name from OBAtom"""

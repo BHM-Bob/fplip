@@ -78,6 +78,12 @@ WATER_BRIDGE_OMEGA_MIN = 71  # Min. angle between acceptor, water oxygen and don
 WATER_BRIDGE_OMEGA_MAX = 140  # Max. angle between acceptor, water oxygen and donor hydrogen (Jiang et al., 2005)
 WATER_BRIDGE_THETA_MIN = 100  # Min. angle between water oxygen, donor hydrogen and donor atom (Jiang et al., 2005)
 METAL_DIST_MAX = 3.0  # Max. distance between metal ion and interacting atom (Harding, 2001)
+METAL_DIST_MAX_ZN = 2.5  # Metal-specific max distance for Zn (tighter, avoids false positives with transition metals)
+METAL_DIST_MAX_MG = 2.5  # Metal-specific max distance for Mg (tighter, avoids false positives with transition metals)
+METAL_DIST_MAX_FE = 2.5  # Metal-specific max distance for Fe (tighter, avoids false positives with transition metals)
+METAL_DIST_MAX_K = 3.2  # Metal-specific max distance for K (looser, avoids false negatives for larger K+ ion)
+METAL_GEOM_RMS_MAX = 25.0  # Max RMS deviation for metal coordination geometry matching (degrees)
+METAL_GEOM_ANGLE_TOL = 30.0  # Angle tolerance for geometry matching (degrees)
 
 # Other thresholds
 MAX_COMPOSITE_LENGTH = 200  # Filter out ligands with more than 200 fragments
