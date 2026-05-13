@@ -284,6 +284,7 @@ class TrajectoryAnalyzer:
             'pication': [],
             'halogen': [],
             'metal': [],
+            'metal_possible': [],
             'water_bridge': [],
             'water_bridge_possible': [],
         }
@@ -295,6 +296,8 @@ class TrajectoryAnalyzer:
         self.detector._remove_duplicates()
         self.detector._remove_subring_duplicates()
         self.detector._refine_hbonds()
+        self.detector._refine_hydrophobic()
+        self.detector._analyze_metal_geometry()
         self.detector._detect_water_bridges()
         self.detector._detect_water_bridges_plip_style()
 
