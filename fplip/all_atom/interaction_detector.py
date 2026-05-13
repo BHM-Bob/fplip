@@ -2113,6 +2113,67 @@ class UnifiedInteractionDetector:
         if possible_hbonds:
             logger.info(f'  Refined H-bonds: {len(confirmed_hbonds)} confirmed, {len(possible_hbonds)} possible')
 
+    def _refine_hydrophobic(self):
+        """Refine hydrophobic interactions by stacking exclusion and nearest distance selection.
+
+        1. Stacking exclusion: Remove hydrophobic interactions between atoms that belong to
+           pi-stacking rings. When two aromatic rings form a pi-stacking interaction, the
+           hydrophobic contacts between their ring atoms are chemically redundant - the
+           pi-stacking already captures the aromatic interaction. Keeping both would
+           double-count the same physical phenomenon.
+
+        2. Nearest distance refinement: For each pair of residues, keep only the closest
+           hydrophobic interaction. This removes redundant hydrophobic contacts between
+           the same residue pair (e.g., multiple CH2 groups from the same side chain
+           contacting the same ligand atom), reporting only the strongest contact.
+        """
+        hydrophobic = self.interactions.get('hydrophobic', [])
+        if not hydrophobic:
+            return
+
+        pistacking = self.interactions.get('pistacking', [])
+
+        # Step 1: Collect all atoms involved in pi-stacking rings
+        stacked_ring_atoms = set()
+        for ps in pistacking:
+            ring_a_atoms = ps.details.get('ring_a_atoms', [])
+            ring_b_atoms = ps.details.get('ring_b_atoms', [])
+            stacked_ring_atoms.update(ring_a_atoms)
+            stacked_ring_atoms.update(ring_b_atoms)
+
+        # Step 2: Filter out hydrophobic interactions where both atoms are in pi-stacking rings
+        if stacked_ring_atoms:
+            filtered = []
+            for h in hydrophobic:
+                atom_a_idx = h.atom_a_idx
+                atom_b_idx = h.atom_b_idx
+                if atom_a_idx in stacked_ring_atoms and atom_b_idx in stacked_ring_atoms:
+                    continue
+                filtered.append(h)
+        else:
+            filtered = hydrophobic
+
+        if not filtered:
+            self.interactions['hydrophobic'] = filtered
+            return
+
+        # Step 3: Keep only the closest hydrophobic interaction per residue pair
+        best_per_pair = {}
+        for h in filtered:
+            res_a = (h.res_a_name, h.res_a_chain, h.res_a_num)
+            res_b = (h.res_b_name, h.res_b_chain, h.res_b_num)
+            key = (min(res_a, res_b), max(res_a, res_b))
+            distance = h.distance
+            if key not in best_per_pair or distance < best_per_pair[key][0]:
+                best_per_pair[key] = (distance, h)
+
+        refined = [h[1] for h in best_per_pair.values()]
+
+        if len(refined) < len(filtered):
+            logger.info(f'  Refined hydrophobic: {len(refined)} (removed {len(filtered) - len(refined)} redundant)')
+
+        self.interactions['hydrophobic'] = refined
+
     def _get_atom_name(self, atom_info) -> str:
         """Get atom name from OBAtom"""
         residue = atom_info.obatom.GetResidue()
