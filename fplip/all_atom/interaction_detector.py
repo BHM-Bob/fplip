@@ -109,6 +109,9 @@ class UnifiedInteractionDetector:
         # Refine hydrogen bonds (filter by salt bridges and duplicate donors)
         self._refine_hbonds()
 
+        # Refine hydrophobic interactions (stacking exclusion and nearest distance)
+        self._refine_hydrophobic()
+
         # Detect water bridges (H-bond based)
         self._detect_water_bridges(verbose)
 
@@ -226,6 +229,24 @@ class UnifiedInteractionDetector:
 
         # Pre-compute HBA mask
         self._hba_mask = self._create_atom_mask([atom.idx for atom in self._all_hba])
+
+        # Pre-compute HBA Y atom coordinates and hybridization for acceptor angle checking
+        self._hba_y_coords = None
+        self._hba_hybridization = None
+        if self._all_hba:
+            y_coords_list = []
+            hyb_list = []
+            for hba in self._all_hba:
+                y_idx = self.atom_props.hbond_acceptor_y_atoms.get(hba.idx)
+                if y_idx is not None:
+                    y_atom = self.atom_container[y_idx]
+                    y_coords_list.append(y_atom.coords)
+                else:
+                    # Fallback: use acceptor's own position (angle check will be skipped)
+                    y_coords_list.append(hba.coords)
+                hyb_list.append(self.atom_props.hbond_acceptor_hybridization.get(hba.idx, 3))
+            self._hba_y_coords = np.array(y_coords_list, dtype=np.float64)
+            self._hba_hybridization = np.array(hyb_list, dtype=np.int32)
 
         # Pre-compute all_hbd donor coordinates for _detect_hbonds_without_h Case 2
         # Extract donor atoms (first element of each tuple) from all_hbd
@@ -619,7 +640,7 @@ class UnifiedInteractionDetector:
         # Compute H-A distance from vec_ha_sparse (reusing the vector, no extra cdist needed)
         dist_ah_sparse = np.linalg.norm(vec_ha_sparse, axis=1)  # [N]
 
-        # Compute angles using dot product (only for sparse pairs)
+        # Compute donor angles using dot product (only for sparse pairs)
         norm_hd_sparse = np.linalg.norm(vec_hd_sparse, axis=1)  # [N]
         norm_ha_sparse = dist_ah_sparse  # Reuse H-A distance as norm of vec_ha_sparse
 
@@ -627,21 +648,71 @@ class UnifiedInteractionDetector:
         norm_hd_safe = np.where(norm_hd_sparse == 0, 1, norm_hd_sparse)
         norm_ha_safe = np.where(norm_ha_sparse == 0, 1, norm_ha_sparse)
 
-        # Dot product
+        # Dot product for donor angle (D-H···A)
         dot_product_sparse = np.sum(vec_ha_sparse * vec_hd_sparse, axis=1)  # [N]
 
         cos_angle_sparse = dot_product_sparse / (norm_hd_safe * norm_ha_safe)
         cos_angle_sparse = np.clip(cos_angle_sparse, -1.0, 1.0)  # Clip to avoid numerical errors
         angle_sparse = np.degrees(np.arccos(cos_angle_sparse))  # [N]
 
-        # Filter by angle criteria
+        # Filter by donor angle criteria
         angle_mask_sparse = angle_sparse > config.HBOND_DON_ANGLE_MIN
 
-        # Get final valid indices
+        # Get final valid indices after donor angle filter
         valid_pair_indices = pair_indices[angle_mask_sparse]
         valid_acc_indices = acc_indices[angle_mask_sparse]
         valid_angles = angle_sparse[angle_mask_sparse]
         valid_dist_ah = dist_ah_sparse[angle_mask_sparse]
+
+        if len(valid_pair_indices) == 0:
+            return
+
+        # Acceptor angle calculation (H···A-Y)
+        # For each valid pair, compute the angle between H->A vector and A->Y vector
+        # Y is the atom covalently bonded to the acceptor
+        if self._hba_y_coords is not None:
+            # Get Y atom coordinates for the valid acceptor indices
+            y_coords_sparse = self._hba_y_coords[valid_acc_indices]  # [N, 3]
+            hyb_sparse = self._hba_hybridization[valid_acc_indices]  # [N]
+
+            # Vector from A to H (reverse of vec_ha)
+            vec_ah_sparse = -vec_ha_sparse[angle_mask_sparse]  # [N, 3]
+            # Vector from A to Y
+            vec_ay_sparse = y_coords_sparse - acc_coords[valid_acc_indices]  # [N, 3]
+
+            # Compute acceptor angle
+            norm_ah_sparse = np.linalg.norm(vec_ah_sparse, axis=1)
+            norm_ay_sparse = np.linalg.norm(vec_ay_sparse, axis=1)
+
+            norm_ah_safe = np.where(norm_ah_sparse == 0, 1, norm_ah_sparse)
+            norm_ay_safe = np.where(norm_ay_sparse == 0, 1, norm_ay_sparse)
+
+            dot_acc_sparse = np.sum(vec_ah_sparse * vec_ay_sparse, axis=1)
+            cos_acc_sparse = dot_acc_sparse / (norm_ah_safe * norm_ay_safe)
+            cos_acc_sparse = np.clip(cos_acc_sparse, -1.0, 1.0)
+            acc_angle_sparse = np.degrees(np.arccos(cos_acc_sparse))  # [N]
+
+            # Apply hybridization-specific acceptor angle thresholds
+            # sp2 acceptors (e.g., C=O carbonyl): H···A-Y > 90°
+            # sp3 acceptors (e.g., -OH hydroxyl): H···A-Y > 100°
+            # Default: H···A-Y > 90°
+            acc_angle_mask = np.ones(len(acc_angle_sparse), dtype=bool)
+            sp3_mask = hyb_sparse == 3
+            sp2_mask = hyb_sparse == 2
+            acc_angle_mask[sp3_mask] = acc_angle_sparse[sp3_mask] > config.HBOND_ACC_ANGLE_SP3_MIN
+            acc_angle_mask[sp2_mask] = acc_angle_sparse[sp2_mask] > config.HBOND_ACC_ANGLE_SP2_MIN
+            # Default (sp, unknown): use default threshold
+            default_mask = ~(sp3_mask | sp2_mask)
+            acc_angle_mask[default_mask] = acc_angle_sparse[default_mask] > config.HBOND_ACC_ANGLE_MIN
+
+            # Apply acceptor angle filter
+            valid_pair_indices = valid_pair_indices[acc_angle_mask]
+            valid_acc_indices = valid_acc_indices[acc_angle_mask]
+            valid_angles = valid_angles[acc_angle_mask]
+            valid_dist_ah = valid_dist_ah[acc_angle_mask]
+
+        if len(valid_pair_indices) == 0:
+            return
 
         # Process only valid pairs
         for i, (pair_idx, acc_idx) in enumerate(zip(valid_pair_indices, valid_acc_indices)):
@@ -655,6 +726,14 @@ class UnifiedInteractionDetector:
             dist_ad = dist_ad_matrix[pair_idx, acc_idx]
             dist_ah = valid_dist_ah[i]
             angle = valid_angles[i]
+
+            # Three-level strength classification
+            if dist_ad < config.HBOND_STRONG_DIST and angle > config.HBOND_STRONG_ANGLE:
+                htype = 'strong'
+            elif dist_ad < config.HBOND_MODERATE_DIST and angle > config.HBOND_MODERATE_ANGLE:
+                htype = 'moderate'
+            else:
+                htype = 'weak'
 
             interaction = Interaction(
                 type='hbond',
@@ -674,7 +753,7 @@ class UnifiedInteractionDetector:
                     'h_atom': h_atom.atom_name,
                     'h_idx': h_atom.idx,
                     'dist_ah': dist_ah,
-                    'type': 'strong' if dist_ad < 3.2 and angle > 140 else 'weak',
+                    'type': htype,
                     'donor_idx': donor.idx,
                     'acceptor_idx': hba.idx
                 },

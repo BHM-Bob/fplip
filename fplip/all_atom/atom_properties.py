@@ -59,6 +59,12 @@ class AtomProperties:
         # halogen_acceptor_y_atoms: acceptor_idx -> y_atom_idx (Y atom bonded to acceptor, Y in C,N,P,S)
         self.halogen_donor_c_atoms: Dict[int, int] = {}
         self.halogen_acceptor_y_atoms: Dict[int, int] = {}
+
+        # Pre-computed Y atoms and hybridization for H-bond acceptor angle checking
+        # hbond_acceptor_y_atoms: acceptor_idx -> y_atom_idx (atom covalently bonded to acceptor)
+        # hbond_acceptor_hybridization: acceptor_idx -> hybridization (2 for sp2, 3 for sp3)
+        self.hbond_acceptor_y_atoms: Dict[int, int] = {}
+        self.hbond_acceptor_hybridization: Dict[int, int] = {}
         
         # Initialize
         self._identify_all_properties()
@@ -128,6 +134,9 @@ class AtomProperties:
             ## so here only pass when atom is MDWAtomInfo OR fallback to OpenBabel check if AtomInfo
             if (atom._TYPE == 'MDWAtomInfo' and atom.atomic_num == 8) or obatom.IsHbondAcceptor():
                 self.hbond_acceptors.add(atom.idx)
+                # Pre-compute Y atom and hybridization for acceptor angle checking
+                if atom._TYPE != 'MDWAtomInfo':
+                    self._precompute_acceptor_y_atom(atom)
             
             # Check if atom is H-bond donor
             if (atom._TYPE == 'MDWAtomInfo' and atom.atomic_num == 8) or obatom.IsHbondDonor():
@@ -145,6 +154,27 @@ class AtomProperties:
                 # Fallback: For PDB files without hydrogens, identify potential donors
                 # N-H and O-H groups where hydrogens are not explicitly present
                 self._identify_potential_donors(atom)
+    
+    def _precompute_acceptor_y_atom(self, atom):
+        """Pre-compute the Y atom (covalently bonded heavy atom) for an H-bond acceptor.
+        
+        The Y atom defines the direction of the acceptor's lone pair for H···A-Y angle calculation.
+        For sp2 acceptors (e.g., carbonyl C=O), the lone pair is perpendicular to the A-Y bond,
+        so H···A-Y > 90° is expected.
+        For sp3 acceptors (e.g., hydroxyl -OH), the lone pair follows tetrahedral geometry,
+        so H···A-Y > 100° is expected.
+        
+        Uses the first non-H neighbor as the Y atom. In the vast majority of biological cases,
+        acceptors have exactly one heavy atom neighbor (e.g., C=O, C-O-H, C=N, etc.).
+        """
+        y_atom_idx = None
+        for neighbor in pybel.ob.OBAtomAtomIter(atom.obatom):
+            if neighbor.GetAtomicNum() != 1:  # Skip hydrogens
+                y_atom_idx = neighbor.GetIdx()
+                self.hbond_acceptor_y_atoms[atom.idx] = y_atom_idx
+                # Store hybridization: GetHyb() returns 1(sp), 2(sp2), 3(sp3)
+                self.hbond_acceptor_hybridization[atom.idx] = atom.obatom.GetHyb()
+                break
     
     def _identify_potential_donors(self, atom):
         """

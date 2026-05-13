@@ -50,6 +50,15 @@ MIN_DIST = 0.5  # Minimum distance for all distance thresholds
 HYDROPH_DIST_MAX = 4.0  # Distance cutoff for detection of hydrophobic contacts
 HBOND_DIST_MAX = 4.1  # Max. distance between hydrogen bond donor and acceptor (Hubbard & Haider, 2001) + 0.6 A
 HBOND_DON_ANGLE_MIN = 100  # Min. angle at the hydrogen bond donor (Hubbard & Haider, 2001) + 10
+HBOND_ACC_ANGLE_MIN = 90  # Default min. angle at the H-bond acceptor (H···A-Y)
+HBOND_ACC_ANGLE_SP2_MIN = 90  # Min. angle for sp2 hybridized acceptors (e.g., C=O carbonyl)
+HBOND_ACC_ANGLE_SP3_MIN = 100  # Min. angle for sp3 hybridized acceptors (e.g., -OH hydroxyl)
+
+# H-bond strength classification thresholds (three-level system)
+HBOND_STRONG_DIST = 2.8  # Max D-A distance for strong H-bonds
+HBOND_STRONG_ANGLE = 150  # Min D-H···A angle for strong H-bonds
+HBOND_MODERATE_DIST = 3.3  # Max D-A distance for moderate H-bonds
+HBOND_MODERATE_ANGLE = 120  # Min D-H···A angle for moderate H-bonds
 PISTACK_DIST_MAX = 5.5  # Max. distance for parallel or offset pistacking (McGaughey, 1998)
 PISTACK_ANG_DEV = 30  # Max. Deviation from parallel or perpendicular orientation (in degrees)
 PISTACK_OFFSET_MAX = 2.0  # Maximum offset of the two rings (corresponds to the radius of benzene + 0.5 A)
