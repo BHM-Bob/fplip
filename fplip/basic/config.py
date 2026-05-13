@@ -69,6 +69,11 @@ PICATION_OFFSET_MAX = 1.5  # Pi-cation offset threshold (stricter than pi-stacki
 PICATION_OFFSET_STRONG = 1.0  # Offset below which pi-cation is classified as strong
 SALTBRIDGE_DIST_MAX = 5.5  # Max. distance between centers of charge for salt bridges (Barlow and Thornton, 1983) + 1.5
 HALOGEN_DIST_MAX = 4.0  # Max. distance between oxy. and halogen (Halogen bonds in biological molecules., Auffinger)+0.5
+HALOGEN_DIST_MAX_I = 4.0  # Halogen-specific max distance for Iodine
+HALOGEN_DIST_MAX_BR = 3.8  # Halogen-specific max distance for Bromine
+HALOGEN_DIST_MAX_CL = 3.5  # Halogen-specific max distance for Chlorine
+# Fluorine is excluded as halogen bond donor (too weak, high false positive rate),
+# but allowed as halogen bond acceptor (F as halogen bond acceptor is common in biological systems)
 HALOGEN_ACC_ANGLE = 120  # Optimal acceptor angle (Halogen bonds in biological molecules., Auffinger)
 HALOGEN_DON_ANGLE = 165  # Optimal donor angle (Halogen bonds in biological molecules., Auffinger)
 HALOGEN_ANGLE_DEV = 30  # Max. deviation from optimal angle

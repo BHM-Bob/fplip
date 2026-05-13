@@ -1354,7 +1354,8 @@ class UnifiedInteractionDetector:
         Optimized: Uses vectorized distance calculation to filter pairs before angle calculation.
         
         Halogen bond criteria:
-        - Distance: X···O < HALOGEN_DIST_MAX
+        - Distance: halogen-specific thresholds (I: 4.0 Å, Br: 3.8 Å, Cl: 3.5 Å)
+        - F is excluded as halogen bond donor (too weak, high false positive rate)
         - Donor angle: C-X···O > HALOGEN_DON_ANGLE - HALOGEN_ANGLE_DEV
         - Acceptor angle: Y-O···X within HALOGEN_ACC_ANGLE ± HALOGEN_ANGLE_DEV
         """
@@ -1367,6 +1368,13 @@ class UnifiedInteractionDetector:
         acceptor_coords = self._all_halogen_acceptor_coords
         donor_coords = self._all_halogen_donor_coords
         
+        # Halogen-specific distance thresholds
+        HALOGEN_DIST_THRESHOLDS = {
+            'I': config.HALOGEN_DIST_MAX_I,
+            'Br': config.HALOGEN_DIST_MAX_BR,
+            'Cl': config.HALOGEN_DIST_MAX_CL,
+        }
+        
         # Case 1: Residue is donor
         if residue.halogen_donors and all_acceptors and len(acceptor_coords) > 0:
             res_donor_coords = np.array([donor.coords for donor, _ in residue.halogen_donors])
@@ -1374,8 +1382,8 @@ class UnifiedInteractionDetector:
             # Vectorized distance calculation using cdist
             dist_matrix = cdist(res_donor_coords, acceptor_coords)
             
-            # Find pairs within distance threshold
-            valid_mask = (dist_matrix > config.MIN_DIST) & (dist_matrix < config.HALOGEN_DIST_MAX)
+            # Use most permissive threshold for initial vectorized filter
+            valid_mask = (dist_matrix > config.MIN_DIST) & (dist_matrix < config.HALOGEN_DIST_MAX_I)
             valid_indices = np.argwhere(valid_mask)
             
             for i, j in valid_indices:
@@ -1386,7 +1394,15 @@ class UnifiedInteractionDetector:
                 if self._should_skip_interaction(residue, donor, acc):
                     continue
                 
+                # Skip F as halogen bond donor
+                if htype == 'F':
+                    continue
+                
+                # Apply halogen-specific distance threshold
+                dist_threshold = HALOGEN_DIST_THRESHOLDS.get(htype, config.HALOGEN_DIST_MAX)
                 distance = float(dist_matrix[i, j])
+                if distance >= dist_threshold:
+                    continue
                 
                 # Calculate both angles
                 don_angle, acc_angle = self._get_halogen_bond_angles(donor, acc)
@@ -1433,8 +1449,8 @@ class UnifiedInteractionDetector:
             # Vectorized distance calculation using cdist
             dist_matrix = cdist(res_acceptor_coords, donor_coords)
             
-            # Find pairs within distance threshold
-            valid_mask = (dist_matrix > config.MIN_DIST) & (dist_matrix < config.HALOGEN_DIST_MAX)
+            # Use most permissive threshold for initial vectorized filter
+            valid_mask = (dist_matrix > config.MIN_DIST) & (dist_matrix < config.HALOGEN_DIST_MAX_I)
             valid_indices = np.argwhere(valid_mask)
             
             for i, j in valid_indices:
@@ -1445,7 +1461,15 @@ class UnifiedInteractionDetector:
                 if self._should_skip_interaction(residue, acc, donor):
                     continue
                 
+                # Skip F as halogen bond donor
+                if htype == 'F':
+                    continue
+                
+                # Apply halogen-specific distance threshold
+                dist_threshold = HALOGEN_DIST_THRESHOLDS.get(htype, config.HALOGEN_DIST_MAX)
                 distance = float(dist_matrix[i, j])
+                if distance >= dist_threshold:
+                    continue
                 
                 # Calculate both angles
                 don_angle, acc_angle = self._get_halogen_bond_angles(donor, acc)
@@ -1462,28 +1486,28 @@ class UnifiedInteractionDetector:
                     if not (config.HALOGEN_ACC_ANGLE - config.HALOGEN_ANGLE_DEV < acc_angle <
                             config.HALOGEN_ACC_ANGLE + config.HALOGEN_ANGLE_DEV):
                         continue
-                    
-                    interaction = Interaction(
-                        type='halogen',
-                        res_a_name=acc.resname,
-                        res_a_chain=acc.chain,
-                        res_a_num=acc.resnum,
-                        res_b_name=donor.resname,
-                        res_b_chain=donor.chain,
-                        res_b_num=donor.resnum,
-                        atom_a_name=acc.atom_name,
-                        atom_a_idx=acc.idx,
-                        atom_b_name=donor.atom_name,
-                        atom_b_idx=donor.idx,
-                        distance=distance,
-                        angle=don_angle,
-                        details={
-                            'halogen_type': htype,
-                            'don_angle': don_angle,
-                            'acc_angle': acc_angle
-                        }
-                    )
-                    self.interactions['halogen'].append(interaction)
+                
+                interaction = Interaction(
+                    type='halogen',
+                    res_a_name=acc.resname,
+                    res_a_chain=acc.chain,
+                    res_a_num=acc.resnum,
+                    res_b_name=donor.resname,
+                    res_b_chain=donor.chain,
+                    res_b_num=donor.resnum,
+                    atom_a_name=acc.atom_name,
+                    atom_a_idx=acc.idx,
+                    atom_b_name=donor.atom_name,
+                    atom_b_idx=donor.idx,
+                    distance=distance,
+                    angle=don_angle,
+                    details={
+                        'halogen_type': htype,
+                        'don_angle': don_angle,
+                        'acc_angle': acc_angle
+                    }
+                )
+                self.interactions['halogen'].append(interaction)
     
     def _detect_metal(self, residue: Residue):
         """Detect metal complexation using vectorized distance calculation.
