@@ -552,7 +552,9 @@ class UnifiedInteractionDetector:
                 atom_b_idx=atom_b.idx,
                 distance=dist_matrix_hydrophobic[i, j],
                 angle=None,
-                details={}
+                details={
+                    'strength': 'strong' if dist_matrix_hydrophobic[i, j] < config.HYDROPH_DIST_STRONG else 'moderate'
+                }
             )
             self.interactions['hydrophobic'].append(interaction)
     
