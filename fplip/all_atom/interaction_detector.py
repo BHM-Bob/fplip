@@ -1159,9 +1159,10 @@ class UnifiedInteractionDetector:
 
         Geometric criteria:
         - Distance: < PICATION_DIST_MAX (6.0 Å)
-        - Offset: < PISTACK_OFFSET_MAX (2.0 Å)
+        - Offset: < PICATION_OFFSET_MAX (1.5 Å)
           Offset is the distance from the projection of the charge onto the ring plane
           to the ring center. This ensures the charge is positioned above the ring face.
+        - Strength classification: offset < PICATION_OFFSET_STRONG (1.0 Å) → 'strong'
         
         Optimized: Uses pre-computed data and vectorized numpy operations
         for distance and offset calculations.
@@ -1216,8 +1217,11 @@ class UnifiedInteractionDetector:
                     proj = pos_atom.coords - proj_dist * ring['normal']
                     offset = np.linalg.norm(proj - ring['center'])
                     
-                    if offset >= config.PISTACK_OFFSET_MAX:
+                    if offset >= config.PICATION_OFFSET_MAX:
                         continue
+                    
+                    # Strength classification based on offset
+                    strength = 'strong' if offset < config.PICATION_OFFSET_STRONG else 'moderate'
                     
                     interaction = Interaction(
                         type='pication',
@@ -1233,7 +1237,7 @@ class UnifiedInteractionDetector:
                         atom_b_idx=pos_atom.idx,
                         distance=distance,
                         angle=None,
-                        details={'ring_center': ring['center'], 'offset': float(offset)}
+                        details={'ring_center': ring['center'], 'offset': float(offset), 'strength': strength}
                     )
                     self.interactions['pication'].append(interaction)
         
