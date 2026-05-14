@@ -4,20 +4,13 @@ import logging
 
 def get_logger():
     """
-    Configures a base logger and returns a module-specific sub-logger of the calling module.
+    Return a module‑specific logger for the caller.
+    No handlers are added – the caller may configure them as they wish.
     """
-    frame = inspect.stack()[1]
-    module_name = inspect.getmodule(frame[0]).__name__
-    if module_name != '__main__':
-        logger = logging.getLogger(module_name)
-        if not logger.parent.handlers:
-            ch = logging.StreamHandler()
-            formatter = logging.Formatter('%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] %(name)s: %(message)s')
-            ch.setFormatter(formatter)
-            logger.parent.addHandler(ch)
-    else:
-        logger = logging.getLogger('plip')
-
+    name = inspect.getmodule(inspect.stack()[1]).__name__
+    logger = logging.getLogger(name if name != '__main__' else 'fplip')
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
     return logger
 
 logger = get_logger()
