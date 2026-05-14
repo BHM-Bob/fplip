@@ -1,14 +1,14 @@
-recursive-include plip *.py
-recursive-include plip *.pyx
-recursive-include plip *.pxd
+recursive-include fplip *.py
+recursive-include fplip *.pyx
+recursive-include fplip *.pxd
 include *.txt
 include *.md
 include LICENSE.txt
-prune plip/test
+prune fplip/test
 prune test
 prune docs
 prune build
 prune dist
-include plip/all_atom/visualization/templates/*.html
-include plip/all_atom/visualization/static/css/*.css
-include plip/all_atom/visualization/static/js/*.js
+include fplip/all_atom/visualization/templates/*.html
+include fplip/all_atom/visualization/static/css/*.css
+include fplip/all_atom/visualization/static/js/*.js
