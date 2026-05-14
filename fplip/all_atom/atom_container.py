@@ -81,8 +81,23 @@ class AtomInfo:
         # Everything else is considered a ligand
         return "ligand"
     
+    def __le__(self, other: 'AtomInfo') -> bool:
+        return self.idx <= other.idx
+    
+    def __lt__(self, other: 'AtomInfo') -> bool:
+        return self.idx < other.idx
+    
+    def __gt__(self, other: 'AtomInfo') -> bool:
+        return self.idx > other.idx
+    
+    def __ge__(self, other: 'AtomInfo') -> bool:
+        return self.idx >= other.idx
+    
+    def __eq__(self, other: 'AtomInfo') -> bool:
+        return self.idx == other.idx
+    
     def __repr__(self):
-        return f"AtomInfo(idx={self.idx}, orig_idx={self.orig_idx}, {self.resname}:{self.chain}:{self.resnum})"
+        return f"AtomInfo(idx={self.idx}, orig_idx={self.orig_idx}, {self.resname}:{self.chain}:{self.resnum}:{self.atom_name})"
 
 
 class MDWAtomInfo(AtomInfo):
