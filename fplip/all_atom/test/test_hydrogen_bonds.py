@@ -164,11 +164,19 @@ class AllAtomHydrogenBondTest(unittest.TestCase):
         Note: This test uses NOHYDRO=False, which allows OpenBabel to automatically
         add hydrogen atoms. Due to the nature of OpenBabel's hydrogen addition
         algorithm, the results can be non-deterministic, leading to varying
-        numbers of hydrogen bonds (17-18 in optimized version vs 16-17 in original).
+        numbers of hydrogen bonds.
 
-        The optimized version uses vectorized distance calculations which may
-        detect slightly different binding site atoms compared to the original
-        two-step filtering approach (residue-based then atom-based).
+        Attribution for Update (Positively Charged N Filter):
+        1. LYS NZ and ARG NE/NH1/NH2 atoms are now correctly marked as positively charged
+        2. Positively charged N atoms cannot be H-bond acceptors (no lone pairs available)
+        3. This reduces the number of possible H-bonds significantly
+        4. The change reflects chemically correct behavior, not a regression
+        5. In 4dst, LYS16, LYS147, and several ARG residues lose their acceptor capability
+
+        Attribution for Previous Update (Scheme B - Unified Charge Detection):
+        1. LYS NZ atoms are now correctly marked as 'ammonium' instead of 'tertamine'
+        2. This leads to more accurate salt bridge identification
+        3. Salt bridges filter out H-bonds where donor/acceptor atoms are involved
 
         Note on all-atom vs main PLIP behavior:
         - See test_4dst_deterministic_protonation for detailed explanation.
@@ -182,11 +190,28 @@ class AllAtomHydrogenBondTest(unittest.TestCase):
             # some ligand-receptor H-bonds may be marked as "possible" when the same donor
             # has stronger H-bonds to other protein residues. This is expected behavior.
             # The exact numbers may vary due to OpenBabel's non-deterministic protonation.
-            # Expected range: confirmed=12-14, possible=14-18, total=26-32
+            #
+            # Original expectations (before any updates):
+            # - confirmed=12-14, possible=14-18, total=26-32
+            #
+            # After Scheme B (unified charge detection):
+            # - confirmed=12-14, possible=14-18, total=26-32 (unchanged)
+            #
+            # Updated expectations after positively charged N filter:
+            # - confirmed=10-11: Slightly reduced due to improved charge detection
+            # - possible=9: Significantly reduced (was 14-18) due to positively charged N filter
+            # - total=19-20: Reduced from 26-32 due to chemically correct acceptor filtering
+            #
+            # Change breakdown:
+            # - Original total: 26-32 (confirmed 12-14 + possible 14-18)
+            # - New total: 19-21 (confirmed 10-11 + possible 9)
+            # - Reduction: ~7-11 H-bonds lost due to positively charged N filter
             total = confirmed + possible
-            self.assertTrue(26 <= total <= 32,
-                          f"Expected 26-32 total hydrogen bonds, got {total} "
-                          f"({confirmed} confirmed + {possible} possible)")
+            self.assertTrue(19 <= total <= 21,
+                          f"Expected 19-21 total hydrogen bonds, got {total} "
+                          f"({confirmed} confirmed + {possible} possible). "
+                          f"The reduction is due to positively charged Lys/Arg N atoms "
+                          f"no longer being H-bond acceptors.")
 
     def test_4dst_deterministic_protonation(self):
         """Test hydrogen bond detection with pre-protonated structure.
@@ -206,27 +231,29 @@ class AllAtomHydrogenBondTest(unittest.TestCase):
 
         Expected Results for 4dst_protonated.pdb with GCP:A:202:
         - Confirmed H-bonds (ligand-protein): 11
-          (Updated from 13 after unified charge detection in Scheme B.
-           LYS ammonium detection improvement leads to more accurate
-           salt bridge identification (GCP-LYS16, GCP-LYS147) and H-bond refinement.
-           Some H-bonds are filtered due to salt bridge involvement.)
-        - Possible H-bonds (ligand-protein): 18
-          (Updated from 16 after unified charge detection in Scheme B.
-           More H-bonds are now correctly identified and refined.
-           These include H-bonds filtered by salt bridge detection and
-           weaker H-bonds from donors with multiple interactions.)
-        - Total ligand-protein H-bonds: 29
+          (Unchanged from previous update. Salt bridge detection still filters
+           some H-bonds involving GCP-LYS16 and GCP-LYS147.)
+        - Possible H-bonds (ligand-protein): 9
+          (Updated from 18 after positively charged N filter.
+           LYS NZ and ARG NE/NH1/NH2 atoms are no longer H-bond acceptors.)
+        - Total ligand-protein H-bonds: 20
+          (Updated from 29 due to chemically correct acceptor filtering.)
         - Main PLIP count: 16 (doesn't detect protein-protein interactions)
 
-        Attribution for Update (Scheme B - Unified Charge Detection):
+        Attribution for Update (Positively Charged N Filter):
+        1. LYS NZ and ARG NE/NH1/NH2 atoms are now correctly marked as positively charged
+        2. Positively charged N atoms cannot be H-bond acceptors (no lone pairs available)
+        3. In 4dst_protonated.pdb, this affects:
+           - LYS:A:16 NZ, LYS:A:147 NZ (ammonium groups)
+           - Multiple ARG residues (NE, NH1, NH2 in guanidinium groups)
+        4. The reduction in possible H-bonds (18 -> 9) reflects chemically correct behavior
+        5. This is not a regression but an improvement in chemical accuracy
+
+        Attribution for Previous Update (Scheme B - Unified Charge Detection):
         1. LYS NZ atoms are now correctly marked as 'ammonium' instead of 'tertamine',
            leading to more accurate salt bridge detection (GCP-LYS16, GCP-LYS147).
         2. Salt bridges filter out H-bonds where donor/acceptor atoms are
-           involved in the salt bridge, reducing confirmed count from 13 to 11.
-        3. More comprehensive detection of possible H-bonds reflects all-atom's
-           goal of providing complete interaction information.
-        4. The change in counts reflects improved chemical accuracy in charge
-           detection, not a regression in detection capability.
+           involved in the salt bridge.
 
         Note: The numbers reflect ligand-protein interactions only (water excluded).
         The "possible" H-bonds include those filtered by salt bridge detection
@@ -242,17 +269,33 @@ class AllAtomHydrogenBondTest(unittest.TestCase):
             # This is expected all-atom behavior - it provides comprehensive
             # information about all potential interactions in the system.
             #
-            # Updated expectations after Scheme B (unified charge detection):
+            # Original expectations (before any updates):
+            # - confirmed=13, possible=16, total=29
+            #
+            # After Scheme B (unified charge detection):
             # - confirmed=11 (was 13): Improved salt bridge detection filters some H-bonds
             # - possible=18 (was 16): More comprehensive detection of possible interactions
             # - total=29 (unchanged): Overall detection accuracy maintained
+            #
+            # Updated expectations after positively charged N filter:
+            # - confirmed=11 (unchanged): Salt bridge detection still filters same H-bonds
+            # - possible=9 (was 18): Significantly reduced due to positively charged N filter
+            # - total=20 (was 29): Reduced due to chemically correct acceptor filtering
+            #
+            # Change breakdown:
+            # - Original total: 29 (confirmed 13 + possible 16)
+            # - After Scheme B: 29 (confirmed 11 + possible 18)
+            # - After N filter: 20 (confirmed 11 + possible 9)
+            # - Total reduction: 9 H-bonds lost due to positively charged N filter
             total = confirmed + possible
             self.assertEqual(confirmed, 11,
                            f"Expected 11 confirmed hydrogen bonds, got {confirmed}")
-            self.assertEqual(possible, 18,
-                           f"Expected 18 possible hydrogen bonds, got {possible}")
-            self.assertEqual(total, 29,
-                           f"Expected 29 total hydrogen bonds, got {total}")
+            self.assertEqual(possible, 9,
+                           f"Expected 9 possible hydrogen bonds, got {possible}. "
+                           f"The reduction from 18 is due to positively charged Lys/Arg N atoms "
+                           f"no longer being H-bond acceptors.")
+            self.assertEqual(total, 20,
+                           f"Expected 20 total hydrogen bonds, got {total}")
 
     def test_no_protonation(self):
         """Test ligand-donated hydrogen bonds with pre-protonated structure.
@@ -268,28 +311,30 @@ class AllAtomHydrogenBondTest(unittest.TestCase):
 
         Expected Results for 1x0n_state_1.pdb with DTF:A:174:
         - Confirmed H-bonds (ligand-protein): 3
-          (Updated from 7 after unified charge detection in Scheme B.
-           Improved salt bridge detection (ARG67-DTF, ARG86-DTF, HIS107-DTF)
-           leads to more H-bonds being filtered or marked as "possible".
-           The 3 confirmed H-bonds are the strongest ones per donor after
-           salt bridge filtering and donor uniqueness enforcement.)
-        - Possible H-bonds (ligand-protein): 8
-          (Updated from 4 after unified charge detection in Scheme B.
-           More H-bonds are now correctly identified and refined.
-           These include H-bonds filtered by salt bridge detection and
-           weaker H-bonds from donors with multiple interactions.)
-        - Total ligand-protein H-bonds: 11
+          (Unchanged from previous update. Salt bridge detection still filters
+           H-bonds involving ARG67-DTF, ARG86-DTF, HIS107-DTF.)
+        - Possible H-bonds (ligand-protein): 1
+          (Updated from 8 after positively charged N filter.
+           LYS NZ and ARG NE/NH1/NH2 atoms are no longer H-bond acceptors.
+           This significantly reduces possible H-bonds involving these residues.)
+        - Total ligand-protein H-bonds: 4
+          (Updated from 11 due to chemically correct acceptor filtering.)
 
-        Attribution for Update (Scheme B - Unified Charge Detection):
+        Attribution for Update (Positively Charged N Filter):
+        1. LYS NZ and ARG NE/NH1/NH2 atoms are now correctly marked as positively charged
+        2. Positively charged N atoms cannot be H-bond acceptors (no lone pairs available)
+        3. In 1x0n_state_1.pdb, this affects multiple ARG residues:
+           - ARG:A:67 (NE, NH1, NH2)
+           - ARG:A:86 (NE, NH1, NH2)
+           - Other ARG residues in the binding site
+        4. The reduction in possible H-bonds (8 -> 1) reflects chemically correct behavior
+        5. This is not a regression but an improvement in chemical accuracy
+
+        Attribution for Previous Update (Scheme B - Unified Charge Detection):
         1. Improved guanidinium detection in ARG residues leads to more accurate
            salt bridge identification (ARG67-DTF, ARG86-DTF).
         2. Salt bridges filter out H-bonds where donor/acceptor atoms are
-           involved in the salt bridge, reducing confirmed count from 7 to 3.
-        3. More comprehensive detection of possible H-bonds reflects all-atom's
-           goal of providing complete interaction information.
-        4. The change from 7 confirmed to 3 confirmed is due to improved
-           salt bridge detection and stricter refinement, not a loss of
-           detection capability.
+           involved in the salt bridge.
 
         Note: The exact numbers reflect all-atom's comprehensive interaction
         detection and may differ from main PLIP which only considers
@@ -301,10 +346,25 @@ class AllAtomHydrogenBondTest(unittest.TestCase):
         total = confirmed + possible
 
         # Expected values for 1x0n_state_1.pdb with DTF:A:174
-        # Updated after Scheme B (unified charge detection):
+        #
+        # Original expectations (before any updates):
+        # - confirmed=7, possible=4, total=11
+        #
+        # After Scheme B (unified charge detection):
         # - confirmed=3 (was 7): Improved salt bridge detection filters more H-bonds
         # - possible=8 (was 4): More comprehensive detection of possible interactions
         # - total=11 (unchanged): Overall detection accuracy maintained
+        #
+        # Updated after positively charged N filter:
+        # - confirmed=3 (unchanged): Salt bridge detection still filters same H-bonds
+        # - possible=1 (was 8): Significantly reduced due to positively charged N filter
+        # - total=4 (was 11): Reduced due to chemically correct acceptor filtering
+        #
+        # Change breakdown:
+        # - Original total: 11 (confirmed 7 + possible 4)
+        # - After Scheme B: 11 (confirmed 3 + possible 8)
+        # - After N filter: 4 (confirmed 3 + possible 1)
+        # - Total reduction: 7 H-bonds lost due to positively charged N filter
         #
         # Salt bridges affecting refinement:
         # - ARG67 <-> DTF174
@@ -312,10 +372,12 @@ class AllAtomHydrogenBondTest(unittest.TestCase):
         # - HIS107 <-> DTF174
         self.assertEqual(confirmed, 3,
                         f"Expected 3 confirmed hydrogen bonds, got {confirmed}")
-        self.assertEqual(possible, 8,
-                        f"Expected 8 possible hydrogen bonds, got {possible}")
-        self.assertEqual(total, 11,
-                        f"Expected 11 total hydrogen bonds, got {total}")
+        self.assertEqual(possible, 1,
+                        f"Expected 1 possible hydrogen bond, got {possible}. "
+                        f"The reduction from 8 is due to positively charged Lys/Arg N atoms "
+                        f"no longer being H-bond acceptors.")
+        self.assertEqual(total, 4,
+                        f"Expected 4 total hydrogen bonds, got {total}")
 
 
 if __name__ == '__main__':
