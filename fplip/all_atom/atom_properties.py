@@ -76,10 +76,11 @@ class AtomProperties:
         """Identify all atom properties"""
         logger.info('Identifying atom properties...')
 
-        self._identify_hbond_properties()
-        self._identify_hydrophobic()
+        # Charges must be identified first to filter pos_charged atoms from hbond acceptors
         self._identify_rings()  # Rings before charges to provide imidazolium info
-        self._identify_charges()  # Charges after rings to use imidazolium data
+        self._identify_charges()  # Charges before hbond to filter pos_charged from acceptors
+        self._identify_hbond_properties()  # H-bond after charges to use pos_charged filter
+        self._identify_hydrophobic()
         self._identify_metals()
         self._identify_halogen()
         
@@ -132,7 +133,10 @@ class AtomProperties:
             ## MDWAtomInfo is a water mol, it's O atom can be both H-bond acceptor and donor
             ## check MDWAtomInfo first as fast-path for MDWAtomInfo, H atom already filtered out
             ## so here only pass when atom is MDWAtomInfo OR fallback to OpenBabel check if AtomInfo
-            if (atom._TYPE == 'MDWAtomInfo' and atom.atomic_num == 8) or obatom.IsHbondAcceptor():
+            ## CRITICAL: Skip atoms that are positively charged (e.g., Lys NZ, Arg NE/NH1/NH2, His ND1/NE2)
+            ## Positively charged N atoms cannot be H-bond acceptors (no lone pairs available)
+            is_acceptor = (atom._TYPE == 'MDWAtomInfo' and atom.atomic_num == 8) or obatom.IsHbondAcceptor()
+            if is_acceptor and atom.idx not in self.pos_charged:
                 self.hbond_acceptors.add(atom.idx)
                 # Pre-compute Y atom and hybridization for acceptor angle checking
                 if atom._TYPE != 'MDWAtomInfo':
