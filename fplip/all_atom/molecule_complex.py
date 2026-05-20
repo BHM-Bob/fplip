@@ -8,7 +8,7 @@ role (protein, ligand, DNA/RNA, etc.)
 
 import os
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import polars as pl
@@ -33,7 +33,12 @@ class MoleculeComplex:
     with their residue and chain information.
     """
     
-    def __init__(self):
+    def __init__(self, cfg_kwgs: Dict[str, Any] = None):
+        # set config inner fplip
+        if cfg_kwgs:
+            for k, v in cfg_kwgs.items():
+                setattr(config, k, v)
+        
         # Source information
         self.pdb_path: Optional[str] = None
         self.pdb_id: str = "Unknown"
