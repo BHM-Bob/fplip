@@ -10,7 +10,7 @@ from fplip.all_atom.atom_container import AtomContainer, AtomInfo
 from fplip.all_atom.atom_properties import AtomProperties
 from fplip.all_atom.interaction_catalog import InteractionCatalog
 from fplip.all_atom.interaction_detector import (Interaction,
-                                                UnifiedInteractionDetector)
+                                                 UnifiedInteractionDetector)
 from fplip.all_atom.molecule_complex import MoleculeComplex
 from fplip.all_atom.residue import Residue
 from fplip.all_atom.simple_report import SimpleReport
@@ -27,10 +27,10 @@ __all__ = [
     'SimpleReport',
 ]
 
-def _analyze_complex(pdb_file: str):
+def _analyze_complex(pdb_file: str, as_string: bool = False):
     """Helper method to analyze a PDB file."""
     mol = MoleculeComplex()
-    mol.load_pdb(pdb_file)
+    mol.load_pdb(pdb_file, as_string=as_string)
     props = AtomProperties(mol.atom_container)
     detector = UnifiedInteractionDetector(mol.atom_container, props, mol.residues)
     interactions = detector.detect_all()
