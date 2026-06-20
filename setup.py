@@ -74,12 +74,12 @@ def read_readme():
 
 setup(
     name='fplip',
-    version='1.0.0',
-    description='FPLIP - Fast and Full atom Protein-Ligand Interaction Profiler',
+    version='1.0.2',
+    description='FPLIP - Fast and All atom Protein-Ligand Interaction Profiler',
     long_description=read_readme(),
     long_description_content_type='text/markdown',
     classifiers=[
-        'Development Status :: 0 - Alpha',
+        'Development Status :: 4 - Beta',
         'Intended Audience :: Science/Research',
         'Natural Language :: English',
         'License :: OSI Approved :: GNU General Public License v2 (GPLv2)',
@@ -104,7 +104,7 @@ setup(
     install_requires=[
         'numpy',
         'lxml',
-        'openbabel',  # Now available as standard package
+        # 'openbabel',  # Allow user to install openbabel_wheel or openbabel
     ],
     extras_require={
         'cython': ['cython>=0.29.0'],  # Optional for performance
