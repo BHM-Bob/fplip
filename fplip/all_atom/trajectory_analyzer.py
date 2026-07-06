@@ -4,19 +4,24 @@ Trajectory Analyzer Module
 Provides fast trajectory analysis using MDAnalysis for coordinate loading
 and OpenBabel for interaction detection.
 """
+import gzip
+import pickle
 from collections import defaultdict
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 import numpy as np
+import polars as pl
 from lazydock.gmx.mda.utils import filter_atoms_by_chains
+from mbapy import opts_file
 from MDAnalysis import Universe
 from scipy.spatial import cKDTree
 from scipy.spatial.distance import cdist
 from tqdm import tqdm
 
 from fplip.all_atom.atom_container import MDWAtomInfo
-from fplip.all_atom.interaction_detector import UnifiedInteractionDetector
+from fplip.all_atom.interaction_detector import (Interaction,
+                                                 UnifiedInteractionDetector)
 from fplip.all_atom.molecule_complex import MoleculeComplex
 from fplip.all_atom.residue import Residue
 from fplip.basic import config
@@ -32,6 +37,21 @@ class TrajectoryAnalyzer:
     4. Rapidly updating coordinates for each frame (fast)
     """
 
+    COLS = [
+            'type',              # Interaction type
+            'res_a_name',        # Residue A name
+            'res_a_chain',       # Residue A chain
+            'res_a_num',         # Residue A number
+            'res_b_name',        # Residue B name
+            'res_b_chain',       # Residue B chain
+            'res_b_num',         # Residue B number
+            'atom_a_name',       # Atom A name
+            'atom_a_idx',        # Atom A index
+            'atom_b_name',       # Atom B name
+            'atom_b_idx',        # Atom B index
+            'distance',          # Distance
+            'angle',             # Angle (if applicable))
+        ]
     def __init__(
         self,
         tpr_file: str,
@@ -66,6 +86,11 @@ class TrajectoryAnalyzer:
         self.kdtree: Optional[cKDTree] = None
         self._aligned = False
         self._detector_precomputed = False
+        
+        # result storage
+        self.df = None
+        self.df_pack = {key: [] for key in ['idx', 'frame'] + self.COLS}
+        self.detail_pack = {}
 
     def load_universe(self):
         """Load MDA Universe from GROMACS files."""
@@ -464,6 +489,40 @@ class TrajectoryAnalyzer:
             "matched_atoms": matched,
             "unmatched_atoms": total - matched
         }
+        
+    def add_record(self, inter_data: Dict[str, Interaction], frame: int,
+                   exclude_types: List[str] = ['hbond_possible', 'water_bridge_possible']):
+        def compress(data):
+            data = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
+            return gzip.compress(data)
+
+        for h_type in ['hbond', 'hbond_possible']:
+            for i in range(len(inter_data[h_type])):
+                for key in ['donor', 'acceptor', 'h_atom']:
+                    inter_data[h_type][i].objs[key] = str(inter_data[h_type][i].objs[key])
+        for inter_type in inter_data:
+            if inter_type in exclude_types:
+                continue
+            for inter_value in inter_data[inter_type]:
+                idx = len(self.df_pack['idx'])
+                self.df_pack['idx'].append(idx)
+                self.df_pack['frame'].append(frame)
+                self.detail_pack[idx] = compress(inter_value.details)
+                for key in self.COLS:
+                    self.df_pack[key].append(getattr(inter_value, key))
+                    
+    def save_records(self, path: str):
+        """Save records to a parquet file and a pickle file for details.
+
+        Parameters
+        ----------
+        path : str
+            Path to the parquet file to save
+        """
+        self.df = pl.DataFrame(self.df_pack)
+        self.df.write_parquet(str(Path(path).with_suffix('.parquet')))
+        opts_file(str(Path(path).with_suffix('.pkl')), 'wb', way='pkl',
+                  data=self.detail_pack, kwgs={'protocol': pickle.HIGHEST_PROTOCOL})
 
 
 if __name__ == "__main__":
