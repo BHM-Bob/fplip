@@ -1,6 +1,6 @@
 # FPLIP - Fast and Full atom Protein-Ligand Interaction Profiler
 
-> A comprehensively restructured and enhanced protein-ligand interaction analysis tool based on PLIP, providing a performance-optimized PLIP-compatible mode and a brand new All-Atom full-atom detection mode.
+> A comprehensively restructured and enhanced protein-ligand interaction analysis tool based on PLIP, providing a performance-optimized PLIP-compatible mode and a brand new All-Atom  detection mode.
 
 [中文文档](README_CN.md)
 
@@ -8,13 +8,13 @@
 
 ## Overview
 
-FPLIP builds upon PLIP's core functionality with the following major improvements:
+FPLIP builds upon [PLIP](https://github.com/pharmai/plip)'s core functionality with the following major improvements:
 
 ### 1. Performance Optimization
 - **OpenBabel C-object property pre-extraction optimization**: Eliminates repeated Python-C boundary crossing by caching OBAtom properties in Python data structures
 - **Vectorized distance calculation**: Uses scipy distance matrices and numpy array operations instead of pairwise loops
 - **Cython-accelerated PDB parser**: Direct byte array manipulation with pre-compiled lookup tables
-- **Cuda-accelerated interaction detection**: in-development
+- **Cuda-accelerated interaction detection**: Support CuPy or PyTorch backend and parallel GPU computation for MD trajectory
 
 ### 2. All-Atom Module (New)
 - **Full-atom interaction detection**: No distinction between ligand/receptor; detects all interactions in molecular complexes
@@ -24,7 +24,7 @@ FPLIP builds upon PLIP's core functionality with the following major improvement
   - Intra-protein interactions
   - Intra-ligand interactions (intramolecular H-bonds, etc.)
   - Protein-water, ligand-water, water-water interactions
-  - Reamin competitive with DNA/RNA detection
+  - Reamin compatible with DNA/RNA detection
 - **Chemistry-topology-based charge detection**: Unified handling of chemical groups in both proteins and ligands instead of residue-type-based detection in PLIP
 - **Hydrogen bond-based water bridge detection**: Detects water-water interactions based on hydrogen bonds
 - **Smart self-filtering**: Protein residues filter internal interactions; ligands retain intramolecular interactions
