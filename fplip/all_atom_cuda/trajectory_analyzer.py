@@ -4,20 +4,27 @@ Trajectory Analyzer Module
 Provides fast trajectory analysis using MDAnalysis for coordinate loading
 and OpenBabel for interaction detection.
 """
-import sys
+import signal
+import time
+from multiprocessing import Queue
 from pathlib import Path
-sys.path.insert(0, str((Path(__file__).parent / '../..').resolve()))
-
-from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from threading import Lock, Thread
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+from lazydock.gmx.mda.convert import FakeAtomGroup
+from mbapy import TaskPool
+from MDAnalysis import Universe
+from tqdm import tqdm
 
 from fplip.all_atom.trajectory_analyzer import \
     TrajectoryAnalyzer as _TrajectoryAnalyzer
 from fplip.all_atom_cuda.backend import ComputeBackend
-from fplip.all_atom_cuda.cuda_detector import CudaInteractionDetector
+from fplip.all_atom_cuda.cuda_detector import (CudaInteractionDetector,
+                                               Interaction)
+from fplip.all_atom_cuda.cupy_backend import CuPyBackend
 from fplip.all_atom_cuda.numpy_backend import NumPyBackend
+from fplip.all_atom_cuda.torch_backend import TorchBackend
 from fplip.basic import config
 from fplip.basic.logger import logger
 
@@ -39,6 +46,8 @@ class TrajectoryAnalyzer(_TrajectoryAnalyzer):
         ----------
         atom_props : AtomProperties, optional
             AtomProperties instance (created if not provided)
+        backend : ComputeBackend, optional
+            Compute backend instance, choose from NumPyBackend, TorchBackend and CuPyBackend
         """
         if self.mol is None:
             raise RuntimeError("Molecule not loaded. Call load_molecule() first.")
@@ -218,6 +227,197 @@ class TrajectoryAnalyzer(_TrajectoryAnalyzer):
         self.detector.atom_container.remain_atom_idxs_set = set(self.detector.atom_container.remain_atom_idxs)
         return {"total": len(self.water_residues), "filtered": filtered, "kept": kept}
 
+
+_mp_frame_que = None
+_mp_result_que = None
+
+def _mp_init(frame_que: Queue, result_que: Queue):
+    global _mp_frame_que, _mp_result_que
+    _mp_frame_que = frame_que
+    _mp_result_que = result_que
+    # in gsd, it registers a sys.exit handler to catch SIGTERM
+    # but it causes an abnormal quit process, so we disable it
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+                
+def _analyzer_server(analyzer: TrajectoryAnalyzer,
+                    init_opts: List[Tuple[str, Callable, List[Any]]],
+                    filter_waters: float = 5,
+                    detect_water_bridges_plip_style: bool = True):        
+    def update_data(analyzer: TrajectoryAnalyzer, mda_coords: np.ndarray):
+        analyzer.detector.update_coords(mda_coords)
+        if filter_waters is not None:
+            analyzer.filter_distant_waters(distance_threshold=filter_waters)
+        analyzer.detector._precompute_cached_data()
+        
+    for fn_name, args in init_opts:
+        if fn_name == "setup_detector":
+            if args[1] == 'cupy':
+                analyzer.setup_detector(atom_props=args[0], backend=CuPyBackend())
+            elif args[1] == 'torch':
+                analyzer.setup_detector(atom_props=args[0], backend=TorchBackend())
+            elif args[1] == 'numpy':
+                analyzer.setup_detector(atom_props=args[0], backend=NumPyBackend())
+            else:
+                analyzer.setup_detector(*args)
+        else:
+            getattr(analyzer, fn_name)(*args)
+
+    while True:
+        frame_idx, mda_coords = _mp_frame_que.get()
+        if frame_idx == -1:
+            analyzer.detector.backend.free_mem()
+            return
+        update_data(analyzer, mda_coords)
+        interactions = analyzer.detect_all(detect_water_bridges_plip_style)
+        # del objs to avoid Swig obj serialization error
+        for inter_data in interactions['hbond'] + interactions['hbond_possible']:
+            for atom in ['donor', 'h_atom', 'acceptor']:
+                inter_data.objs[atom] = None
+        _mp_result_que.put((frame_idx, interactions))
+
+class FakeUniverse:
+    def __init__(self, universe: Universe):
+        self.atoms = FakeAtomGroup(universe.atoms)
+        self.trajectory = np.zeros(len(universe.trajectory))
+
+class TrajectoryParallelAnalyzer(TrajectoryAnalyzer):
+    def __init__(
+        self,
+        n_workers: int,
+        tpr_file: str,
+        xtc_file: str,
+        gro_file: Optional[str] = None,
+        pdb_str: Optional[str] = None,
+        tolerance: float = 1e-4
+    ):
+        super().__init__(tpr_file, xtc_file, gro_file, pdb_str, tolerance)
+        if n_workers <= 0 or not isinstance(n_workers, int):
+            raise ValueError("n_workers must be greater than 0 and an integer value.")
+        self.n_workers = n_workers
+        self.analyzers: list[TrajectoryAnalyzer] = [
+            TrajectoryAnalyzer(tpr_file, xtc_file, gro_file, pdb_str, tolerance)
+            for _ in range(n_workers)
+        ]
+        self._init_opts: List[Tuple[str, Callable, List[Any]]] = []
+        self.read_lock = Lock()
+        
+    def load_universe(self):
+        super().load_universe()
+        # init workers with same MDA universe
+        for i in range(self.n_workers):
+            if self.gro_file:
+                self.analyzers[i].u = self.u
+                self.analyzers[i].u2 = self.u2
+                self.analyzers[i].u.atoms.residues.resids = self.analyzers[i].u2.atoms.residues.resids  # pyright: ignore[reportAttributeAccessIssue]
+            else:
+                self.analyzers[i].u = self.u
+                
+    def transfer_unverse(self):
+        for i in range(self.n_workers):
+            if self.gro_file:
+                self.analyzers[i].u = FakeUniverse(self.u) # type: ignore
+                self.analyzers[i].u2 = FakeUniverse(self.u2) # type: ignore
+            else:
+                self.analyzers[i].u = FakeUniverse(self.u) # type: ignore
+    
+    def load_molecule(self, pdb_str: str, as_string: bool = True, fix_pdb: bool = True):
+        self._init_opts.append(("load_molecule", [pdb_str, as_string, fix_pdb]))
+            
+    def load_waters(self, water_chain: Union[str, List[str]]):
+        self._init_opts.append(("load_waters", [water_chain]))
+            
+    def align_with_mda(self, frame: int = 0):
+        self._init_opts.append(("align_with_mda", [frame]))
+            
+    def setup_detector(self, atom_props=None, backend: Optional[ComputeBackend] = None):
+        self.backend = backend if backend is not None else TorchBackend()
+        self._init_opts.append(("setup_detector", [atom_props, backend.name if backend else None]))
+            
+    def precompute_detector_once(self):
+        self._init_opts.append(("precompute_detector_once", []))
+            
+    def _task_server(self, frame_indices: List[int], frame_que: Queue):
+        for frame_idx in frame_indices:
+            # submit task till all worker are busy
+            # use 2 * self.n_workers as task buffer to avoid worker is not busy
+            self.u.trajectory[frame_idx]
+            frame_que.put((frame_idx, self.u.atoms.positions.copy()))
+            while frame_que.qsize() > 2 * self.n_workers:
+                time.sleep(0.01)
+            
+    def iterate_frames_parallel(self, start: int = 0,
+                                stop: Optional[int] = None,
+                                step: int = 1,
+                                filter_waters: Optional[float] = 5,
+                                detect_water_bridges_plip_style: bool = False,
+                                verbose: bool = False):
+        """Iterate over frames and detect interactions.
+
+        Parameters
+        ----------
+        start : int
+            Starting frame index
+        stop : int, optional
+            Stopping frame index (exclusive)
+        step : int
+            Frame step
+        filter_waters : float, optional
+            Filter waters with radius less than this value
+        detect_water_bridges_plip_style : bool, optional
+            Whether to detect water bridges in PLIP style
+        verbose : bool
+            Whether to show progress bars for each frame
+
+        Yields
+        ------
+        Tuple[int, Dict[str, List]]
+            (frame_index, interactions_dict) for each frame
+        """
+        # if self.detector is None:
+        #     raise RuntimeError("Detector not setup. Call setup_detector() first.")
+        # init task pool
+        frame_que, result_que = Queue(), Queue()
+        pool = TaskPool('process', self.n_workers, report_error=True,
+                        mp_pool_init_kwargs={'initializer': _mp_init,
+                                             'initargs': (frame_que, result_que)}).start()
+        for analyzer in self.analyzers:
+            pool.add_task(None, _analyzer_server, analyzer, self._init_opts,
+                          filter_waters, detect_water_bridges_plip_style)
+        # start processing frames
+        frame_indices = list(range(start, stop or len(self.u.trajectory), step))
+        task_server = Thread(target=self._task_server, args=(frame_indices, frame_que))
+        task_server.start()
+        for i in tqdm(frame_indices, desc="Processing frames", disable=not verbose):
+            # check result, if has one, yield it
+            frame_idx, interactions = result_que.get()
+            # clean up after last frame
+            if i == frame_indices[-1]:
+                for _ in range(self.n_workers):
+                    frame_que.put((-1, None))
+                pool.wait_till_free()
+                task_server.join()
+                pool.close(1)
+                self.backend.free_mem()
+            # yield result
+            yield frame_idx, interactions
+
+
+def set_chainIDs_from_segids_map(analyzer: Union[TrajectoryAnalyzer, TrajectoryParallelAnalyzer],
+                                 segid2chain: Dict[str, str]) -> Union[TrajectoryAnalyzer, TrajectoryParallelAnalyzer]:
+    '''
+    设置AtomGroup的chainIDs
+
+    Args:
+        analyzer (TrajectoryAnalyzer | TrajectoryParallelAnalyzer): 原始TrajectoryAnalyzer
+        segid2chain (Dict[str, str]): segid到chain的映射关系
+    Returns:
+        TrajectoryAnalyzer | TrajectoryParallelAnalyzer: 设置后的TrajectoryAnalyzer
+    '''
+    chainIDs = analyzer.u.atoms.chainIDs
+    for segid, chain in segid2chain.items():
+        chainIDs[np.isin(analyzer.u.atoms.segids, [segid])] = chain
+    analyzer.u.atoms.chainIDs = chainIDs
+    return analyzer
 
 if __name__ == "__main__":
     from lazydock.gmx.mda.utils import filter_atoms_by_chains
