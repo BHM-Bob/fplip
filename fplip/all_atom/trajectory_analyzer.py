@@ -521,6 +521,7 @@ class TrajectoryAnalyzer:
         start: int = 0,
         stop: Optional[int] = None,
         step: int = 1,
+        filter_waters: Optional[float] = 5,
         verbose: bool = False,
         verbose2: bool = False,
         progress_callback: Optional[Callable[[int, Dict], None]] = None
@@ -553,7 +554,7 @@ class TrajectoryAnalyzer:
         frame_indices = list(range(start, stop or len(self.u.trajectory), step))
         self.precompute_detector_once()
         for frame_idx in tqdm(frame_indices, desc="Processing frames", disable=not verbose):
-            interactions = self.detect_frame_fast(frame_idx, verbose=verbose2)
+            interactions = self.detect_frame_fast(frame_idx, filter_waters=filter_waters, verbose=verbose2)
             if progress_callback:
                 progress_callback(frame_idx, interactions)
             yield frame_idx, interactions
