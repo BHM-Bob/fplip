@@ -73,15 +73,12 @@ __all__ = [
 ]
 
 
-def _analyze_complex(pdb_file: str, backend=None):
+def _analyze_complex(pdb_file: str, as_string: bool = False, backend=None):
     """Helper method to analyze a PDB file with optional GPU acceleration."""
     mol = MoleculeComplex()
-    mol.load_pdb(pdb_file)
+    mol.load_pdb(pdb_file, as_string=as_string)
     props = AtomProperties(mol.atom_container)
-    if backend is not None:
-        detector = CudaInteractionDetector(mol.atom_container, props, mol.residues, backend=backend)
-    else:
-        detector = CudaInteractionDetector(mol.atom_container, props, mol.residues)
+    detector = CudaInteractionDetector(mol.atom_container, props, mol.residues, backend=backend)
     interactions = detector.detect_all()
     return interactions, mol, props
 
