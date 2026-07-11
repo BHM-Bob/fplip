@@ -25,6 +25,7 @@ from fplip.all_atom.interaction_detector import (Interaction,
 from fplip.all_atom.molecule_complex import MoleculeComplex
 from fplip.all_atom.residue import Residue
 from fplip.basic import config
+from fplip.exchange.tar import append_to_tar, read_from_tar
 
 
 class TrajectoryAnalyzer:
@@ -52,6 +53,76 @@ class TrajectoryAnalyzer:
             'distance',          # Distance
             'angle',             # Angle (if applicable))
         ]
+
+    HYDROPHOBIC_COLS = [
+            'strength',
+        ]
+
+    HBOND_COLS = [
+            'h_atom',
+            'h_idx',
+            'dist_ah',
+            'type',
+            'donor_idx',
+            'acceptor_idx',
+        ]
+
+    HBOND_HEAVY_ATOM_COLS = [
+            'type',
+            'note',
+            'donor_idx',
+            'acceptor_idx',
+        ]
+
+    SALTBRIDGE_COLS = [
+            'charge_type',
+            'positive_atoms',
+            'negative_atoms',
+            'positive_group_key',
+            'negative_group_key',
+        ]
+
+    PISTACKING_COLS = [
+            'type',
+            'offset',
+            'ring_center',
+            'ring_a_atoms',
+            'ring_b_atoms',
+        ]
+
+    PICATION_COLS = [
+            'ring_center',
+            'offset',
+            'strength',
+        ]
+
+    HALOGEN_COLS = [
+            'halogen_type',
+            'don_angle',
+            'acc_angle',
+        ]
+
+    METAL_COLS = [
+        ]
+
+    WATER_BRIDGE_COLS = [
+            'water_residue',
+            'water_atom_idx',
+            'distance_aw',
+            'distance_bw',
+        ]
+
+    WATER_BRIDGE_POSSIBLE_COLS = [
+            'distance_aw',
+            'distance_dw',
+            'd_angle',
+            'w_angle',
+            'water_residue',
+            'water_atom_idx',
+            'is_donor_a',
+            'protisdon',
+        ]
+
     def __init__(
         self,
         tpr_file: str,
@@ -81,6 +152,7 @@ class TrajectoryAnalyzer:
         self.tolerance = tolerance
 
         self.u: Optional[Universe] = None
+        self.u2: Optional[Universe] = None
         self.mol: Optional[MoleculeComplex] = None
         self.detector: Optional[UnifiedInteractionDetector] = None
         self.kdtree: Optional[cKDTree] = None
@@ -90,7 +162,17 @@ class TrajectoryAnalyzer:
         # result storage
         self.df = None
         self.df_pack = {key: [] for key in ['idx', 'frame'] + self.COLS}
-        self.detail_pack = {}
+        self.detail_packs = {
+            'hydrophobic': {key: [] for key in ['idx', 'frame'] + self.HYDROPHOBIC_COLS},
+            'hbond': {key: [] for key in ['idx', 'frame'] + self.HBOND_COLS},
+            'hbond_heavy_atom': {key: [] for key in ['idx', 'frame'] + self.HBOND_HEAVY_ATOM_COLS},
+            'saltbridge': {key: [] for key in ['idx', 'frame'] + self.SALTBRIDGE_COLS},
+            'pistacking': {key: [] for key in ['idx', 'frame'] + self.PISTACKING_COLS},
+            'pication': {key: [] for key in ['idx', 'frame'] + self.PICATION_COLS},
+            'halogen': {key: [] for key in ['idx', 'frame'] + self.HALOGEN_COLS},
+            'water_bridge': {key: [] for key in ['idx', 'frame'] + self.WATER_BRIDGE_COLS},
+            'water_bridge_possible': {key: [] for key in ['idx', 'frame'] + self.WATER_BRIDGE_POSSIBLE_COLS},
+        }
 
     def load_universe(self):
         """Load MDA Universe from GROMACS files."""
@@ -498,14 +580,7 @@ class TrajectoryAnalyzer:
         
     def add_record(self, inter_data: Dict[str, Interaction], frame: int,
                    exclude_types: List[str] = ['hbond_possible', 'water_bridge_possible']):
-        def compress(data):
-            data = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
-            return gzip.compress(data)
 
-        for h_type in ['hbond', 'hbond_possible']:
-            for i in range(len(inter_data[h_type])):
-                for key in ['donor', 'acceptor', 'h_atom']:
-                    inter_data[h_type][i].objs[key] = str(inter_data[h_type][i].objs[key])
         for inter_type in inter_data:
             if inter_type in exclude_types:
                 continue
@@ -513,22 +588,74 @@ class TrajectoryAnalyzer:
                 idx = len(self.df_pack['idx'])
                 self.df_pack['idx'].append(idx)
                 self.df_pack['frame'].append(frame)
-                self.detail_pack[idx] = compress(inter_value.details)
                 for key in self.COLS:
                     self.df_pack[key].append(getattr(inter_value, key))
+                if inter_type != 'metal' and inter_type in self.detail_packs:
+                    detail_pack = self.detail_packs[inter_type]
+                    detail_pack['idx'].append(idx)
+                    detail_pack['frame'].append(frame)
+                    for col in detail_pack.keys():
+                        if col not in ('idx', 'frame'):
+                            detail_pack[col].append(inter_value.details.get(col, None))
                     
-    def save_records(self, path: str):
-        """Save records to a parquet file and a pickle file for details.
+    def save_records(self, path: str = 'fplip.tar'):
+        """Save all records (main + per-type details) into a single TAR file.
+
+        The TAR archive contains one Snappy-compressed Parquet entry per table:
+          - ``main``          the primary interaction table
+          - ``detail_<type>`` one detail table per interaction type, even if
+                              the table is empty (so the schema stays stable).
 
         Parameters
         ----------
-        path : str
-            Path to the parquet file to save
+        path : str, default 'fplip.tar'
+            Path to the output TAR file. The path is used as-is, no suffix
+            is added automatically.
         """
         self.df = pl.DataFrame(self.df_pack)
-        self.df.write_parquet(str(Path(path).with_suffix('.parquet')))
-        opts_file(str(Path(path).with_suffix('.pkl')), 'wb', way='pkl',
-                  data=self.detail_pack, kwgs={'protocol': pickle.HIGHEST_PROTOCOL})
+        append_to_tar(path, 'main', self.df, mode='w')
+        for inter_type, detail_pack in self.detail_packs.items():
+            detail_df = pl.DataFrame(detail_pack)
+            append_to_tar(path, f'detail_{inter_type}', detail_df, mode='a')
+
+    def read_records(self, path: str = 'fplip.tar'):
+        """Read all tables from a TAR archive and populate the analyzer state.
+
+        Populates ``self.df``, ``self.df_pack`` and ``self.detail_packs``
+        (creating fresh empty structures for any detail type missing from the
+        archive so the object schema remains consistent).
+
+        Parameters
+        ----------
+        path : str, default 'fplip.tar'
+            Path to the TAR file written by :meth:`save_records`.
+
+        Returns
+        -------
+        TrajectoryAnalyzer
+            Returns ``self`` for method chaining.
+        """
+        tables = read_from_tar(path, name=None)
+
+        main_df = tables.get('main')
+        if main_df is None:
+            raise KeyError(f"'main' table not found in archive '{path}'.")
+        self.df = main_df
+        self.df_pack = {col: main_df[col].to_list() for col in main_df.columns}
+
+        for inter_type in self.detail_packs.keys():
+            detail_name = f'detail_{inter_type}'
+            detail_cols = ['idx', 'frame'] + getattr(self, f'{inter_type.upper()}_COLS')
+            if detail_name in tables:
+                detail_df = tables[detail_name]
+                self.detail_packs[inter_type] = {
+                    col: detail_df[col].to_list() if col in detail_df.columns else []
+                    for col in detail_cols
+                }
+            else:
+                self.detail_packs[inter_type] = {col: [] for col in detail_cols}
+
+        return self
 
 
 if __name__ == "__main__":
