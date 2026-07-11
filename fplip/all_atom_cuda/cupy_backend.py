@@ -196,3 +196,8 @@ class CuPyBackend(ComputeBackend):
         """Expand the shape of an array. Result stays on GPU."""
         arr = self.to_device(arr)
         return self._cp.expand_dims(arr, axis)
+
+    def free_mem(self):
+        """Free up memory on CUDA device."""
+        memory_pool = self._cp.get_default_memory_pool()
+        memory_pool.free_all_blocks()

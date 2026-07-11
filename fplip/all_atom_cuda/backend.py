@@ -396,3 +396,8 @@ class ComputeBackend(ABC):
     def is_gpu(self) -> bool:
         """Whether this backend runs on GPU."""
         pass
+
+    @abstractmethod
+    def free_mem(self):
+        """Free up memory on CUDA device."""
+        pass

@@ -414,3 +414,7 @@ class NumPyBackend(ComputeBackend):
         """
         arr = self.to_device(arr)
         return np.expand_dims(arr, axis)
+
+    def free_mem(self):
+        """Free up memory on CPU."""
+        pass

@@ -211,3 +211,7 @@ class TorchBackend(ComputeBackend):
         """Expand the shape of an array. Result stays on GPU."""
         arr = self.to_device(arr)
         return self._torch.unsqueeze(arr, dim=axis)
+
+    def free_mem(self):
+        """Free up memory on CUDA device."""
+        self._torch.cuda.empty_cache()
