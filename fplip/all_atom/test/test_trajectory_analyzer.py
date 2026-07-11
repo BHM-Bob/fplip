@@ -7,6 +7,9 @@ Tests for trajectory analysis functionality:
 - Interaction detection across frames
 """
 
+import os
+import random
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -161,6 +164,146 @@ class TrajectoryAnalyzerFunctionalTest(unittest.TestCase):
 
         saltbridge_count = len(interactions.get('saltbridge', []))
         self.assertGreaterEqual(saltbridge_count, 0)
+
+
+def _to_plain(x):
+    """Recursively convert numpy / nested values to plain Python types for comparison."""
+    if isinstance(x, np.ndarray):
+        return x.tolist()
+    if isinstance(x, list):
+        return [_to_plain(v) for v in x]
+    if isinstance(x, tuple):
+        return tuple(_to_plain(v) for v in x)
+    return x
+
+
+def _snapshot_packs(analyzer):
+    """Return deep plain snapshots of df_pack and detail_packs."""
+    df_snap = {k: [_to_plain(v) for v in lst] for k, lst in analyzer.df_pack.items()}
+    dt_snap = {
+        t: {k: [_to_plain(v) for v in lst] for k, lst in pack.items()}
+        for t, pack in analyzer.detail_packs.items()
+    }
+    return df_snap, dt_snap
+
+
+class TrajectoryAnalyzerSaveLoadTest(unittest.TestCase):
+    """Independent test class: verify save_records / read_records round-trip."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Build a fresh TrajectoryAnalyzer and process 10 frames."""
+        tpr = TEST_DATA_DIR / "pull/pull.tpr"
+        xtc = TEST_DATA_DIR / "pull/pull_center.xtc"
+        gro = TEST_DATA_DIR / "pull/pull.gro"
+
+        cls.analyzer = TrajectoryAnalyzer(tpr, xtc, gro, tolerance=1e-4)
+        cls.analyzer.load_universe()
+        cls.analyzer.u.trajectory[0]
+        converter = PDBConverter(cls.analyzer.u.atoms, reindex=False)
+        pdb_str = converter.fast_convert()
+        cls.analyzer.load_molecule(pdb_str, as_string=True)
+        cls.analyzer.align_with_mda(frame=0)
+        cls.analyzer.setup_detector()
+
+        for frame in range(10):
+            cls.analyzer.update_frame(frame)
+            interactions = cls.analyzer.detector.detect_all()
+            cls.analyzer.add_record(interactions, frame=frame)
+
+    def test_detail_row_count_matches_main(self):
+        """[A3] Cross-check: per-type detail row count == main table type row count."""
+        type_counts = {}
+        for t in self.analyzer.df_pack['type']:
+            type_counts[t] = type_counts.get(t, 0) + 1
+
+        for inter_type, pack in self.analyzer.detail_packs.items():
+            if inter_type == 'metal':
+                continue
+            expected = type_counts.get(inter_type, 0)
+            actual = len(pack['idx'])
+            self.assertEqual(
+                expected, actual,
+                f"detail_{inter_type}: rows {actual} != main table type rows {expected}"
+            )
+
+    def test_hbond_save_load_consistency(self):
+        """10 frames -> save tar -> load back; randomly sample 5 hbonds.
+
+        Checks (per sampled hbond record):
+          - main table: residue/atom A/B names, indices, distance, angle
+          - detail_hbond (joined by global idx): h_atom, h_idx, dist_ah,
+            type, donor_idx, acceptor_idx
+        """
+        orig_df, orig_dt = _snapshot_packs(self.analyzer)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tar_path = os.path.join(tmpdir, 'test_records.tar')
+            self.analyzer.save_records(tar_path)
+            self.analyzer.read_records(tar_path)
+
+        new_df, new_dt = _snapshot_packs(self.analyzer)
+
+        self.assertEqual(
+            len(orig_df['idx']), len(new_df['idx']),
+            "Main table total rows differ after save/load round-trip"
+        )
+
+        # --- [A3] cross-check after load ---
+        type_counts_after = {}
+        for t in new_df['type']:
+            type_counts_after[t] = type_counts_after.get(t, 0) + 1
+        for inter_type, pack in new_dt.items():
+            if inter_type == 'metal':
+                continue
+            expected = type_counts_after.get(inter_type, 0)
+            actual = len(pack['idx'])
+            self.assertEqual(
+                expected, actual,
+                f"[post-load] detail_{inter_type}: rows {actual} != main type rows {expected}"
+            )
+
+        # --- [A2] randomly sample 5 hbonds ---
+        hbond_positions = [i for i, t in enumerate(orig_df['type']) if t == 'hbond']
+        if len(hbond_positions) == 0:
+            self.skipTest("No hbond records found in 10 frames; cannot sample")
+
+        sample_size = min(5, len(hbond_positions))
+        sampled = random.sample(hbond_positions, sample_size)
+
+        # Pre-build: global_idx -> row offset in detail_hbond (for both snapshots)
+        orig_hbond_idx_to_pos = {idx: pos for pos, idx in enumerate(orig_dt['hbond']['idx'])}
+        new_hbond_idx_to_pos = {idx: pos for pos, idx in enumerate(new_dt['hbond']['idx'])}
+
+        main_cols = [
+            'res_a_name', 'res_a_chain', 'res_a_num',
+            'res_b_name', 'res_b_chain', 'res_b_num',
+            'atom_a_name', 'atom_a_idx',
+            'atom_b_name', 'atom_b_idx',
+            'distance', 'angle',
+        ]
+        detail_cols = [
+            'h_atom', 'h_idx', 'dist_ah', 'type',
+            'donor_idx', 'acceptor_idx',
+        ]
+
+        for pos in sampled:
+            for col in main_cols:
+                self.assertEqual(
+                    orig_df[col][pos], new_df[col][pos],
+                    f"main table col='{col}' mismatch at df row {pos}"
+                )
+
+            global_idx = orig_df['idx'][pos]
+            dpos_orig = orig_hbond_idx_to_pos[global_idx]
+            dpos_new = new_hbond_idx_to_pos[global_idx]
+
+            for col in detail_cols:
+                self.assertEqual(
+                    orig_dt['hbond'][col][dpos_orig],
+                    new_dt['hbond'][col][dpos_new],
+                    f"detail_hbond col='{col}' mismatch for global idx={global_idx}"
+                )
 
 
 if __name__ == '__main__':
