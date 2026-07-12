@@ -240,7 +240,7 @@ class TrajectoryAnalyzerSaveLoadTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             tar_path = os.path.join(tmpdir, 'test_records.tar')
             self.analyzer.save_records(tar_path)
-            self.analyzer.read_records(tar_path)
+            self.analyzer.read_records(tar_path, restore_dict=True)
 
         new_df, new_dt = _snapshot_packs(self.analyzer)
 
@@ -303,6 +303,59 @@ class TrajectoryAnalyzerSaveLoadTest(unittest.TestCase):
                     orig_dt['hbond'][col][dpos_orig],
                     new_dt['hbond'][col][dpos_new],
                     f"detail_hbond col='{col}' mismatch for global idx={global_idx}"
+                )
+
+    def test_hydrophobic_save_load_consistency(self):
+        """10 frames -> save tar -> load back; randomly sample 5 hydrophobic interactions.
+
+        Checks (per sampled hydrophobic record):
+          - main table: residue/atom A/B names, indices, distance
+          - detail_hydrophobic (joined by global idx): strength
+        """
+        orig_df, orig_dt = _snapshot_packs(self.analyzer)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tar_path = os.path.join(tmpdir, 'test_records.tar')
+            self.analyzer.save_records(tar_path)
+            self.analyzer.read_records(tar_path, restore_dict=True)
+
+        new_df, new_dt = _snapshot_packs(self.analyzer)
+
+        hydrophobic_positions = [i for i, t in enumerate(orig_df['type']) if t == 'hydrophobic']
+        if len(hydrophobic_positions) == 0:
+            self.skipTest("No hydrophobic records found in 10 frames; cannot sample")
+
+        sample_size = min(5, len(hydrophobic_positions))
+        sampled = random.sample(hydrophobic_positions, sample_size)
+
+        orig_hydrophobic_idx_to_pos = {idx: pos for pos, idx in enumerate(orig_dt['hydrophobic']['idx'])}
+        new_hydrophobic_idx_to_pos = {idx: pos for pos, idx in enumerate(new_dt['hydrophobic']['idx'])}
+
+        main_cols = [
+            'res_a_name', 'res_a_chain', 'res_a_num',
+            'res_b_name', 'res_b_chain', 'res_b_num',
+            'atom_a_name', 'atom_a_idx',
+            'atom_b_name', 'atom_b_idx',
+            'distance', 'angle',
+        ]
+        detail_cols = ['strength']
+
+        for pos in sampled:
+            for col in main_cols:
+                self.assertEqual(
+                    orig_df[col][pos], new_df[col][pos],
+                    f"main table col='{col}' mismatch at df row {pos}"
+                )
+
+            global_idx = orig_df['idx'][pos]
+            dpos_orig = orig_hydrophobic_idx_to_pos[global_idx]
+            dpos_new = new_hydrophobic_idx_to_pos[global_idx]
+
+            for col in detail_cols:
+                self.assertEqual(
+                    orig_dt['hydrophobic'][col][dpos_orig],
+                    new_dt['hydrophobic'][col][dpos_new],
+                    f"detail_hydrophobic col='{col}' mismatch for global idx={global_idx}"
                 )
 
 

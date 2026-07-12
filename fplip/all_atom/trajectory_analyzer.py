@@ -619,17 +619,21 @@ class TrajectoryAnalyzer:
             detail_df = pl.DataFrame(detail_pack)
             append_to_tar(path, f'detail_{inter_type}', detail_df, mode='a')
 
-    def read_records(self, path: str = 'fplip.tar'):
+    def read_records(self, path: str = 'fplip.tar', restore_dict: bool = False):
         """Read all tables from a TAR archive and populate the analyzer state.
 
-        Populates ``self.df``, ``self.df_pack`` and ``self.detail_packs``
-        (creating fresh empty structures for any detail type missing from the
-        archive so the object schema remains consistent).
+        Populates ``self.df``, ``self.df_pack`` and ``self.detail_packs``.
+        By default (``restore_dict=False``), tables are kept as Polars DataFrames
+        for memory efficiency. Set ``restore_dict=True`` to restore the original
+        ``{col: list}`` dictionary format.
 
         Parameters
         ----------
         path : str, default 'fplip.tar'
             Path to the TAR file written by :meth:`save_records`.
+        restore_dict : bool, default False
+            If True, restore ``df_pack`` and ``detail_packs`` as ``{col: list}``
+            dictionaries. If False, keep them as Polars DataFrames for efficiency.
 
         Returns
         -------
@@ -642,19 +646,30 @@ class TrajectoryAnalyzer:
         if main_df is None:
             raise KeyError(f"'main' table not found in archive '{path}'.")
         self.df = main_df
-        self.df_pack = {col: main_df[col].to_list() for col in main_df.columns}
+
+        if restore_dict:
+            self.df_pack = {col: main_df[col].to_list() for col in main_df.columns}
+        else:
+            self.df_pack = main_df
 
         for inter_type in self.detail_packs.keys():
             detail_name = f'detail_{inter_type}'
-            detail_cols = ['idx', 'frame'] + getattr(self, f'{inter_type.upper()}_COLS')
             if detail_name in tables:
                 detail_df = tables[detail_name]
-                self.detail_packs[inter_type] = {
-                    col: detail_df[col].to_list() if col in detail_df.columns else []
-                    for col in detail_cols
-                }
+                if restore_dict:
+                    detail_cols = ['idx', 'frame'] + getattr(self, f'{inter_type.upper()}_COLS')
+                    self.detail_packs[inter_type] = {
+                        col: detail_df[col].to_list() if col in detail_df.columns else []
+                        for col in detail_cols
+                    }
+                else:
+                    self.detail_packs[inter_type] = detail_df
             else:
-                self.detail_packs[inter_type] = {col: [] for col in detail_cols}
+                if restore_dict:
+                    detail_cols = ['idx', 'frame'] + getattr(self, f'{inter_type.upper()}_COLS')
+                    self.detail_packs[inter_type] = {col: [] for col in detail_cols}
+                else:
+                    self.detail_packs[inter_type] = None
 
         return self
 
