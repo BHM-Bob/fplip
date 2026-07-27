@@ -74,7 +74,7 @@ def read_readme():
 
 setup(
     name='fplip',
-    version='1.0.2',
+    version='1.1.0',
     description='FPLIP - Fast and All atom Protein-Ligand Interaction Profiler',
     long_description=read_readme(),
     long_description_content_type='text/markdown',
