@@ -681,28 +681,62 @@ class AtomProperties:
                     self.pos_charged[n_idx] = 'imidazolium'
 
     def _identify_hydrophobic(self):
-        """Identify hydrophobic atoms"""
+        """Identify hydrophobic atoms.
+
+        Physicochemical criteria:
+
+        * Carbon is hydrophobic only if it has no polar heavy neighbour
+          (N, O, P, S) and no strongly electron-withdrawing halogen neighbour
+          listed in ``config.HYDROPH_C_EXCLUDED_HALOGENS`` (F by default:
+          organic fluorine polarises the C-F bond and makes the carbon
+          electron-poor, so C-F carbons are not apolar). Hydrogens are ignored.
+        * Sulfur is hydrophobic only if it is neutral, has no O/N/S neighbour and
+          its total valence does not exceed ``config.HYDROPH_SULFUR_MAX_VALENCE``
+          (2). This keeps thioether/thiol/aromatic sulfur and rejects
+          sulfoxide (S=O, valence 4), sulfone/sulfonamide/sulfonate/sulfate
+          (valence 6), sulfonium (3 substituents) and disulfide (S-S neighbour).
+        * Anything carrying a formal or topology-derived charge (including
+          thiolate R-S-) is never hydrophobic.
+        """
+        excluded_halogens = set(config.HYDROPH_C_EXCLUDED_HALOGENS)
+        charged_idxs = set(self.pos_charged) | set(self.neg_charged)
+
         for atom in self.atom_container:
-            # only collect neighbers for C and S
-            if atom.atomic_num not in {6, 16}:
+            atomic_num = atom.atomic_num
+            if atomic_num not in (6, 16):
                 continue
-            atom_neighbors = set()
-            for neighbor in pybel.ob.OBAtomAtomIter(atom.obatom):
-                atom_neighbors.add(neighbor.GetIdx())
-            self.atom_neighbors[atom.idx] = atom_neighbors
+            if atom.idx in charged_idxs:
+                continue
 
-            if atom.atomic_num == 6:
-                is_polar = False
-                for neighbor in atom_neighbors:
-                    n_atomic_num = self.atom_container.atoms_by_orig_idx[neighbor].atomic_num
-                    if n_atomic_num in [7, 8, 15, 16]:  # N, O, P, S
-                        is_polar = True
-                        break
+            neighbor_nums = []
+            for n_idx in self.atom_neighbors.get(atom.idx, ()):
+                n_atom = self.atom_container.atoms.get(n_idx)
+                if n_atom is not None:
+                    neighbor_nums.append(n_atom.atomic_num)
 
+            if atomic_num == 6:
+                # Polar if bonded to N/O/P/S (classic apolar carbon definition)
+                # or to an electron-withdrawing halogen (C-F by default).
+                is_polar = any(n in (7, 8, 15, 16) or n in excluded_halogens
+                               for n in neighbor_nums)
                 if not is_polar:
                     self.hydrophobic_atoms.add(atom.idx)
 
-            elif atom.atomic_num == 16:  # Sulfur
+            else:  # Sulfur
+                # Oxidised or heteroatom-bonded sulfur is polar (sulfoxide,
+                # sulfone, sulfonamide, sulfonate, sulfate, disulfide).
+                if any(n in (7, 8, 16) for n in neighbor_nums):
+                    continue
+                obatom = atom.obatom
+                if obatom is None:
+                    continue
+                # Charged sulfur (sulfonium / thiolate) is not hydrophobic.
+                if obatom.GetFormalCharge() != 0:
+                    continue
+                # Valence 2 covers thioether, thiol and aromatic S; sulfonium
+                # (3) and oxidised species (4/6) are excluded.
+                if obatom.GetTotalValence() > config.HYDROPH_SULFUR_MAX_VALENCE:
+                    continue
                 self.hydrophobic_atoms.add(atom.idx)
     
     def _identify_rings(self):
