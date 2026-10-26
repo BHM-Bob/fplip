@@ -468,13 +468,23 @@ class AtomProperties:
                 self.pos_charged[atom.idx] = 'tertamine'
         
         # 3. Detect Sulfonium (S-centered)
+        # A sulfonium is a positively charged sulfur with three carbon
+        # substituents (R3S+). Requiring all three non-H neighbours to be carbon
+        # is essential: a sulfoxide (R2S=O, also three non-H neighbours) and a
+        # sulfonamide (R-S(=O)2-N) are neutral and must not be flagged.
         for atom in sulfur_atoms:
             if atom.idx in self.pos_charged:
                 continue
-            neighbors = list(pybel.ob.OBAtomAtomIter(atom.obatom))
-            non_h_neighbors = [n for n in neighbors if n.GetAtomicNum() != 1]
-            if len(non_h_neighbors) == 3:
-                self.pos_charged[atom.idx] = 'sulfonium'
+            neighbor_nums = [self.atom_container.atoms[n].atomic_num
+                             for n in self.atom_neighbors.get(atom.idx, ())
+                             if n in self.atom_container.atoms]
+            non_h_nums = [n for n in neighbor_nums if n != 1]
+            if len(non_h_nums) != 3 or any(n != 6 for n in non_h_nums):
+                continue
+            obatom = atom.obatom
+            if obatom is None or obatom.GetTotalValence() != 3:
+                continue
+            self.pos_charged[atom.idx] = 'sulfonium'
         
         # 4. Detect Imidazolium (ring-based)
         # For standard His, only mark ND1 and NE2 (ring nitrogens) as imidazolium
@@ -557,23 +567,33 @@ class AtomProperties:
                     break
         
         # Thiolate detection (deprotonated thiol)
-        # R-S- where S has negative formal charge or is in CYS deprotonated state
+        # R-S- where S has negative formal charge or is an explicitly
+        # deprotonated thiol.
+        #
+        # A sulfur carrying any hydrogen (explicit or implicit) is a neutral
+        # thiol and must NOT be reported as thiolate. This matters because
+        # OpenBabel supplies an implicit hydrogen on PDB sulfur atoms that have
+        # no hydrogen in the file, so "no H in the PDB" is not evidence of
+        # deprotonation. Disulfide sulfur (S-S) and oxidised sulfur are also
+        # excluded: they are covalent/polar, not anionic.
         for s_atom in sulfur_atoms:
             if s_atom.idx in self.neg_charged:
                 continue
-            neighbors = list(pybel.ob.OBAtomAtomIter(s_atom.obatom))
-            non_h_neighbors = [n for n in neighbors if n.GetAtomicNum() != 1]
-            # Thiolate: S connected to 1 C (and possibly H, but deprotonated)
-            # In PDB without H, CYS SG with no H would be thiolate
-            if len(non_h_neighbors) == 1 and non_h_neighbors[0].GetAtomicNum() == 6:
-                # Check if it's a cysteine SG that might be deprotonated
-                if resname == 'CYS' and s_atom.atom_name == 'SG':
-                    self.neg_charged[s_atom.idx] = 'thiolate'
-                # For non-standard residues, check if S has no H neighbors
-                elif resname not in ['CYS', 'MET']:
-                    h_neighbors = [n for n in neighbors if n.GetAtomicNum() == 1]
-                    if len(h_neighbors) == 0:
-                        self.neg_charged[s_atom.idx] = 'thiolate'
+            neighbor_nums = [self.atom_container.atoms[n].atomic_num
+                             for n in self.atom_neighbors.get(s_atom.idx, ())
+                             if n in self.atom_container.atoms]
+            non_h_nums = [n for n in neighbor_nums if n != 1]
+            if len(non_h_nums) != 1 or non_h_nums[0] != 6:
+                continue
+            obatom = s_atom.obatom
+            if obatom is None:
+                continue
+            if obatom.GetFormalCharge() >= 0:
+                n_hydrogen = sum(1 for n in neighbor_nums if n == 1)
+                n_hydrogen += obatom.GetImplicitHCount()
+                if n_hydrogen > 0:
+                    continue  # neutral thiol R-SH
+            self.neg_charged[s_atom.idx] = 'thiolate'
 
     def _assign_imidazolium_from_rings(self):
         """Assign imidazolium charge type to N atoms in pre-computed imidazolium rings.
