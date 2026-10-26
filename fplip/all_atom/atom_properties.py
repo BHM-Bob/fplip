@@ -40,9 +40,13 @@ class AtomProperties:
         
         self.hydrophobic_atoms: Set[int] = set()
 
-        # Neighbor atoms for hydrophobic interaction filtering
-        # atom_idx -> set of neighbor atom indices (connected by chemical bonds)
+        # Bond adjacency built once from the OpenBabel bond list.
+        # atom_idx -> set of bonded atom indices (all atoms, not only C/S).
+        # Building it with OBMolBondIter is O(n_bonds) and replaces thousands of
+        # per-atom OBAtomAtomIter calls.
         self.atom_neighbors: Dict[int, Set[int]] = {}
+        # Cache of topological (bond graph) distances, key -> distance or None
+        self._topo_dist_cache: Dict[Tuple[int, int], Optional[int]] = {}
 
         self.rings: List[Dict] = []  # Aromatic/planar/imidazolium rings for pi-stacking and pi-cation detection
         self.all_sssr_rings: List[Dict] = []  # All SSSR rings (including non-aromatic, non-planar) for hydrophobic filtering
@@ -76,6 +80,10 @@ class AtomProperties:
         """Identify all atom properties"""
         logger.info('Identifying atom properties...')
 
+        # Bond adjacency is needed by several property detectors and by the
+        # hydrophobic topological filter; build it once from the bond list.
+        self._build_bond_adjacency()
+
         # Charges must be identified first to filter pos_charged atoms from hbond acceptors
         self._identify_rings()  # Rings before charges to provide imidazolium info
         self._identify_charges()  # Charges before hbond to filter pos_charged from acceptors
@@ -92,6 +100,67 @@ class AtomProperties:
                    f'{len(self.hydrophobic_atoms)} hydrophobic, '
                    f'{len(self.rings)} rings ({len(self.all_sssr_rings)} SSSR), '
                    f'{len(self.metals)} metals')
+
+    def _build_bond_adjacency(self):
+        """Build the bond graph for all atoms in a single pass over OBMol bonds.
+
+        Iterating bonds with ``OBMolBondIter`` costs O(n_bonds) and is much
+        cheaper than calling ``OBAtomAtomIter`` once per atom: for a protein of
+        N atoms the latter is O(N) Python-level iterations with individual
+        SWIG calls, whereas the bond list is a flat iteration of ~N bonds.
+        The resulting adjacency is reused by every property detector.
+        """
+        self.atom_neighbors = {}
+        obatom = None
+        for atom in self.atom_container:
+            if atom.obatom is not None:
+                obatom = atom.obatom
+                break
+        if obatom is None:
+            return
+        obmol = obatom.GetParent()
+        if obmol is None:
+            return
+
+        for bond in pybel.ob.OBMolBondIter(obmol):
+            i = bond.GetBeginAtomIdx()
+            j = bond.GetEndAtomIdx()
+            self.atom_neighbors.setdefault(i, set()).add(j)
+            self.atom_neighbors.setdefault(j, set()).add(i)
+        self._topo_dist_cache = {}
+
+    def topological_distance(self, idx_a: int, idx_b: int,
+                             max_dist: int = 4) -> Optional[int]:
+        """Shortest bond-graph distance between two atoms, or None if > max_dist.
+
+        Uses breadth-first search over the cached bond adjacency and memoises
+        the result. Used to discard hydrophobic contacts that are covalently
+        connected (1-2), geminal (1-3) or vicinal (1-4).
+        """
+        if idx_a == idx_b:
+            return 0
+        # The cached value is bounded by max_dist, so max_dist is part of the key.
+        key = (min(idx_a, idx_b), max(idx_a, idx_b), max_dist)
+        if key in self._topo_dist_cache:
+            return self._topo_dist_cache[key]
+
+        dist = None
+        visited = {key[0]}
+        frontier = {key[0]}
+        for depth in range(1, max_dist + 1):
+            next_frontier = set()
+            for atom_idx in frontier:
+                next_frontier |= self.atom_neighbors.get(atom_idx, set())
+            if key[1] in next_frontier:
+                dist = depth
+                break
+            next_frontier -= visited
+            visited |= next_frontier
+            frontier = next_frontier
+            if not frontier:
+                break
+        self._topo_dist_cache[key] = dist
+        return dist
     
     def _precompute_atom_lists(self):
         """Pre-compute atom lists for fast access.
