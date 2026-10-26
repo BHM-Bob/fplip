@@ -1095,8 +1095,13 @@ class UnifiedInteractionDetector:
             ring_a = residue.rings[i]
             ring_b = all_rings[j]
             
-            # Skip same ring
-            if ring_a['indices'][0] == ring_b['indices'][0]:
+            # Skip rings belonging to the same pi system.
+            # Two rings that share any atom are the same ring (identical indices),
+            # or a fused system and one of its sub-rings (e.g. the merged 13-atom
+            # ring of a purine and its 5/6-membered components). A pi system cannot
+            # stack on itself, so these pairs are geometrically degenerate
+            # (centers nearly coincide, normals parallel) and must be dropped.
+            if not frozenset(ring_a['indices']).isdisjoint(ring_b['indices']):
                 continue
             
             # Get representative atoms

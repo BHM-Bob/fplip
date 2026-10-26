@@ -470,7 +470,10 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
             ring_a = all_rings[i]
             ring_b = all_rings[j]
 
-            if ring_a['indices'][0] == ring_b['indices'][0]:
+            # Skip rings belonging to the same pi system (identical ring, or a
+            # fused ring and one of its own sub-rings). A pi system cannot stack
+            # on itself; these pairs are geometrically degenerate.
+            if not frozenset(ring_a['indices']).isdisjoint(ring_b['indices']):
                 continue
 
             atom_a = self.atom_container[ring_a['indices'][0]]
