@@ -131,6 +131,7 @@ class TrajectoryAnalyzer(_TrajectoryAnalyzer):
         self.detector._remove_duplicates()
         self.detector._remove_subring_duplicates()
         self.detector._refine_hbonds()
+        self.detector._refine_hydrophobic()
         self.detector._detect_water_bridges()
         if detect_water_bridges_plip_style:
             self.detector._all_hba_coords = self.detector.backend.to_numpy(self.detector._all_hba_coords) # type: ignore
