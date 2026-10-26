@@ -50,6 +50,9 @@ class AtomProperties:
 
         self.rings: List[Dict] = []  # Aromatic/planar/imidazolium rings for pi-stacking and pi-cation detection
         self.all_sssr_rings: List[Dict] = []  # All SSSR rings (including non-aromatic, non-planar) for hydrophobic filtering
+        # atom_idx -> ring-system id. Rings fused/bridged/spiro (sharing >= 1 atom) are
+        # merged into one rigid system; atoms outside small rings are absent.
+        self.ring_system: Dict[int, int] = {}
         
         self.metal_binding: Set[int] = set()
         self.metals: Set[int] = set()
@@ -839,12 +842,57 @@ class AtomProperties:
 
         self.rings = rings
 
+        # Merge rings into rigid ring systems for hydrophobic filtering
+        self._build_ring_systems()
+
         # Detect fused ring systems and add merged rings for pi-stacking detection
         # Merged rings represent the union of fused sub-rings (e.g., indole = 5-ring + 6-ring),
         # allowing pi-stacking detection when a partner ring stacks on the junction of the fused system
         # where individual sub-ring offsets might exceed the threshold.
         if config.DETECT_FUSED_RINGS:
             self._detect_fused_rings()
+
+    def _build_ring_systems(self):
+        """Merge rings into rigid ring systems.
+
+        Rings that share at least one atom (fused, bridged or spiro) form one
+        rigid ring system; atoms inside such a system cannot be in hydrophobic
+        contact with each other. Only small rings
+        (3..config.HYDROPH_MAX_RING_SIZE members) are considered: larger rings
+        are not rigid, so an atom pair across a macrocycle is a genuine
+        non-bonded contact.
+
+        The result is stored in ``self.ring_system`` (atom_idx -> system id).
+        It depends only on the bond topology, so it is computed once here and
+        reused for every frame.
+        """
+        rings = [r for r in self.all_sssr_rings
+                 if 3 <= len(r['indices']) <= config.HYDROPH_MAX_RING_SIZE]
+        if not rings:
+            return
+
+        parents = list(range(len(rings)))
+
+        def find(i):
+            while parents[i] != i:
+                parents[i] = parents[parents[i]]
+                i = parents[i]
+            return i
+
+        atom_rings = defaultdict(list)
+        for ring_idx, ring in enumerate(rings):
+            for atom_idx in ring['indices']:
+                atom_rings[atom_idx].append(ring_idx)
+
+        for ring_idxs in atom_rings.values():
+            root = find(ring_idxs[0])
+            for other in ring_idxs[1:]:
+                other_root = find(other)
+                if other_root != root:
+                    parents[other_root] = root
+
+        self.ring_system = {atom_idx: find(ring_idxs[0])
+                            for atom_idx, ring_idxs in atom_rings.items()}
 
     def _detect_fused_rings(self):
         """Detect fused ring systems and add merged rings to self.rings.
