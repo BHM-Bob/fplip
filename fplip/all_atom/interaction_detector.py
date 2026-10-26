@@ -2170,63 +2170,84 @@ class UnifiedInteractionDetector:
             logger.info(f'  Refined H-bonds: {len(confirmed_hbonds)} confirmed, {len(possible_hbonds)} possible')
 
     def _refine_hydrophobic(self):
-        """Refine hydrophobic interactions by stacking exclusion and nearest distance selection.
+        """Remove hydrophobic contacts that are not hydrophobic contacts at all.
 
-        1. Stacking exclusion: Remove hydrophobic interactions between atoms that belong to
-           pi-stacking rings. When two aromatic rings form a pi-stacking interaction, the
-           hydrophobic contacts between their ring atoms are chemically redundant - the
-           pi-stacking already captures the aromatic interaction. Keeping both would
-           double-count the same physical phenomenon.
+        Hydrophobic association is an entropic effect: it comes from burying
+        apolar surface, not from a directional attractive force. There is
+        therefore no geometric observable that singles out one "correct" contact
+        out of many, and every close apolar atom pair contributes to the buried
+        area. Refinement consequently does *not* collapse the contact list to one
+        entry per residue pair; it only discards pairs that cannot be non-covalent
+        hydrophobic contacts:
 
-        2. Nearest distance refinement: For each pair of residues, keep only the closest
-           hydrophobic interaction. This removes redundant hydrophobic contacts between
-           the same residue pair (e.g., multiple CH2 groups from the same side chain
-           contacting the same ligand atom), reporting only the strongest contact.
+        1. Pi-stacking exclusion: when two specific rings stack, the ring-ring
+           interaction is already described by the pi-stacking, so contacts
+           between atoms of *those two rings* are dropped. The test is applied to
+           each stacking pair separately: a global union of all ring atoms would
+           also delete contacts between two unrelated rings merely because both
+           happen to participate in some stacking elsewhere.
+
+        2. Ring-system exclusion: atoms belonging to the same ring system (a ring
+           or a fused/bridged/spiro assembly, which is rigid) cannot be in
+           hydrophobic contact with each other. Fused systems need this: two peri
+           atoms of naphthalene are ~4-6 bonds apart, so a bond-graph cutoff
+           alone does not reject them.
+
+        3. Covalent connectivity: atoms separated by fewer than
+           ``config.HYDROPH_MIN_TOPOLOGICAL_DIST`` bonds (1-2 bonded, 1-3
+           geminal, 1-4 vicinal) are excluded. Within a flexible ligand the
+           shortest contacts are plain covalent bonds (~1.5 A), which the
+           distance cutoff cannot distinguish from a genuine contact, and 1-3/1-4
+           pairs are geometrically trivial.
         """
         hydrophobic = self.interactions.get('hydrophobic', [])
         if not hydrophobic:
             return
 
-        pistacking = self.interactions.get('pistacking', [])
+        # Atoms of the same ring system (fused/bridged/spiro rings merged)
+        ring_system = self.atom_props.ring_system
+        min_topo_dist = config.HYDROPH_MIN_TOPOLOGICAL_DIST
 
-        # Step 1: Collect all atoms involved in pi-stacking rings
-        stacked_ring_atoms = set()
-        for ps in pistacking:
-            ring_a_atoms = ps.details.get('ring_a_atoms', [])
-            ring_b_atoms = ps.details.get('ring_b_atoms', [])
-            stacked_ring_atoms.update(ring_a_atoms)
-            stacked_ring_atoms.update(ring_b_atoms)
+        # Step 1: stacking pairs (two rings per interaction, not a global union)
+        stacking_pairs = []
+        for ps in self.interactions.get('pistacking', []):
+            ring_a = frozenset(ps.details.get('ring_a_atoms', []))
+            ring_b = frozenset(ps.details.get('ring_b_atoms', []))
+            if ring_a and ring_b:
+                stacking_pairs.append((ring_a, ring_b))
 
-        # Step 2: Filter out hydrophobic interactions where both atoms are in pi-stacking rings
-        if stacked_ring_atoms:
-            filtered = []
-            for h in hydrophobic:
-                atom_a_idx = h.atom_a_idx
-                atom_b_idx = h.atom_b_idx
-                if atom_a_idx in stacked_ring_atoms and atom_b_idx in stacked_ring_atoms:
-                    continue
-                filtered.append(h)
-        else:
-            filtered = hydrophobic
+        refined = []
+        n_stacking = 0
+        n_ring = 0
+        n_topology = 0
+        for h in hydrophobic:
+            a_idx, b_idx = h.atom_a_idx, h.atom_b_idx
 
-        if not filtered:
-            self.interactions['hydrophobic'] = filtered
-            return
+            # 1. Ring atoms of one and the same pi-stacked ring pair
+            if any((a_idx in ra and b_idx in rb) or (a_idx in rb and b_idx in ra)
+                   for ra, rb in stacking_pairs):
+                n_stacking += 1
+                continue
 
-        # Step 3: Keep only the closest hydrophobic interaction per residue pair
-        best_per_pair = {}
-        for h in filtered:
-            res_a = (h.res_a_name, h.res_a_chain, h.res_a_num)
-            res_b = (h.res_b_name, h.res_b_chain, h.res_b_num)
-            key = (min(res_a, res_b), max(res_a, res_b))
-            distance = h.distance
-            if key not in best_per_pair or distance < best_per_pair[key][0]:
-                best_per_pair[key] = (distance, h)
+            # 2. Same (fused) ring system
+            sys_a = ring_system.get(a_idx)
+            if sys_a is not None and sys_a == ring_system.get(b_idx):
+                n_ring += 1
+                continue
 
-        refined = [h[1] for h in best_per_pair.values()]
+            # 3. Covalently connected / geminal / vicinal
+            topo_dist = self.atom_props.topological_distance(a_idx, b_idx, max_dist=min_topo_dist - 1)
+            if topo_dist is not None:
+                n_topology += 1
+                continue
 
-        if len(refined) < len(filtered):
-            logger.info(f'  Refined hydrophobic: {len(refined)} (removed {len(filtered) - len(refined)} redundant)')
+            refined.append(h)
+
+        removed = len(hydrophobic) - len(refined)
+        if removed:
+            logger.info(f'  Refined hydrophobic: {len(refined)} (removed {removed}: '
+                        f'{n_stacking} pi-stacking, {n_ring} intra-ring-system, '
+                        f'{n_topology} covalently connected)')
 
         self.interactions['hydrophobic'] = refined
 
