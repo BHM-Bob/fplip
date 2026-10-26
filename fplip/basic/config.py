@@ -49,6 +49,22 @@ MIN_DIST = 0.5  # Minimum distance for all distance thresholds
 # Some distance thresholds were extended (max. 1.0A) if too restrictive too account for low-quality structures
 HYDROPH_DIST_MAX = 4.1  # Distance cutoff for detection of hydrophobic contacts (extended from 4.0 to reduce false negatives)
 HYDROPH_DIST_STRONG = 3.5  # Distance below which hydrophobic contact is classified as strong
+# Carbons bonded to these halogen elements are not classified as hydrophobic.
+# Organic fluorine is strongly electron-withdrawing and makes the attached carbon
+# electron-poor (Dunitz & Taylor, 1997: organic fluorine hardly ever accepts H-bonds),
+# so C-F carbons are excluded by default. Add 17/35/53 to also exclude C-Cl/C-Br/C-I
+# (this matches PLIP, whose hydrophobic carbons may only have C/H neighbours).
+HYDROPH_C_EXCLUDED_HALOGENS = (9,)
+# A sulfur atom is only hydrophobic if it has no O/N/S neighbour and its total
+# valence does not exceed this value. Thioether/thiol/aromatic S have valence 2;
+# sulfoxide (4), sulfone/sulfonate/sulfate (6) and sulfonium are polar.
+HYDROPH_SULFUR_MAX_VALENCE = 2
+# Minimum bond-graph (topological) distance between two atoms of a hydrophobic
+# contact. 1-2 (bonded), 1-3 and 1-4 pairs are not hydrophobic contacts.
+HYDROPH_MIN_TOPOLOGICAL_DIST = 4
+# Largest ring treated as a rigid ring system for hydrophobic filtering.
+# Atoms of one rigid (fused/bridged/spiro) ring system cannot contact each other.
+HYDROPH_MAX_RING_SIZE = 7
 HBOND_DIST_MAX = 4.1  # Max. distance between hydrogen bond donor and acceptor (Hubbard & Haider, 2001) + 0.6 A
 HBOND_DON_ANGLE_MIN = 100  # Min. angle at the hydrogen bond donor (Hubbard & Haider, 2001) + 10
 HBOND_ACC_ANGLE_MIN = 90  # Default min. angle at the H-bond acceptor (H···A-Y)
