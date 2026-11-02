@@ -2185,20 +2185,27 @@ class UnifiedInteractionDetector:
         entry per residue pair; it only discards pairs that cannot be non-covalent
         hydrophobic contacts:
 
-        1. Pi-stacking exclusion: when two specific rings stack, the ring-ring
+        1. Halogen-bond exclusion: when a hydrophobic halogen atom (Br/I by
+           default, see ``config.HYDROPH_HALOGEN_ATOMS``) forms a halogen bond
+           with a given atom, that pair is a directional sigma-hole interaction
+           and is already reported as a halogen bond. The same pair must not
+           additionally be counted as an entropy-driven hydrophobic contact.
+           Other hydrophobic contacts of that halogen are genuine and are kept.
+
+        2. Pi-stacking exclusion: when two specific rings stack, the ring-ring
            interaction is already described by the pi-stacking, so contacts
            between atoms of *those two rings* are dropped. The test is applied to
            each stacking pair separately: a global union of all ring atoms would
            also delete contacts between two unrelated rings merely because both
            happen to participate in some stacking elsewhere.
 
-        2. Ring-system exclusion: atoms belonging to the same ring system (a ring
+        3. Ring-system exclusion: atoms belonging to the same ring system (a ring
            or a fused/bridged/spiro assembly, which is rigid) cannot be in
            hydrophobic contact with each other. Fused systems need this: two peri
            atoms of naphthalene are ~4-6 bonds apart, so a bond-graph cutoff
            alone does not reject them.
 
-        3. Covalent connectivity: atoms separated by fewer than
+        4. Covalent connectivity: atoms separated by fewer than
            ``config.HYDROPH_MIN_TOPOLOGICAL_DIST`` bonds (1-2 bonded, 1-3
            geminal, 1-4 vicinal) are excluded. Within a flexible ligand the
            shortest contacts are plain covalent bonds (~1.5 A), which the
@@ -2213,7 +2220,12 @@ class UnifiedInteractionDetector:
         ring_system = self.atom_props.ring_system
         min_topo_dist = config.HYDROPH_MIN_TOPOLOGICAL_DIST
 
-        # Step 1: stacking pairs (two rings per interaction, not a global union)
+        # Step 1: atom pairs already described by a halogen bond
+        halogen_bonded_pairs = set()
+        for hb in self.interactions.get('halogen', []):
+            halogen_bonded_pairs.add(frozenset((hb.atom_a_idx, hb.atom_b_idx)))
+
+        # Step 2: stacking pairs (two rings per interaction, not a global union)
         stacking_pairs = []
         for ps in self.interactions.get('pistacking', []):
             ring_a = frozenset(ps.details.get('ring_a_atoms', []))
@@ -2222,25 +2234,31 @@ class UnifiedInteractionDetector:
                 stacking_pairs.append((ring_a, ring_b))
 
         refined = []
+        n_halogen = 0
         n_stacking = 0
         n_ring = 0
         n_topology = 0
         for h in hydrophobic:
             a_idx, b_idx = h.atom_a_idx, h.atom_b_idx
 
-            # 1. Ring atoms of one and the same pi-stacked ring pair
+            # 1. Same atom pair already reported as a halogen bond
+            if frozenset((a_idx, b_idx)) in halogen_bonded_pairs:
+                n_halogen += 1
+                continue
+
+            # 2. Ring atoms of one and the same pi-stacked ring pair
             if any((a_idx in ra and b_idx in rb) or (a_idx in rb and b_idx in ra)
                    for ra, rb in stacking_pairs):
                 n_stacking += 1
                 continue
 
-            # 2. Same (fused) ring system
+            # 3. Same (fused) ring system
             sys_a = ring_system.get(a_idx)
             if sys_a is not None and sys_a == ring_system.get(b_idx):
                 n_ring += 1
                 continue
 
-            # 3. Covalently connected / geminal / vicinal
+            # 4. Covalently connected / geminal / vicinal
             topo_dist = self.atom_props.topological_distance(a_idx, b_idx, max_dist=min_topo_dist - 1)
             if topo_dist is not None:
                 n_topology += 1
@@ -2251,7 +2269,8 @@ class UnifiedInteractionDetector:
         removed = len(hydrophobic) - len(refined)
         if removed:
             logger.info(f'  Refined hydrophobic: {len(refined)} (removed {removed}: '
-                        f'{n_stacking} pi-stacking, {n_ring} intra-ring-system, '
+                        f'{n_halogen} halogen-bonded, {n_stacking} pi-stacking, '
+                        f'{n_ring} intra-ring-system, '
                         f'{n_topology} covalently connected)')
 
         self.interactions['hydrophobic'] = refined
