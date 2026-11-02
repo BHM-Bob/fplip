@@ -4,17 +4,20 @@ All-Atom Command Line Interface
 Provides command-line tools for:
 1. Analyzing PDB files and generating interaction data
 2. Analyzing AutoDock Vina docking results
-3. Generating static visualizations
-4. Launching interactive web visualization
+3. Computing interface buried SASA split by hydrophobic/polar
+4. Generating static visualizations
+5. Launching interactive web visualization
 
 Usage:
     python -m plip.all_atom.cli analyze input.pdb -o results.json
     python -m plip.all_atom.cli dock --ligand dock.pdbqt --receptor receptor.pdbqt -o dock_results.json
+    python -m plip.all_atom.cli sasa input.pdb -o sasa.json
     python -m plip.all_atom.cli static results.json --plot-matrix -o matrix.png
     python -m plip.all_atom.cli interactive results.json --port 8080
 """
 
 import argparse
+import collections
 import json
 import re
 import sys
@@ -464,6 +467,69 @@ def cmd_analyze(args):
             viz.plot_all(output_dir, prefix)
 
 
+def _auto_ligand_selector(mol):
+    """Pick the ligand chain: the smallest chain under half the largest chain's
+    residue count, ties broken by *fewest* atoms.
+
+    Rationale: docking outputs occasionally carry a one-residue UNL/X chain
+    (crystallisation additive or a stray ion). Taking "the smallest chain"
+    blindly grabs that instead of the peptide. Requiring >=2 residues and
+    choosing the smallest qualifying chain keeps the peptide.
+    """
+    res_per_chain = collections.defaultdict(set)
+    for a in mol.atom_container:
+        res_per_chain[a.chain].add((a.resname, a.resnum))
+
+    if not res_per_chain:
+        raise ValueError('Empty structure.')
+
+    largest = max(len(v) for v in res_per_chain.values())
+    cand = [c for c in res_per_chain
+            if len(res_per_chain[c]) < 0.5 * largest and len(res_per_chain[c]) >= 2]
+    if not cand:
+        cand = [c for c in res_per_chain if len(res_per_chain[c]) < 0.5 * largest]
+    if not cand:
+        raise ValueError('Cannot auto-detect a ligand chain; pass --ligand-chain.')
+    lig = min(cand, key=lambda c: len(res_per_chain[c]))
+    return lambda a, _c=lig: a.chain == _c
+
+
+def cmd_sasa(args):
+    """Compute interface buried SASA and split it into hydrophobic/polar."""
+    from fplip.all_atom.sasa import hydrophobic_sasa, load_complex
+
+    pdb_path = args.pdb_file
+    if not Path(pdb_path).exists():
+        print(f"Error: PDB file not found: {pdb_path}")
+        sys.exit(1)
+
+    try:
+        mol = load_complex(pdb_path,
+                           keep_existing_hydrogens=not args.add_hydrogens)
+
+        if args.ligand_chain is not None:
+            chain = args.ligand_chain
+            sel = lambda a, _c=chain: a.chain == _c
+        else:
+            sel = _auto_ligand_selector(mol)
+
+        result = hydrophobic_sasa(mol, ligand_sel=sel, probe=args.probe,
+                                  n_point=args.n_point,
+                                  include_attached_h=not args.heavy_only)
+        result['pdb'] = str(Path(pdb_path).resolve())
+        payload = json.dumps(result, indent=2, sort_keys=True)
+        with open(args.output, 'w') as fh:
+            fh.write(payload)
+        print(payload)
+        print(f"\nResults saved to: {args.output}")
+
+    except Exception as e:
+        print(f"Error computing SASA: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
 def cmd_static(args):
     """Generate static visualizations from JSON data."""
     input_path = args.input
@@ -683,6 +749,33 @@ Examples:
     interactive_parser.add_argument('--open-browser', action='store_true',
                                    help='Open browser automatically')
     interactive_parser.set_defaults(func=cmd_interactive)
+
+    # SASA command
+    sasa_parser = subparsers.add_parser(
+        'sasa',
+        help='Buried SASA with fplip hydrophobic classification',
+        description='Compute interface buried SASA (Shrake-Rupley) and split it '
+                    'into fplip-hydrophobic and polar shares.'
+    )
+    sasa_parser.add_argument('pdb_file', help='Input PDB file')
+    sasa_parser.add_argument('-o', '--output', required=True,
+                             help='Output JSON file path')
+    sasa_parser.add_argument('--ligand-chain', default=None,
+                             help='Chain ID of the ligand. Default: auto-detect '
+                                  'the smallest chain that is <50%% of the largest.')
+    sasa_parser.add_argument('--probe', type=float, default=None,
+                             help='Probe radius in Angstrom '
+                                  f'(default: {config.SASA_PROBE_RADIUS})')
+    sasa_parser.add_argument('--n-point', type=int, default=None,
+                             help='Sphere test points per atom '
+                                  f'(default: {config.SASA_N_SPHERE_POINTS})')
+    sasa_parser.add_argument('--heavy-only', action='store_true',
+                             help='Exclude hydrogens attached to hydrophobic atoms')
+    sasa_parser.add_argument('--add-hydrogens', action='store_true',
+                             help='Let OpenBabel add polar hydrogens (NOHYDRO=False). '
+                                  'Default is NOHYDRO=True, i.e. keep the hydrogens '
+                                  'that are already in the file.')
+    sasa_parser.set_defaults(func=cmd_sasa)
 
     # Parse arguments
     args = parser.parse_args()
