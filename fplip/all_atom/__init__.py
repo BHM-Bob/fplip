@@ -13,6 +13,9 @@ from fplip.all_atom.interaction_detector import (Interaction,
                                                  UnifiedInteractionDetector)
 from fplip.all_atom.molecule_complex import MoleculeComplex
 from fplip.all_atom.residue import Residue
+from fplip.all_atom.sasa import (SasaResult, buried_area, compute_sasa,
+                                 hydrophobic_mask, hydrophobic_sasa,
+                                 load_complex)
 from fplip.all_atom.simple_report import SimpleReport
 
 __all__ = [
@@ -25,6 +28,12 @@ __all__ = [
     'Interaction',
     'InteractionCatalog',
     'SimpleReport',
+    'SasaResult',
+    'buried_area',
+    'compute_sasa',
+    'hydrophobic_mask',
+    'hydrophobic_sasa',
+    'load_complex',
 ]
 
 def _analyze_complex(pdb_file: str, as_string: bool = False):
