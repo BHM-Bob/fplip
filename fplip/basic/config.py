@@ -50,11 +50,36 @@ MIN_DIST = 0.5  # Minimum distance for all distance thresholds
 HYDROPH_DIST_MAX = 4.1  # Distance cutoff for detection of hydrophobic contacts (extended from 4.0 to reduce false negatives)
 HYDROPH_DIST_STRONG = 3.5  # Distance below which hydrophobic contact is classified as strong
 # Carbons bonded to these halogen elements are not classified as hydrophobic.
-# Organic fluorine is strongly electron-withdrawing and makes the attached carbon
-# electron-poor (Dunitz & Taylor, 1997: organic fluorine hardly ever accepts H-bonds),
-# so C-F carbons are excluded by default. Add 17/35/53 to also exclude C-Cl/C-Br/C-I
-# (this matches PLIP, whose hydrophobic carbons may only have C/H neighbours).
+# Organic fluorine has a large localised dipole and a van der Waals radius
+# (1.47 A) close to the C-F bond length (1.35 A), so the fluorine sphere almost
+# completely shields the attached carbon: the carbon is not a reachable apolar
+# surface, and the C-F group behaves as a weak, orientation-dependent
+# "polar hydrophobe" (Biffinger, Kim & DiMaio, ChemBioChem 2004) rather than a
+# plain apolar contact. C-F carbons are therefore excluded by default. Add
+# 17/35/53 to also exclude C-Cl/C-Br/C-I (this matches PLIP, whose hydrophobic
+# carbons may only have C/H neighbours).
 HYDROPH_C_EXCLUDED_HALOGENS = (9,)
+# Halogen atoms that are themselves apolar surface and therefore count as
+# hydrophobic atoms. Br and I are large, highly polarisable and carry almost no
+# localised dipole, so they expose a genuine apolar surface (ProLIF likewise
+# lists Br and I as hydrophobic atoms). F is spacial: its
+# polarisability is only 0.56 A^3 (Br 3.05, I 5.35) and its strong dipole makes
+# it favour directional multipolar contacts instead of entropy-driven burial.
+# Cl is also left out by default to stay consistent with the C-Cl carbon rule.
+# Set to (9, 17, 35, 53) to treat every halogen atom as hydrophobic.
+HYDROPH_HALOGEN_ATOMS = (35, 53)
+# A fluorine atom is hydrophobic only when the carbon it is attached to carries
+# at least this many fluorine substituents (default 2, i.e. -CF2- and -CF3).
+# Rationale: a single C-F bond has a large localised dipole (pi = +0.14), the F
+# is strongly polar, and the F sphere shields the carbon, so a mono-fluorinated
+# group exposes no apolar surface and is effectively invisible to interaction
+# detection. With two or three F atoms on one carbon the individual C-F dipoles
+# largely cancel by symmetry (HCF3 vs CH4: mu 1.65 D vs 0 D) and the resulting
+# perfluoro shell is apolar - the Hansch pi of -CF3 (+0.88) is far above three
+# times that of -F (+0.42), which is the excess hydrophobicity of the CF3 group.
+# Set to 1 to treat every C-F fluorine as hydrophobic, or to 4 to disable poly-
+# fluorinated fluorine entirely.
+HYDROPH_POLYFLUORO_MIN_F = 2
 # A sulfur atom is only hydrophobic if it has no O/N/S neighbour and its total
 # valence does not exceed this value. Thioether/thiol/aromatic S have valence 2;
 # sulfoxide (4), sulfone/sulfonate/sulfate (6) and sulfonium are polar.
