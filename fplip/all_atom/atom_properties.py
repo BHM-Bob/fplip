@@ -690,9 +690,22 @@ class AtomProperties:
 
         * Carbon is hydrophobic only if it has no polar heavy neighbour
           (N, O, P, S) and no strongly electron-withdrawing halogen neighbour
-          listed in ``config.HYDROPH_C_EXCLUDED_HALOGENS`` (F by default:
-          organic fluorine polarises the C-F bond and makes the carbon
-          electron-poor, so C-F carbons are not apolar). Hydrogens are ignored.
+          listed in ``config.HYDROPH_C_EXCLUDED_HALOGENS`` (F by default: the
+          fluorine vdW sphere shields the attached carbon, and the C-F group is
+          a weak orientation-dependent "polar hydrophobe" rather than a plain
+          apolar surface). Hydrogens are ignored.
+        * Halogen atoms listed in ``config.HYDROPH_HALOGEN_ATOMS`` (Br and I by
+          default) are themselves apolar surface and count as hydrophobic.
+          Br and I are large and highly polarisable, so they expose a genuine
+          apolar surface.
+        * Fluorine is handled separately and only counts when it is part of a
+          poly-fluorinated carbon: at least ``config.HYDROPH_POLYFLUORO_MIN_F``
+          (2) F atoms share the same carbon. A single C-F is strongly polar
+          (pi = +0.14) and its F sphere shields the carbon, so a mono-fluorinated
+          group contributes no apolar surface; with two or three F on one carbon
+          the C-F dipoles largely cancel and the perfluoro shell is apolar
+          (pi of -CF3 = +0.88, far above 3 x +0.14). The carbon is never
+          hydrophobic in either case (see HYDROPH_C_EXCLUDED_HALOGENS).
         * Sulfur is hydrophobic only if it is neutral, has no O/N/S neighbour and
           its total valence does not exceed ``config.HYDROPH_SULFUR_MAX_VALENCE``
           (2). This keeps thioether/thiol/aromatic sulfur and rejects
@@ -702,13 +715,32 @@ class AtomProperties:
           thiolate R-S-) is never hydrophobic.
         """
         excluded_halogens = set(config.HYDROPH_C_EXCLUDED_HALOGENS)
+        hydroph_halogens = set(config.HYDROPH_HALOGEN_ATOMS)
+        polyfluoro_min = config.HYDROPH_POLYFLUORO_MIN_F
         charged_idxs = set(self.pos_charged) | set(self.neg_charged)
 
         for atom in self.atom_container:
             atomic_num = atom.atomic_num
-            if atomic_num not in (6, 16):
+            is_carbon_or_sulfur = atomic_num in (6, 16)
+            is_halogen = atomic_num in hydroph_halogens
+            is_fluorine = atomic_num == 9
+            if not (is_carbon_or_sulfur or is_halogen or is_fluorine):
                 continue
             if atom.idx in charged_idxs:
+                continue
+
+            # Apolar halogen atoms are hydrophobic as-is; their polarity is set
+            # by the element, not by their neighbours.
+            if is_halogen:
+                self.hydrophobic_atoms.add(atom.idx)
+                continue
+
+            if is_fluorine:
+                # A C-F fluorine is apolar only when the attached carbon carries
+                # several fluorines (dipoles cancel). Mono-fluorinated fluorine
+                # stays polar and is not counted.
+                if self._count_fluorines_on_carbon(atom.idx) >= polyfluoro_min:
+                    self.hydrophobic_atoms.add(atom.idx)
                 continue
 
             neighbor_nums = []
@@ -720,6 +752,11 @@ class AtomProperties:
             if atomic_num == 6:
                 # Polar if bonded to N/O/P/S (classic apolar carbon definition)
                 # or to an electron-withdrawing halogen (C-F by default).
+                # NOTE: this rejects the carbon of EVERY C-F group, mono- or
+                # poly-fluorinated alike - the fluorine sphere always shields the
+                # carbon, so the carbon is never a reachable apolar surface. The
+                # mono/poly distinction in the F branch above only decides whether
+                # the fluorine atoms themselves count as apolar surface.
                 is_polar = any(n in (7, 8, 15, 16) or n in excluded_halogens
                                for n in neighbor_nums)
                 if not is_polar:
@@ -741,6 +778,22 @@ class AtomProperties:
                 if obatom.GetTotalValence() > config.HYDROPH_SULFUR_MAX_VALENCE:
                     continue
                 self.hydrophobic_atoms.add(atom.idx)
+
+    def _count_fluorines_on_carbon(self, f_idx: int) -> int:
+        """Number of fluorine atoms bonded to the carbon carrying ``f_idx``.
+
+        Returns 0 when the fluorine is not attached to a carbon.
+        """
+        total = 0
+        for c_idx in self.atom_neighbors.get(f_idx, ()):
+            c_atom = self.atom_container.atoms.get(c_idx)
+            if c_atom is None or c_atom.atomic_num != 6:
+                continue
+            for n_idx in self.atom_neighbors.get(c_idx, ()):
+                n_atom = self.atom_container.atoms.get(n_idx)
+                if n_atom is not None and n_atom.atomic_num == 9:
+                    total += 1
+        return total
     
     def _identify_rings(self):
         """Identify aromatic rings and imidazolium rings."""
