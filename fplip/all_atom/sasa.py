@@ -35,6 +35,10 @@ The correct definition used here is:
 
 i.e. remove the *partner* only, keep everything else. See ``buried_area``.
 
+# NOTE: this module implements the "complex minus isolated side" variant.
+# See buried_area's docstring for why intra-side (e.g. inter-subunit)
+# burial is included and how to obtain the strictly ligand-induced figure.
+
 Author's note for integration
 -----------------------------
 * Tested against fplip 1.2.0 (`SASA_N_SPHERE_POINTS=256`,
@@ -53,7 +57,6 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 from fplip.basic import config
-
 
 # --------------------------------------------------------------------------
 # Result objects
@@ -483,17 +486,29 @@ def buried_area(mol,
                 probe: Optional[float] = None,
                 n_point: Optional[int] = None,
                 include_attached_h: bool = True) -> SasaResult:
-    """Interface buried SASA (``dSASA``) for ligand vs. receptor.
+    """Interface buried SASA (``dSASA``) for a ligand/receptor pair.
 
-    Correct formulation
-    -------------------
-    For an atom ``i`` on side ``S`` with partner side ``P``:
+    Definition as implemented
+    -------------------------
+    For an atom ``i`` belonging to side ``S`` (ligand or receptor)::
 
-        dSASA(i) = SASA(i | P removed) - SASA(i | complex)
+        dSASA(i) = SASA(i | side S alone) - SASA(i | complex)
 
-    Note that atoms of side ``S`` other than ``i`` are **still present** in the
-    "P removed" state. Using "i alone" instead would absorb intra-side burial
-    (e.g. receptor loops packing against each other) into the interface.
+    The **entire partner side is deleted** from the reference state and the
+    remaining side is evaluated by itself; per-atom values are then clipped
+    at zero. Summing over both sides gives the classical
+    ``SASA(side alone) - SASA(side in complex)`` interface area for each side.
+
+    Consequences
+    ------------
+    * If only ligand-induced burial is required, the reference must instead
+      keep the other chains of side ``S`` present::
+
+          dSASA(i) = SASA(i | partner side removed) - SASA(i | complex)
+
+      That variant (one extra SASA pass per side, with the partner masked out
+      rather than deleted) is deliberately **not** computed here — it would
+      break comparability with the numbers above.
 
     Parameters
     ----------
@@ -507,12 +522,27 @@ def buried_area(mol,
         * ``callable`` -> ``ligand_sel(atom) -> bool``
         * an iterable of fplip atom indices
 
+    atom_props : AtomProperties, optional
+        Reuse a pre-built instance to avoid recomputing hydrophobic flags.
+    probe : float, optional
+        Solvent probe radius; defaults to ``config.SASA_PROBE_RADIUS`` (1.4 A).
+    n_point : int, optional
+        Test points per atom sphere; defaults to
+        ``config.SASA_N_SPHERE_POINTS`` (256, <0.5% error).
+    include_attached_h : bool
+        Count hydrogens bonded to a hydrophobic heavy atom as hydrophobic.
+        Keep True unless heavy-atom-only figures are explicitly wanted:
+        hydrogens carry 84-89% of the hydrophobic buried area.
+
     Returns
     -------
     SasaResult
         ``sasa`` holds the buried area (Angstrom^2) per atom, zero-clipped.
         ``hydrophobic_mask`` is copied from the complex so the same atom is
-        flagged consistently.
+        flagged consistently across all sides. ``atom_order`` gives the fplip
+        atom index of each array position. Derive the scalars with
+        ``.total()``, ``.hydrophobic()``, ``.polar()``, or just use
+        ``hydrophobic_sasa`` for the ready-made summary.
     """
     if probe is None:
         probe = config.SASA_PROBE_RADIUS
