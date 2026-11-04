@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from lazydock.gmx.mda.convert import FakeAtomGroup
-from mbapy import TaskPool
+from mbapy_lite.web_utils.task import TaskPool
 from MDAnalysis import Universe
 from tqdm import tqdm
 
