@@ -74,7 +74,7 @@ def read_readme():
 
 setup(
     name='fplip',
-    version='1.1.0',
+    version='1.2.0',
     description='FPLIP - Fast and All atom Protein-Ligand Interaction Profiler',
     long_description=read_readme(),
     long_description_content_type='text/markdown',
@@ -89,6 +89,8 @@ setup(
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
+        'Programming Language :: Python :: 3.14',
         'Programming Language :: Cython',
         'Topic :: Scientific/Engineering :: Bio-Informatics',
         'Topic :: Scientific/Engineering :: Chemistry',
@@ -104,6 +106,7 @@ setup(
     install_requires=[
         'numpy',
         'lxml',
+        'polars',
         # 'openbabel',  # Allow user to install openbabel_wheel or openbabel
     ],
     extras_require={
@@ -125,6 +128,8 @@ setup(
             'templates/*.html',
             'static/css/*.css',
             'static/js/*.js',
+            'static/vendor/bootstrap/*',
+            'static/vendor/molstar/*',
         ],
     },
     include_package_data=True,
