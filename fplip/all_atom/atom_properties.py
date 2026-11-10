@@ -211,7 +211,17 @@ class AtomProperties:
             if is_acceptor and atom.idx not in self.pos_charged:
                 self.hbond_acceptors.add(atom.idx)
                 # Pre-compute Y atom and hybridization for acceptor angle checking
-                if atom._TYPE != 'MDWAtomInfo':
+                if atom._TYPE == 'MDWAtomInfo':
+                    # Water oxygen carries no OpenBabel atom, so the generic Y lookup
+                    # (OBAtomAtomIter) cannot run for it. The lone pairs of a water
+                    # oxygen point away from both O-H bonds, so one of its hydrogens
+                    # serves as Y and the acceptor is treated as sp3 (A-O-H > 100 deg).
+                    for h_idx in sorted(a.idx for a in atom.residue_obj.atoms
+                                        if a.atomic_num == 1):
+                        self.hbond_acceptor_y_atoms[atom.idx] = h_idx
+                        self.hbond_acceptor_hybridization[atom.idx] = 3
+                        break
+                else:
                     self._precompute_acceptor_y_atom(atom)
             
             # Check if atom is H-bond donor
