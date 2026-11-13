@@ -263,17 +263,21 @@ def _analyzer_server(analyzer: TrajectoryAnalyzer,
             getattr(analyzer, fn_name)(*args)
 
     while True:
+        st = time.time()
         frame_idx, mda_coords = _mp_frame_que.get()
+        ipc_elapsed = time.time() - st
         if frame_idx == -1:
             analyzer.detector.backend.free_mem()
             return
+        st = time.time()
         update_data(analyzer, mda_coords)
         interactions = analyzer.detect_all(detect_water_bridges_plip_style)
         # del objs to avoid Swig obj serialization error
         for inter_data in interactions['hbond'] + interactions['hbond_possible']:
             for atom in ['donor', 'h_atom', 'acceptor']:
                 inter_data.objs[atom] = None
-        _mp_result_que.put((frame_idx, interactions))
+        detect_elapsed = time.time() - st
+        _mp_result_que.put((frame_idx, interactions, ipc_elapsed, detect_elapsed))
 
 class FakeUniverse:
     def __init__(self, universe: Universe):
@@ -299,7 +303,8 @@ class TrajectoryParallelAnalyzer(TrajectoryAnalyzer):
             for _ in range(n_workers)
         ]
         self._init_opts: List[Tuple[str, Callable, List[Any]]] = []
-        self.read_lock = Lock()
+        self._perf_stats: dict = {'send': [], 'wait': [],
+                                  'ipc': [], 'detect': []}
         
     def load_universe(self):
         super().load_universe()
@@ -340,10 +345,14 @@ class TrajectoryParallelAnalyzer(TrajectoryAnalyzer):
         for frame_idx in frame_indices:
             # submit task till all worker are busy
             # use 2 * self.n_workers as task buffer to avoid worker is not busy
+            st = time.time()
             self.u.trajectory[frame_idx]
             frame_que.put((frame_idx, self.u.atoms.positions.copy()))
+            self._perf_stats['send'].append(time.time() - st)
+            st = time.time()
             while frame_que.qsize() > 2 * self.n_workers:
                 time.sleep(0.01)
+            self._perf_stats['wait'].append(time.time() - st)
             
     def iterate_frames_parallel(self, start: int = 0,
                                 stop: Optional[int] = None,
@@ -379,7 +388,8 @@ class TrajectoryParallelAnalyzer(TrajectoryAnalyzer):
         frame_que, result_que = Queue(), Queue()
         pool = TaskPool('process', self.n_workers, report_error=True,
                         mp_pool_init_kwargs={'initializer': _mp_init,
-                                             'initargs': (frame_que, result_que)}).start()
+                                             'initargs': (frame_que, result_que),
+                                             'maxtasksperchild': 100}).start()
         for analyzer in self.analyzers:
             pool.add_task(None, _analyzer_server, analyzer, self._init_opts,
                           filter_waters, detect_water_bridges_plip_style)
@@ -387,9 +397,12 @@ class TrajectoryParallelAnalyzer(TrajectoryAnalyzer):
         frame_indices = list(range(start, stop or len(self.u.trajectory), step))
         task_server = Thread(target=self._task_server, args=(frame_indices, frame_que))
         task_server.start()
-        for i in tqdm(frame_indices, desc="Processing frames", disable=not verbose):
+        bar = tqdm(frame_indices, desc="Processing frames", disable=not verbose)
+        for i in bar:
             # check result, if has one, yield it
-            frame_idx, interactions = result_que.get()
+            frame_idx, interactions, ipc_elapsed, detect_elapsed = result_que.get()
+            self._perf_stats['ipc'].append(ipc_elapsed)
+            self._perf_stats['detect'].append(detect_elapsed)
             # clean up after last frame
             if i == frame_indices[-1]:
                 for _ in range(self.n_workers):
@@ -398,6 +411,10 @@ class TrajectoryParallelAnalyzer(TrajectoryAnalyzer):
                 task_server.join()
                 pool.close(1)
                 self.backend.free_mem()
+            # update perf stats
+            perf_stats = {k: f'{np.mean(v[-100:]):.2f} ({np.max(v[-100:]):.2f})' for k, v in self._perf_stats.items()}
+            perf_stats['qsize'] = frame_que.qsize()
+            bar.set_postfix(perf_stats)
             # yield result
             yield frame_idx, interactions
 
