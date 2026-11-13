@@ -216,8 +216,10 @@ class TrajectoryAnalyzer:
         idx = max(self.mol.atom_container.atoms.keys()) + 1
         org_idx = max(self.mol.atom_container.atoms_by_orig_idx.keys()) + 1
         # resids and resnames are per residue, so repeat them for HOH atom
-        resis = self.water_ags.residues.resids.reshape(1, -1).repeat(3, axis=0).T.flatten()
-        resns = self.water_ags.residues.resnames.reshape(1, -1).repeat(3, axis=0).T.flatten()
+        resis = self.water_ags.resids
+        resns = self.water_ags.resnames
+        if len(np.unique(resis))*3 != len(resns):
+            resis = np.arange(1, len(resns)+1).reshape(1, -1).repeat(3, axis=0).T.flatten()
         coords = self.water_ags.positions
         chains = self.water_ags.chainIDs
         a_types = self.water_ags.names
@@ -693,5 +695,6 @@ if __name__ == "__main__":
 
     analyzer.update_frame(0)
     interactions = analyzer.detector.detect_all(verbose=True)
+    analyzer.add_record(interactions, 0)
     interactions = analyzer.detect_frame_fast(0, verbose=True)
     pass
