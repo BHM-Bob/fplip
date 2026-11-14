@@ -230,10 +230,8 @@ class AtomProperties:
                 if atom._TYPE == 'MDWAtomInfo':
                     attached_h = [a.idx for a in atom.residue_obj.atoms if a.atomic_num == 1]
                 else:
-                    attached_h = []
-                    for neighbor in pybel.ob.OBAtomAtomIter(obatom):
-                        if neighbor.GetAtomicNum() == 1:  # Hydrogen
-                            attached_h.append(neighbor.GetIdx())
+                    attached_h = [idx for idx in self.atom_neighbors.get(atom.idx, ())
+                                  if self.atom_container[idx].is_hydrogen]
                 if attached_h:
                     self.hbond_donors[atom.idx] = sorted(attached_h)
             else:
@@ -241,7 +239,7 @@ class AtomProperties:
                 # N-H and O-H groups where hydrogens are not explicitly present
                 self._identify_potential_donors(atom)
     
-    def _precompute_acceptor_y_atom(self, atom):
+    def _precompute_acceptor_y_atom(self, atom: AtomInfo):
         """Pre-compute the Y atom (covalently bonded heavy atom) for an H-bond acceptor.
         
         The Y atom defines the direction of the acceptor's lone pair for H···A-Y angle calculation.
@@ -250,16 +248,14 @@ class AtomProperties:
         For sp3 acceptors (e.g., hydroxyl -OH), the lone pair follows tetrahedral geometry,
         so H···A-Y > 100° is expected.
         
-        Uses the first non-H neighbor as the Y atom. In the vast majority of biological cases,
-        acceptors have exactly one heavy atom neighbor (e.g., C=O, C-O-H, C=N, etc.).
+        Uses the first non-H neighbor (by ascending atom index, for
+        determinism) as the Y atom. In the vast majority of biological cases,
+        acceptors have exactly one heavy atom neighbor (e.g., C=O, C-O-H, C=N).
         """
-        y_atom_idx = None
-        for neighbor in pybel.ob.OBAtomAtomIter(atom.obatom):
-            if neighbor.GetAtomicNum() != 1:  # Skip hydrogens
-                y_atom_idx = neighbor.GetIdx()
-                self.hbond_acceptor_y_atoms[atom.idx] = y_atom_idx
-                # Store hybridization: GetHyb() returns 1(sp), 2(sp2), 3(sp3)
-                self.hbond_acceptor_hybridization[atom.idx] = atom.obatom.GetHyb()
+        for neighbor_idx in sorted(self.atom_neighbors.get(atom.idx, ())):
+            if self.atom_container[neighbor_idx].atomic_num != 1:
+                self.hbond_acceptor_y_atoms[atom.idx] = neighbor_idx
+                self.hbond_acceptor_hybridization[atom.idx] = atom.hybridization
                 break
     
     def _identify_potential_donors(self, atom):
