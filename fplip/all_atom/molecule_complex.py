@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import polars as pl
 import scipy.spatial.distance
-from mbapy import opts_file
+from mbapy_lite.file import opts_file
 from openbabel import pybel
 
 from fplip.all_atom.atom_container import AtomContainer, AtomInfo

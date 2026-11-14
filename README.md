@@ -1,6 +1,6 @@
-# FPLIP - Fast and Full atom Protein-Ligand Interaction Profiler
+# FPLIP - Fast and All atom Protein-Ligand Interaction Profiler
 
-> A comprehensively restructured and enhanced protein-ligand interaction analysis tool based on PLIP, providing a performance-optimized PLIP-compatible mode and a brand new All-Atom  detection mode.
+> A comprehensively restructured and enhanced protein-ligand interaction analysis tool based on PLIP, providing a performance-optimized PLIP-compatible mode and a high-performance All-Atom detection mode.
 
 [中文文档](README_CN.md)
 

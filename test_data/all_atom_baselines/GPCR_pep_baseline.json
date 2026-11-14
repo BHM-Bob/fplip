@@ -1,7 +1,7 @@
 {
   "test_case": "GPCR_pep",
   "pdb_file": "GPCR_pep.pdb",
-  "created_at": "2026-05-06T17:14:24.707675",
+  "created_at": "2026-10-26T17:56:54.217520",
   "num_residues": 373,
   "num_atoms": 5974,
   "interactions": {
@@ -55,6 +55,16 @@
         "res_b_num": 241,
         "res_b_chain": "A",
         "distance": 3.8855744749007197
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ALA",
+        "res_a_num": 198,
+        "res_a_chain": "A",
+        "res_b_name": "ILE",
+        "res_b_num": 245,
+        "res_b_chain": "A",
+        "distance": 4.01773431177324
       },
       {
         "interaction_type": "hydrophobic",
@@ -119,6 +129,16 @@
       {
         "interaction_type": "hydrophobic",
         "res_a_name": "ALA",
+        "res_a_num": 211,
+        "res_a_chain": "A",
+        "res_b_name": "ALA",
+        "res_b_num": 293,
+        "res_b_chain": "A",
+        "distance": 4.0681742833856065
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ALA",
         "res_a_num": 223,
         "res_a_chain": "A",
         "res_b_name": "ARG",
@@ -134,7 +154,27 @@
         "res_b_name": "ILE",
         "res_b_num": 227,
         "res_b_chain": "A",
+        "distance": 4.026438128172343
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ALA",
+        "res_a_num": 223,
+        "res_a_chain": "A",
+        "res_b_name": "ILE",
+        "res_b_num": 227,
+        "res_b_chain": "A",
         "distance": 3.4979351051727634
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ALA",
+        "res_a_num": 233,
+        "res_a_chain": "A",
+        "res_b_name": "PRO",
+        "res_b_num": 151,
+        "res_b_chain": "A",
+        "distance": 4.031885291027016
       },
       {
         "interaction_type": "hydrophobic",
@@ -189,6 +229,16 @@
       {
         "interaction_type": "hydrophobic",
         "res_a_name": "ALA",
+        "res_a_num": 248,
+        "res_a_chain": "A",
+        "res_b_name": "THR",
+        "res_b_num": 197,
+        "res_b_chain": "A",
+        "distance": 4.0372530265020545
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ALA",
         "res_a_num": 293,
         "res_a_chain": "A",
         "res_b_name": "TYR",
@@ -235,6 +285,16 @@
         "res_b_num": 341,
         "res_b_chain": "A",
         "distance": 3.511103103014776
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ALA",
+        "res_a_num": 305,
+        "res_a_chain": "A",
+        "res_b_name": "ALA",
+        "res_b_num": 335,
+        "res_b_chain": "A",
+        "distance": 4.090091197027274
       },
       {
         "interaction_type": "hydrophobic",
@@ -329,6 +389,16 @@
       {
         "interaction_type": "hydrophobic",
         "res_a_name": "ALA",
+        "res_a_num": 439,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 136,
+        "res_b_chain": "A",
+        "distance": 4.086494463473552
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ALA",
         "res_a_num": 440,
         "res_a_chain": "A",
         "res_b_name": "ALA",
@@ -344,7 +414,27 @@
         "res_b_name": "ILE",
         "res_b_num": 450,
         "res_b_chain": "A",
+        "distance": 4.014706215901732
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ALA",
+        "res_a_num": 446,
+        "res_a_chain": "A",
+        "res_b_name": "ILE",
+        "res_b_num": 450,
+        "res_b_chain": "A",
         "distance": 3.9678001461767205
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ALA",
+        "res_a_num": 446,
+        "res_a_chain": "A",
+        "res_b_name": "ILE",
+        "res_b_num": 450,
+        "res_b_chain": "A",
+        "distance": 4.0726803213608616
       },
       {
         "interaction_type": "hydrophobic",
@@ -361,10 +451,30 @@
         "res_a_name": "ALA",
         "res_a_num": 457,
         "res_a_chain": "A",
+        "res_b_name": "ARG",
+        "res_b_num": 444,
+        "res_b_chain": "A",
+        "distance": 4.0799207100138615
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ALA",
+        "res_a_num": 457,
+        "res_a_chain": "A",
         "res_b_name": "VAL",
         "res_b_num": 459,
         "res_b_chain": "A",
         "distance": 3.8009940805005216
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ALA",
+        "res_a_num": 471,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 459,
+        "res_b_chain": "A",
+        "distance": 4.085640953387853
       },
       {
         "interaction_type": "hydrophobic",
@@ -385,6 +495,16 @@
         "res_b_num": 177,
         "res_b_chain": "A",
         "distance": 3.6486101463433984
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ALA",
+        "res_a_num": 8,
+        "res_a_chain": "Z",
+        "res_b_name": "PHE",
+        "res_b_num": 177,
+        "res_b_chain": "A",
+        "distance": 4.052366962652815
       },
       {
         "interaction_type": "hydrophobic",
@@ -494,7 +614,27 @@
         "res_b_name": "LYS",
         "res_b_num": 259,
         "res_b_chain": "A",
+        "distance": 4.082168051415815
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ASN",
+        "res_a_num": 256,
+        "res_a_chain": "A",
+        "res_b_name": "LYS",
+        "res_b_num": 259,
+        "res_b_chain": "A",
         "distance": 3.9996029802969186
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ASN",
+        "res_a_num": 389,
+        "res_a_chain": "A",
+        "res_b_name": "CYS",
+        "res_b_num": 355,
+        "res_b_chain": "A",
+        "distance": 4.088160466517918
       },
       {
         "interaction_type": "hydrophobic",
@@ -551,6 +691,16 @@
         "res_a_name": "ASP",
         "res_a_num": 366,
         "res_a_chain": "A",
+        "res_b_name": "ILE",
+        "res_b_num": 267,
+        "res_b_chain": "A",
+        "distance": 4.081607771454773
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ASP",
+        "res_a_num": 366,
+        "res_a_chain": "A",
         "res_b_name": "MET",
         "res_b_num": 371,
         "res_b_chain": "A",
@@ -575,16 +725,6 @@
         "res_b_num": 153,
         "res_b_chain": "A",
         "distance": 3.7124280464407646
-      },
-      {
-        "interaction_type": "hydrophobic",
-        "res_a_name": "CYS",
-        "res_a_num": 257,
-        "res_a_chain": "A",
-        "res_b_name": "CYS",
-        "res_b_num": 264,
-        "res_b_chain": "A",
-        "distance": 2.032389234374165
       },
       {
         "interaction_type": "hydrophobic",
@@ -615,6 +755,16 @@
         "res_b_num": 378,
         "res_b_chain": "A",
         "distance": 3.6221290700360194
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "CYS",
+        "res_a_num": 382,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 385,
+        "res_b_chain": "A",
+        "distance": 4.05333208607437
       },
       {
         "interaction_type": "hydrophobic",
@@ -654,6 +804,16 @@
         "res_b_name": "PHE",
         "res_b_num": 381,
         "res_b_chain": "A",
+        "distance": 4.029518209414124
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "GLN",
+        "res_a_num": 115,
+        "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 381,
+        "res_b_chain": "A",
         "distance": 3.645463619349396
       },
       {
@@ -665,6 +825,26 @@
         "res_b_num": 381,
         "res_b_chain": "A",
         "distance": 3.800235387446414
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "GLN",
+        "res_a_num": 116,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 111,
+        "res_b_chain": "A",
+        "distance": 4.093504733110737
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "GLN",
+        "res_a_num": 314,
+        "res_a_chain": "A",
+        "res_b_name": "ILE",
+        "res_b_num": 309,
+        "res_b_chain": "A",
+        "distance": 4.038392501974023
       },
       {
         "interaction_type": "hydrophobic",
@@ -699,6 +879,36 @@
       {
         "interaction_type": "hydrophobic",
         "res_a_name": "GLU",
+        "res_a_num": 133,
+        "res_a_chain": "A",
+        "res_b_name": "PRO",
+        "res_b_num": 394,
+        "res_b_chain": "A",
+        "distance": 4.04794873979402
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "GLU",
+        "res_a_num": 133,
+        "res_a_chain": "A",
+        "res_b_name": "PRO",
+        "res_b_num": 394,
+        "res_b_chain": "A",
+        "distance": 4.085974669525008
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "GLU",
+        "res_a_num": 273,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 263,
+        "res_b_chain": "A",
+        "distance": 4.013190625923471
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "GLU",
         "res_a_num": 273,
         "res_a_chain": "A",
         "res_b_name": "VAL",
@@ -725,6 +935,26 @@
         "res_b_num": 367,
         "res_b_chain": "A",
         "distance": 3.8929172865602992
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "GLU",
+        "res_a_num": 470,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 472,
+        "res_b_chain": "A",
+        "distance": 4.063374213630834
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "HIS",
+        "res_a_num": 181,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 6,
+        "res_b_chain": "Z",
+        "distance": 4.038139794509348
       },
       {
         "interaction_type": "hydrophobic",
@@ -765,6 +995,16 @@
         "res_b_num": 189,
         "res_b_chain": "A",
         "distance": 3.8884318175840518
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "HIS",
+        "res_a_num": 270,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 190,
+        "res_b_chain": "A",
+        "distance": 4.0561550759309
       },
       {
         "interaction_type": "hydrophobic",
@@ -844,6 +1084,16 @@
         "res_b_name": "PHE",
         "res_b_num": 174,
         "res_b_chain": "A",
+        "distance": 4.013547059646866
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 119,
+        "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 174,
+        "res_b_chain": "A",
         "distance": 3.6222236264482626
       },
       {
@@ -875,6 +1125,16 @@
         "res_b_num": 381,
         "res_b_chain": "A",
         "distance": 3.8909516830718927
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 119,
+        "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 381,
+        "res_b_chain": "A",
+        "distance": 4.057692201239517
       },
       {
         "interaction_type": "hydrophobic",
@@ -919,6 +1179,16 @@
       {
         "interaction_type": "hydrophobic",
         "res_a_name": "ILE",
+        "res_a_num": 141,
+        "res_a_chain": "A",
+        "res_b_name": "ILE",
+        "res_b_num": 156,
+        "res_b_chain": "A",
+        "distance": 4.0942150651864875
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
         "res_a_num": 156,
         "res_a_chain": "A",
         "res_b_name": "TYR",
@@ -932,9 +1202,29 @@
         "res_a_num": 156,
         "res_a_chain": "A",
         "res_b_name": "TYR",
+        "res_b_num": 397,
+        "res_b_chain": "A",
+        "distance": 4.0675315610330545
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 156,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
         "res_b_num": 153,
         "res_b_chain": "A",
         "distance": 3.7451206923142015
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 156,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 397,
+        "res_b_chain": "A",
+        "distance": 4.070023218606989
       },
       {
         "interaction_type": "hydrophobic",
@@ -955,6 +1245,26 @@
         "res_b_num": 397,
         "res_b_chain": "A",
         "distance": 3.9218090213573626
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 169,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 196,
+        "res_b_chain": "A",
+        "distance": 4.044359281765159
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 175,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 124,
+        "res_b_chain": "A",
+        "distance": 4.048638783591345
       },
       {
         "interaction_type": "hydrophobic",
@@ -995,6 +1305,16 @@
         "res_b_num": 124,
         "res_b_chain": "A",
         "distance": 3.8317772638816052
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 175,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 124,
+        "res_b_chain": "A",
+        "distance": 4.069716574898059
       },
       {
         "interaction_type": "hydrophobic",
@@ -1071,6 +1391,16 @@
         "res_a_name": "ILE",
         "res_a_num": 216,
         "res_a_chain": "A",
+        "res_b_name": "ILE",
+        "res_b_num": 227,
+        "res_b_chain": "A",
+        "distance": 4.070857403545352
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 216,
+        "res_a_chain": "A",
         "res_b_name": "TYR",
         "res_b_num": 224,
         "res_b_chain": "A",
@@ -1094,7 +1424,37 @@
         "res_b_name": "ILE",
         "res_b_num": 227,
         "res_b_chain": "A",
+        "distance": 4.044805434134006
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 216,
+        "res_a_chain": "A",
+        "res_b_name": "ILE",
+        "res_b_num": 227,
+        "res_b_chain": "A",
         "distance": 3.6378496395535644
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 216,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 215,
+        "res_b_chain": "A",
+        "distance": 4.0750619627190945
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 218,
+        "res_a_chain": "A",
+        "res_b_name": "ILE",
+        "res_b_num": 297,
+        "res_b_chain": "A",
+        "distance": 4.026140832112062
       },
       {
         "interaction_type": "hydrophobic",
@@ -1105,6 +1465,16 @@
         "res_b_num": 300,
         "res_b_chain": "A",
         "distance": 3.4019991181656706
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 227,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 228,
+        "res_b_chain": "A",
+        "distance": 4.042848006047222
       },
       {
         "interaction_type": "hydrophobic",
@@ -1144,6 +1514,16 @@
         "res_b_name": "PHE",
         "res_b_num": 278,
         "res_b_chain": "A",
+        "distance": 4.036377336176587
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 247,
+        "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 278,
+        "res_b_chain": "A",
         "distance": 3.932964022210221
       },
       {
@@ -1161,10 +1541,40 @@
         "res_a_name": "ILE",
         "res_a_num": 247,
         "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 278,
+        "res_b_chain": "A",
+        "distance": 4.014064523646825
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 247,
+        "res_a_chain": "A",
         "res_b_name": "VAL",
         "res_b_num": 282,
         "res_b_chain": "A",
         "distance": 3.796819458441499
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 247,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 282,
+        "res_b_chain": "A",
+        "distance": 4.078641563069744
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 267,
+        "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 268,
+        "res_b_chain": "A",
+        "distance": 4.001150584519408
       },
       {
         "interaction_type": "hydrophobic",
@@ -1391,6 +1801,16 @@
         "res_a_name": "ILE",
         "res_a_num": 290,
         "res_a_chain": "A",
+        "res_b_name": "TRP",
+        "res_b_num": 356,
+        "res_b_chain": "A",
+        "distance": 4.060931666502158
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 290,
+        "res_a_chain": "A",
         "res_b_name": "VAL",
         "res_b_num": 204,
         "res_b_chain": "A",
@@ -1484,6 +1904,16 @@
         "res_b_name": "LYS",
         "res_b_num": 402,
         "res_b_chain": "A",
+        "distance": 4.028549863164162
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 318,
+        "res_a_chain": "A",
+        "res_b_name": "LYS",
+        "res_b_num": 402,
+        "res_b_chain": "A",
         "distance": 3.747738784920848
       },
       {
@@ -1505,6 +1935,16 @@
         "res_b_num": 294,
         "res_b_chain": "A",
         "distance": 3.5736472965305355
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 348,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 352,
+        "res_b_chain": "A",
+        "distance": 4.0569097845527695
       },
       {
         "interaction_type": "hydrophobic",
@@ -1544,6 +1984,16 @@
         "res_b_name": "LEU",
         "res_b_num": 349,
         "res_b_chain": "A",
+        "distance": 4.026366103572799
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 353,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 349,
+        "res_b_chain": "A",
         "distance": 3.7331212142120433
       },
       {
@@ -1555,6 +2005,16 @@
         "res_b_num": 349,
         "res_b_chain": "A",
         "distance": 3.583919362932152
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 354,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 350,
+        "res_b_chain": "A",
+        "distance": 4.0626715348400975
       },
       {
         "interaction_type": "hydrophobic",
@@ -1589,6 +2049,36 @@
       {
         "interaction_type": "hydrophobic",
         "res_a_name": "ILE",
+        "res_a_num": 362,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 378,
+        "res_b_chain": "A",
+        "distance": 4.032083456477556
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 362,
+        "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 379,
+        "res_b_chain": "A",
+        "distance": 4.0439768792613044
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 362,
+        "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 379,
+        "res_b_chain": "A",
+        "distance": 4.045882474813127
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
         "res_a_num": 375,
         "res_a_chain": "A",
         "res_b_name": "TYR",
@@ -1605,6 +2095,16 @@
         "res_b_num": 365,
         "res_b_chain": "A",
         "distance": 3.6447189192035094
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 375,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 365,
+        "res_b_chain": "A",
+        "distance": 4.018681500193813
       },
       {
         "interaction_type": "hydrophobic",
@@ -1638,6 +2138,46 @@
       },
       {
         "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 396,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 351,
+        "res_b_chain": "A",
+        "distance": 4.010193262175777
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 396,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 351,
+        "res_b_chain": "A",
+        "distance": 4.084148870939941
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 396,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 351,
+        "res_b_chain": "A",
+        "distance": 4.04682851131599
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "ILE",
+        "res_a_num": 456,
+        "res_a_chain": "A",
+        "res_b_name": "LYS",
+        "res_b_num": 455,
+        "res_b_chain": "A",
+        "distance": 4.081147020140296
+      },
+      {
+        "interaction_type": "hydrophobic",
         "res_a_name": "LEU",
         "res_a_num": 111,
         "res_a_chain": "A",
@@ -1655,6 +2195,16 @@
         "res_b_num": 381,
         "res_b_chain": "A",
         "distance": 3.9928076587784704
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 117,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 121,
+        "res_b_chain": "A",
+        "distance": 4.081282641523375
       },
       {
         "interaction_type": "hydrophobic",
@@ -1685,6 +2235,16 @@
         "res_b_num": 126,
         "res_b_chain": "A",
         "distance": 3.939776262682945
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 122,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 126,
+        "res_b_chain": "A",
+        "distance": 4.070564702839152
       },
       {
         "interaction_type": "hydrophobic",
@@ -1761,6 +2321,16 @@
         "res_a_name": "LEU",
         "res_a_num": 135,
         "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 131,
+        "res_b_chain": "A",
+        "distance": 4.0793530124273385
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 135,
+        "res_a_chain": "A",
         "res_b_name": "LEU",
         "res_b_num": 164,
         "res_b_chain": "A",
@@ -1781,10 +2351,30 @@
         "res_a_name": "LEU",
         "res_a_num": 136,
         "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 140,
+        "res_b_chain": "A",
+        "distance": 4.095430258226845
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 136,
+        "res_a_chain": "A",
         "res_b_name": "PHE",
         "res_b_num": 408,
         "res_b_chain": "A",
         "distance": 3.618605947046459
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 136,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 140,
+        "res_b_chain": "A",
+        "distance": 4.001559820869856
       },
       {
         "interaction_type": "hydrophobic",
@@ -1815,6 +2405,16 @@
         "res_b_num": 408,
         "res_b_chain": "A",
         "distance": 3.6034214296970584
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 138,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 142,
+        "res_b_chain": "A",
+        "distance": 4.02054051092636
       },
       {
         "interaction_type": "hydrophobic",
@@ -1884,6 +2484,16 @@
         "res_b_name": "TYR",
         "res_b_num": 153,
         "res_b_chain": "A",
+        "distance": 4.054639441430027
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 147,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 153,
+        "res_b_chain": "A",
         "distance": 3.5309879637291317
       },
       {
@@ -1915,6 +2525,16 @@
         "res_b_num": 207,
         "res_b_chain": "A",
         "distance": 3.5651318348695047
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 159,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 397,
+        "res_b_chain": "A",
+        "distance": 4.023638278970911
       },
       {
         "interaction_type": "hydrophobic",
@@ -1981,6 +2601,26 @@
         "res_a_name": "LEU",
         "res_a_num": 190,
         "res_a_chain": "A",
+        "res_b_name": "PRO",
+        "res_b_num": 251,
+        "res_b_chain": "A",
+        "distance": 4.041328989330118
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 190,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 252,
+        "res_b_chain": "A",
+        "distance": 4.087943982003667
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 190,
+        "res_a_chain": "A",
         "res_b_name": "LEU",
         "res_b_num": 252,
         "res_b_chain": "A",
@@ -1991,10 +2631,30 @@
         "res_a_name": "LEU",
         "res_a_num": 190,
         "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 189,
+        "res_b_chain": "A",
+        "distance": 4.096375104894571
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 190,
+        "res_a_chain": "A",
         "res_b_name": "PRO",
         "res_b_num": 251,
         "res_b_chain": "A",
         "distance": 3.881597738045508
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 193,
+        "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 268,
+        "res_b_chain": "A",
+        "distance": 4.031558011488857
       },
       {
         "interaction_type": "hydrophobic",
@@ -2031,10 +2691,30 @@
         "res_a_name": "LEU",
         "res_a_num": 193,
         "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 11,
+        "res_b_chain": "Z",
+        "distance": 4.062934038352087
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 193,
+        "res_a_chain": "A",
         "res_b_name": "PHE",
         "res_b_num": 189,
         "res_b_chain": "A",
         "distance": 3.7013411083011514
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 193,
+        "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 189,
+        "res_b_chain": "A",
+        "distance": 4.024475866494916
       },
       {
         "interaction_type": "hydrophobic",
@@ -2074,6 +2754,16 @@
         "res_b_name": "PHE",
         "res_b_num": 155,
         "res_b_chain": "A",
+        "distance": 4.0051440673214245
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 209,
+        "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 155,
+        "res_b_chain": "A",
         "distance": 3.811940975408722
       },
       {
@@ -2104,7 +2794,37 @@
         "res_b_name": "PHE",
         "res_b_num": 155,
         "res_b_chain": "A",
+        "distance": 4.062029172716513
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 209,
+        "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 155,
+        "res_b_chain": "A",
         "distance": 3.75126871871371
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 250,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 275,
+        "res_b_chain": "A",
+        "distance": 4.035760770908008
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 250,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 275,
+        "res_b_chain": "A",
+        "distance": 4.018485535621598
       },
       {
         "interaction_type": "hydrophobic",
@@ -2125,6 +2845,16 @@
         "res_b_num": 191,
         "res_b_chain": "A",
         "distance": 3.573775874337954
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 252,
+        "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 191,
+        "res_b_chain": "A",
+        "distance": 4.0800564947069065
       },
       {
         "interaction_type": "hydrophobic",
@@ -2261,6 +2991,16 @@
         "res_a_name": "LEU",
         "res_a_num": 287,
         "res_a_chain": "A",
+        "res_b_name": "THR",
+        "res_b_num": 283,
+        "res_b_chain": "A",
+        "distance": 4.0086250760079825
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 287,
+        "res_a_chain": "A",
         "res_b_name": "LEU",
         "res_b_num": 360,
         "res_b_chain": "A",
@@ -2349,6 +3089,26 @@
       {
         "interaction_type": "hydrophobic",
         "res_a_name": "LEU",
+        "res_a_num": 288,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 292,
+        "res_b_chain": "A",
+        "distance": 4.041812217310449
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 298,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 345,
+        "res_b_chain": "A",
+        "distance": 4.020936333741184
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
         "res_a_num": 298,
         "res_a_chain": "A",
         "res_b_name": "LEU",
@@ -2385,6 +3145,16 @@
         "res_b_num": 341,
         "res_b_chain": "A",
         "distance": 3.761459424212895
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 298,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 345,
+        "res_b_chain": "A",
+        "distance": 4.003811559002246
       },
       {
         "interaction_type": "hydrophobic",
@@ -2469,6 +3239,16 @@
       {
         "interaction_type": "hydrophobic",
         "res_a_name": "LEU",
+        "res_a_num": 349,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 294,
+        "res_b_chain": "A",
+        "distance": 4.071279037354231
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
         "res_a_num": 352,
         "res_a_chain": "A",
         "res_b_name": "TRP",
@@ -2514,6 +3294,16 @@
         "res_b_name": "TRP",
         "res_b_num": 356,
         "res_b_chain": "A",
+        "distance": 4.068759761893051
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 352,
+        "res_a_chain": "A",
+        "res_b_name": "TRP",
+        "res_b_num": 356,
+        "res_b_chain": "A",
         "distance": 3.712691072524079
       },
       {
@@ -2532,9 +3322,29 @@
         "res_a_num": 359,
         "res_a_chain": "A",
         "res_b_name": "LEU",
+        "res_b_num": 360,
+        "res_b_chain": "A",
+        "distance": 4.06488437719943
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 359,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
         "res_b_num": 385,
         "res_b_chain": "A",
         "distance": 3.707169540228771
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 359,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 360,
+        "res_b_chain": "A",
+        "distance": 4.009977805424862
       },
       {
         "interaction_type": "hydrophobic",
@@ -2559,6 +3369,36 @@
       {
         "interaction_type": "hydrophobic",
         "res_a_name": "LEU",
+        "res_a_num": 359,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 360,
+        "res_b_chain": "A",
+        "distance": 4.041155404089281
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 360,
+        "res_a_chain": "A",
+        "res_b_name": "TRP",
+        "res_b_num": 279,
+        "res_b_chain": "A",
+        "distance": 4.0237142045627445
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 360,
+        "res_a_chain": "A",
+        "res_b_name": "MET",
+        "res_b_num": 363,
+        "res_b_chain": "A",
+        "distance": 4.049736905034695
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
         "res_a_num": 360,
         "res_a_chain": "A",
         "res_b_name": "PHE",
@@ -2575,6 +3415,16 @@
         "res_b_num": 358,
         "res_b_chain": "A",
         "distance": 3.8351504533720706
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 385,
+        "res_a_chain": "A",
+        "res_b_name": "LEU",
+        "res_b_num": 388,
+        "res_b_chain": "A",
+        "distance": 4.093592432082119
       },
       {
         "interaction_type": "hydrophobic",
@@ -2621,6 +3471,16 @@
         "res_a_name": "LEU",
         "res_a_num": 387,
         "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 171,
+        "res_b_chain": "A",
+        "distance": 4.068463223380544
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 387,
+        "res_a_chain": "A",
         "res_b_name": "PHE",
         "res_b_num": 170,
         "res_b_chain": "A",
@@ -2635,6 +3495,26 @@
         "res_b_num": 171,
         "res_b_chain": "A",
         "distance": 3.9519693824724915
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 399,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 463,
+        "res_b_chain": "A",
+        "distance": 4.0989947548148935
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 404,
+        "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 408,
+        "res_b_chain": "A",
+        "distance": 4.084468264046129
       },
       {
         "interaction_type": "hydrophobic",
@@ -2664,7 +3544,37 @@
         "res_b_name": "TYR",
         "res_b_num": 153,
         "res_b_chain": "A",
+        "distance": 4.065848619907042
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 404,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 153,
+        "res_b_chain": "A",
+        "distance": 4.042406461502851
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 404,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 153,
+        "res_b_chain": "A",
         "distance": 3.7571261623746413
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 404,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 153,
+        "res_b_chain": "A",
+        "distance": 4.04970023581993
       },
       {
         "interaction_type": "hydrophobic",
@@ -2705,6 +3615,16 @@
         "res_b_num": 376,
         "res_b_chain": "A",
         "distance": 3.657711853057866
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 3,
+        "res_a_chain": "Z",
+        "res_b_name": "MET",
+        "res_b_num": 371,
+        "res_b_chain": "A",
+        "distance": 4.0881778337053785
       },
       {
         "interaction_type": "hydrophobic",
@@ -2794,6 +3714,16 @@
         "res_b_name": "PHE",
         "res_b_num": 177,
         "res_b_chain": "A",
+        "distance": 4.05563373592833
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 6,
+        "res_a_chain": "Z",
+        "res_b_name": "PHE",
+        "res_b_num": 177,
+        "res_b_chain": "A",
         "distance": 3.611023816038881
       },
       {
@@ -2822,6 +3752,16 @@
         "res_a_num": 11,
         "res_a_chain": "Z",
         "res_b_name": "PHE",
+        "res_b_num": 268,
+        "res_b_chain": "A",
+        "distance": 4.045080221701418
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 11,
+        "res_a_chain": "Z",
+        "res_b_name": "PHE",
         "res_b_num": 170,
         "res_b_chain": "A",
         "distance": 3.791022685239433
@@ -2835,6 +3775,16 @@
         "res_b_num": 196,
         "res_b_chain": "A",
         "distance": 3.8295600269482666
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "LEU",
+        "res_a_num": 11,
+        "res_a_chain": "Z",
+        "res_b_name": "PHE",
+        "res_b_num": 268,
+        "res_b_chain": "A",
+        "distance": 4.034445934697848
       },
       {
         "interaction_type": "hydrophobic",
@@ -3114,6 +4064,16 @@
         "res_b_name": "VAL",
         "res_b_num": 196,
         "res_b_chain": "A",
+        "distance": 4.026121334485586
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "PHE",
+        "res_a_num": 170,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 196,
+        "res_b_chain": "A",
         "distance": 3.7667701018246387
       },
       {
@@ -3131,10 +4091,30 @@
         "res_a_name": "PHE",
         "res_a_num": 170,
         "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 171,
+        "res_b_chain": "A",
+        "distance": 4.0317863286637605
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "PHE",
+        "res_a_num": 170,
+        "res_a_chain": "A",
         "res_b_name": "PHE",
         "res_b_num": 174,
         "res_b_chain": "A",
         "distance": 3.9731350342015817
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "PHE",
+        "res_a_num": 170,
+        "res_a_chain": "A",
+        "res_b_name": "PHE",
+        "res_b_num": 174,
+        "res_b_chain": "A",
+        "distance": 4.042218574001164
       },
       {
         "interaction_type": "hydrophobic",
@@ -3205,6 +4185,16 @@
         "res_b_num": 174,
         "res_b_chain": "A",
         "distance": 3.822786810691905
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "PHE",
+        "res_a_num": 180,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 179,
+        "res_b_chain": "A",
+        "distance": 4.0666906693280716
       },
       {
         "interaction_type": "hydrophobic",
@@ -3309,6 +4299,26 @@
       {
         "interaction_type": "hydrophobic",
         "res_a_name": "PHE",
+        "res_a_num": 200,
+        "res_a_chain": "A",
+        "res_b_name": "TRP",
+        "res_b_num": 279,
+        "res_b_chain": "A",
+        "distance": 4.01195538360037
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "PHE",
+        "res_a_num": 200,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 204,
+        "res_b_chain": "A",
+        "distance": 4.071227210559489
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "PHE",
         "res_a_num": 208,
         "res_a_chain": "A",
         "res_b_name": "PHE",
@@ -3374,6 +4384,16 @@
         "res_b_name": "TRP",
         "res_b_num": 241,
         "res_b_chain": "A",
+        "distance": 4.07203953811846
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "PHE",
+        "res_a_num": 237,
+        "res_a_chain": "A",
+        "res_b_name": "TRP",
+        "res_b_num": 241,
+        "res_b_chain": "A",
         "distance": 3.5311655299631592
       },
       {
@@ -3429,12 +4449,42 @@
       {
         "interaction_type": "hydrophobic",
         "res_a_name": "PHE",
+        "res_a_num": 289,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 215,
+        "res_b_chain": "A",
+        "distance": 4.082537078827332
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "PHE",
+        "res_a_num": 408,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 140,
+        "res_b_chain": "A",
+        "distance": 4.009479517343866
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "PHE",
         "res_a_num": 408,
         "res_a_chain": "A",
         "res_b_name": "VAL",
         "res_b_num": 140,
         "res_b_chain": "A",
         "distance": 3.825026143701504
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "PHE",
+        "res_a_num": 408,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 140,
+        "res_b_chain": "A",
+        "distance": 4.031427662751745
       },
       {
         "interaction_type": "hydrophobic",
@@ -3454,7 +4504,27 @@
         "res_b_name": "VAL",
         "res_b_num": 140,
         "res_b_chain": "A",
+        "distance": 4.034661819781181
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "PHE",
+        "res_a_num": 408,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 140,
+        "res_b_chain": "A",
         "distance": 3.9454056825629475
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "PHE",
+        "res_a_num": 408,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 140,
+        "res_b_chain": "A",
+        "distance": 4.000011749982742
       },
       {
         "interaction_type": "hydrophobic",
@@ -3505,6 +4575,16 @@
         "res_b_num": 228,
         "res_b_chain": "A",
         "distance": 3.724326919055309
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "PRO",
+        "res_a_num": 251,
+        "res_a_chain": "A",
+        "res_b_name": "TYR",
+        "res_b_num": 275,
+        "res_b_chain": "A",
+        "distance": 4.088656013899923
       },
       {
         "interaction_type": "hydrophobic",
@@ -3565,6 +4645,16 @@
         "res_b_num": 467,
         "res_b_chain": "A",
         "distance": 3.545305628574213
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "TRP",
+        "res_a_num": 241,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 161,
+        "res_b_chain": "A",
+        "distance": 4.005858709440461
       },
       {
         "interaction_type": "hydrophobic",
@@ -3674,6 +4764,16 @@
         "res_b_name": "VAL",
         "res_b_num": 392,
         "res_b_chain": "A",
+        "distance": 4.023001615709346
+      },
+      {
+        "interaction_type": "hydrophobic",
+        "res_a_name": "VAL",
+        "res_a_num": 351,
+        "res_a_chain": "A",
+        "res_b_name": "VAL",
+        "res_b_num": 392,
+        "res_b_chain": "A",
         "distance": 3.6299234151700777
       },
       {
@@ -3763,10 +4863,10 @@
         "res_a_name": "GLN",
         "res_a_num": 116,
         "res_a_chain": "A",
-        "res_b_name": "HIS",
-        "res_b_num": 178,
-        "res_b_chain": "A",
-        "distance": 2.862279860530761
+        "res_b_name": "ASP",
+        "res_b_num": 5,
+        "res_b_chain": "Z",
+        "distance": 3.742345788405983
       },
       {
         "interaction_type": "hbond",
@@ -3980,16 +5080,6 @@
       },
       {
         "interaction_type": "hbond",
-        "res_a_name": "ASN",
-        "res_a_num": 134,
-        "res_a_chain": "A",
-        "res_b_name": "ASP",
-        "res_b_num": 163,
-        "res_b_chain": "A",
-        "distance": 3.852509571694793
-      },
-      {
-        "interaction_type": "hbond",
         "res_a_name": "LEU",
         "res_a_num": 135,
         "res_a_chain": "A",
@@ -4160,16 +5250,6 @@
       },
       {
         "interaction_type": "hbond",
-        "res_a_name": "CYS",
-        "res_a_num": 149,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 146,
-        "res_b_chain": "A",
-        "distance": 3.8522850361830714
-      },
-      {
-        "interaction_type": "hbond",
         "res_a_name": "ARG",
         "res_a_num": 150,
         "res_a_chain": "A",
@@ -4177,16 +5257,6 @@
         "res_b_num": 147,
         "res_b_chain": "A",
         "distance": 3.1491594116525774
-      },
-      {
-        "interaction_type": "hbond",
-        "res_a_name": "ARG",
-        "res_a_num": 150,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 152,
-        "res_b_chain": "A",
-        "distance": 3.0632182423066108
       },
       {
         "interaction_type": "hbond",
@@ -4567,16 +5637,6 @@
         "res_b_num": 182,
         "res_b_chain": "A",
         "distance": 3.5503491377609606
-      },
-      {
-        "interaction_type": "hbond",
-        "res_a_name": "ASN",
-        "res_a_num": 187,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 185,
-        "res_b_chain": "A",
-        "distance": 3.7023168421948975
       },
       {
         "interaction_type": "hbond",
@@ -4983,10 +6043,10 @@
         "res_a_name": "TYR",
         "res_a_num": 224,
         "res_a_chain": "A",
-        "res_b_name": "PRO",
-        "res_b_num": 221,
+        "res_b_name": "ARG",
+        "res_b_num": 220,
         "res_b_chain": "A",
-        "distance": 4.065263706083529
+        "distance": 2.9310817115870376
       },
       {
         "interaction_type": "hbond",
@@ -5370,16 +6430,6 @@
       },
       {
         "interaction_type": "hbond",
-        "res_a_name": "VAL",
-        "res_a_num": 263,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 262,
-        "res_b_chain": "A",
-        "distance": 2.7201744429356003
-      },
-      {
-        "interaction_type": "hbond",
         "res_a_name": "SER",
         "res_a_num": 265,
         "res_a_chain": "A",
@@ -5406,7 +6456,7 @@
         "res_b_name": "ASP",
         "res_b_num": 366,
         "res_b_chain": "A",
-        "distance": 3.7691127603190653
+        "distance": 2.9554189212360416
       },
       {
         "interaction_type": "hbond",
@@ -5760,16 +6810,6 @@
       },
       {
         "interaction_type": "hbond",
-        "res_a_name": "LYS",
-        "res_a_num": 300,
-        "res_a_chain": "A",
-        "res_b_name": "HIS",
-        "res_b_num": 219,
-        "res_b_chain": "A",
-        "distance": 2.8871941396449246
-      },
-      {
-        "interaction_type": "hbond",
         "res_a_name": "ALA",
         "res_a_num": 301,
         "res_a_chain": "A",
@@ -5920,16 +6960,6 @@
       },
       {
         "interaction_type": "hbond",
-        "res_a_name": "THR",
-        "res_a_num": 313,
-        "res_a_chain": "A",
-        "res_b_name": "GLY",
-        "res_b_num": 312,
-        "res_b_chain": "A",
-        "distance": 3.9244841699260307
-      },
-      {
-        "interaction_type": "hbond",
         "res_a_name": "GLN",
         "res_a_num": 314,
         "res_a_chain": "A",
@@ -5937,16 +6967,6 @@
         "res_b_num": 316,
         "res_b_chain": "A",
         "distance": 3.064118307115442
-      },
-      {
-        "interaction_type": "hbond",
-        "res_a_name": "SER",
-        "res_a_num": 316,
-        "res_a_chain": "A",
-        "res_b_name": "GLN",
-        "res_b_num": 314,
-        "res_b_chain": "A",
-        "distance": 4.072032784740321
       },
       {
         "interaction_type": "hbond",
@@ -6267,16 +7287,6 @@
         "res_b_num": 352,
         "res_b_chain": "A",
         "distance": 2.7740657886935556
-      },
-      {
-        "interaction_type": "hbond",
-        "res_a_name": "TRP",
-        "res_a_num": 356,
-        "res_a_chain": "A",
-        "res_b_name": "ASN",
-        "res_b_num": 389,
-        "res_b_chain": "A",
-        "distance": 3.6802728159743814
       },
       {
         "interaction_type": "hbond",
@@ -6890,26 +7900,6 @@
       },
       {
         "interaction_type": "hbond",
-        "res_a_name": "GLU",
-        "res_a_num": 416,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 414,
-        "res_b_chain": "A",
-        "distance": 3.8584728844453466
-      },
-      {
-        "interaction_type": "hbond",
-        "res_a_name": "THR",
-        "res_a_num": 418,
-        "res_a_chain": "A",
-        "res_b_name": "GLU",
-        "res_b_num": 416,
-        "res_b_chain": "A",
-        "distance": 3.2760373929489908
-      },
-      {
-        "interaction_type": "hbond",
         "res_a_name": "THR",
         "res_a_num": 418,
         "res_a_chain": "A",
@@ -7077,16 +8067,6 @@
         "res_b_num": 458,
         "res_b_chain": "A",
         "distance": 2.6911519838165954
-      },
-      {
-        "interaction_type": "hbond",
-        "res_a_name": "CYS",
-        "res_a_num": 449,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 448,
-        "res_b_chain": "A",
-        "distance": 3.0049707153315155
       },
       {
         "interaction_type": "hbond",
@@ -7282,66 +8262,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 111,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 4,
-        "res_b_chain": "Z",
-        "distance": 3.1561818705518214
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "GLN",
-        "res_a_num": 116,
-        "res_a_chain": "A",
-        "res_b_name": "PRO",
-        "res_b_num": 113,
-        "res_b_chain": "A",
-        "distance": 3.399810877093017
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "GLN",
-        "res_a_num": 116,
-        "res_a_chain": "A",
-        "res_b_name": "ASP",
-        "res_b_num": 5,
-        "res_b_chain": "Z",
-        "distance": 3.742345788405983
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 117,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 114,
-        "res_b_chain": "A",
-        "distance": 3.7744177034345316
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ALA",
-        "res_a_num": 118,
-        "res_a_chain": "A",
-        "res_b_name": "GLN",
-        "res_b_num": 115,
-        "res_b_chain": "A",
-        "distance": 3.041685223687683
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ILE",
-        "res_a_num": 119,
-        "res_a_chain": "A",
-        "res_b_name": "GLN",
-        "res_b_num": 116,
-        "res_b_chain": "A",
-        "distance": 3.3038324715396805
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "ALA",
         "res_a_num": 120,
         "res_a_chain": "A",
@@ -7352,16 +8272,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "VAL",
-        "res_a_num": 121,
-        "res_a_chain": "A",
-        "res_b_name": "ALA",
-        "res_b_num": 118,
-        "res_b_chain": "A",
-        "distance": 3.218372414746311
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "LEU",
         "res_a_num": 122,
         "res_a_chain": "A",
@@ -7369,16 +8279,6 @@
         "res_b_num": 119,
         "res_b_chain": "A",
         "distance": 3.1550369252989725
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "SER",
-        "res_a_num": 123,
-        "res_a_chain": "A",
-        "res_b_name": "ALA",
-        "res_b_num": 120,
-        "res_b_chain": "A",
-        "distance": 3.171308405059339
       },
       {
         "interaction_type": "hbond_possible",
@@ -7399,26 +8299,6 @@
         "res_b_num": 122,
         "res_b_chain": "A",
         "distance": 3.0286409493368476
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 126,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 123,
-        "res_b_chain": "A",
-        "distance": 3.268975680545819
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "GLY",
-        "res_a_num": 127,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 124,
-        "res_b_chain": "A",
-        "distance": 3.407173902224541
       },
       {
         "interaction_type": "hbond_possible",
@@ -7493,42 +8373,12 @@
       {
         "interaction_type": "hbond_possible",
         "res_a_name": "LEU",
-        "res_a_num": 135,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 132,
-        "res_b_chain": "A",
-        "distance": 3.4473824853067874
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
         "res_a_num": 136,
         "res_a_chain": "A",
         "res_b_name": "GLU",
         "res_b_num": 133,
         "res_b_chain": "A",
         "distance": 2.98135153915133
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "VAL",
-        "res_a_num": 137,
-        "res_a_chain": "A",
-        "res_b_name": "ASN",
-        "res_b_num": 134,
-        "res_b_chain": "A",
-        "distance": 3.2716543215932825
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 138,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 135,
-        "res_b_chain": "A",
-        "distance": 3.5390209097997714
       },
       {
         "interaction_type": "hbond_possible",
@@ -7562,36 +8412,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 142,
-        "res_a_chain": "A",
-        "res_b_name": "CYS",
-        "res_b_num": 139,
-        "res_b_chain": "A",
-        "distance": 3.598498714742024
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "HIS",
-        "res_a_num": 143,
-        "res_a_chain": "A",
-        "res_b_name": "VAL",
-        "res_b_num": 140,
-        "res_b_chain": "A",
-        "distance": 3.7215636498654705
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "SER",
-        "res_a_num": 144,
-        "res_a_chain": "A",
-        "res_b_name": "ILE",
-        "res_b_num": 141,
-        "res_b_chain": "A",
-        "distance": 3.533788476974817
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "ARG",
         "res_a_num": 145,
         "res_a_chain": "A",
@@ -7599,36 +8419,6 @@
         "res_b_num": 414,
         "res_b_chain": "A",
         "distance": 3.063619591267817
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "SER",
-        "res_a_num": 146,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 144,
-        "res_b_chain": "A",
-        "distance": 3.433287200337309
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 147,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 144,
-        "res_b_chain": "A",
-        "distance": 3.7832860055776902
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ARG",
-        "res_a_num": 148,
-        "res_a_chain": "A",
-        "res_b_name": "HIS",
-        "res_b_num": 143,
-        "res_b_chain": "A",
-        "distance": 3.8706531748530506
       },
       {
         "interaction_type": "hbond_possible",
@@ -7652,16 +8442,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "HIS",
-        "res_a_num": 154,
-        "res_a_chain": "A",
-        "res_b_name": "PRO",
-        "res_b_num": 151,
-        "res_b_chain": "A",
-        "distance": 3.355435441190904
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "PHE",
         "res_a_num": 155,
         "res_a_chain": "A",
@@ -7669,46 +8449,6 @@
         "res_b_num": 152,
         "res_b_chain": "A",
         "distance": 3.5946767587642703
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ILE",
-        "res_a_num": 156,
-        "res_a_chain": "A",
-        "res_b_name": "TYR",
-        "res_b_num": 153,
-        "res_b_chain": "A",
-        "distance": 3.41462296600957
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "GLY",
-        "res_a_num": 157,
-        "res_a_chain": "A",
-        "res_b_name": "HIS",
-        "res_b_num": 154,
-        "res_b_chain": "A",
-        "distance": 3.088282532411826
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "SER",
-        "res_a_num": 158,
-        "res_a_chain": "A",
-        "res_b_name": "PHE",
-        "res_b_num": 155,
-        "res_b_chain": "A",
-        "distance": 3.046933212264424
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 159,
-        "res_a_chain": "A",
-        "res_b_name": "ILE",
-        "res_b_num": 156,
-        "res_b_chain": "A",
-        "distance": 3.1419057910764927
       },
       {
         "interaction_type": "hbond_possible",
@@ -7742,46 +8482,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "ASP",
-        "res_a_num": 163,
-        "res_a_chain": "A",
-        "res_b_name": "ALA",
-        "res_b_num": 160,
-        "res_b_chain": "A",
-        "distance": 3.4186177031075
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 164,
-        "res_a_chain": "A",
-        "res_b_name": "VAL",
-        "res_b_num": 161,
-        "res_b_chain": "A",
-        "distance": 3.238544117346559
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 165,
-        "res_a_chain": "A",
-        "res_b_name": "ALA",
-        "res_b_num": 162,
-        "res_b_chain": "A",
-        "distance": 3.7680749727148473
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "GLY",
-        "res_a_num": 166,
-        "res_a_chain": "A",
-        "res_b_name": "ASP",
-        "res_b_num": 163,
-        "res_b_chain": "A",
-        "distance": 3.5721826661020573
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "SER",
         "res_a_num": 167,
         "res_a_chain": "A",
@@ -7802,36 +8502,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "ILE",
-        "res_a_num": 169,
-        "res_a_chain": "A",
-        "res_b_name": "GLY",
-        "res_b_num": 166,
-        "res_b_chain": "A",
-        "distance": 3.417653142143011
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "PHE",
-        "res_a_num": 170,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 167,
-        "res_b_chain": "A",
-        "distance": 3.639863871080896
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "VAL",
-        "res_a_num": 171,
-        "res_a_chain": "A",
-        "res_b_name": "VAL",
-        "res_b_num": 168,
-        "res_b_chain": "A",
-        "distance": 3.694263932097976
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "TYR",
         "res_a_num": 172,
         "res_a_chain": "A",
@@ -7849,36 +8519,6 @@
         "res_b_num": 170,
         "res_b_chain": "A",
         "distance": 3.1809011301830807
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "PHE",
-        "res_a_num": 174,
-        "res_a_chain": "A",
-        "res_b_name": "VAL",
-        "res_b_num": 171,
-        "res_b_chain": "A",
-        "distance": 3.4659120011910276
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ILE",
-        "res_a_num": 175,
-        "res_a_chain": "A",
-        "res_b_name": "TYR",
-        "res_b_num": 172,
-        "res_b_chain": "A",
-        "distance": 3.678477674256023
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ASP",
-        "res_a_num": 176,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 173,
-        "res_b_chain": "A",
-        "distance": 3.449482424944355
       },
       {
         "interaction_type": "hbond_possible",
@@ -7952,26 +8592,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "VAL",
-        "res_a_num": 188,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 185,
-        "res_b_chain": "A",
-        "distance": 3.4153092100130555
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "PHE",
-        "res_a_num": 189,
-        "res_a_chain": "A",
-        "res_b_name": "ARG",
-        "res_b_num": 186,
-        "res_b_chain": "A",
-        "distance": 3.6616852677421625
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "LEU",
         "res_a_num": 190,
         "res_a_chain": "A",
@@ -8012,46 +8632,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "LYS",
-        "res_a_num": 192,
-        "res_a_chain": "A",
-        "res_b_name": "ASP",
-        "res_b_num": 184,
-        "res_b_chain": "A",
-        "distance": 3.5415722497218662
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 193,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 190,
-        "res_b_chain": "A",
-        "distance": 3.3697231340274825
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "GLY",
-        "res_a_num": 194,
-        "res_a_chain": "A",
-        "res_b_name": "PHE",
-        "res_b_num": 191,
-        "res_b_chain": "A",
-        "distance": 3.494174866831939
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "GLY",
-        "res_a_num": 195,
-        "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 192,
-        "res_b_chain": "A",
-        "distance": 3.33627846559606
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "VAL",
         "res_a_num": 196,
         "res_a_chain": "A",
@@ -8062,26 +8642,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "THR",
-        "res_a_num": 197,
-        "res_a_chain": "A",
-        "res_b_name": "GLY",
-        "res_b_num": 194,
-        "res_b_chain": "A",
-        "distance": 3.4052455124410623
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ALA",
-        "res_a_num": 198,
-        "res_a_chain": "A",
-        "res_b_name": "GLY",
-        "res_b_num": 195,
-        "res_b_chain": "A",
-        "distance": 3.510194723943388
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "SER",
         "res_a_num": 199,
         "res_a_chain": "A",
@@ -8089,16 +8649,6 @@
         "res_b_num": 196,
         "res_b_chain": "A",
         "distance": 3.088795396266966
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "SER",
-        "res_a_num": 199,
-        "res_a_chain": "A",
-        "res_b_name": "VAL",
-        "res_b_num": 196,
-        "res_b_chain": "A",
-        "distance": 4.056259114011332
       },
       {
         "interaction_type": "hbond_possible",
@@ -8122,16 +8672,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "ALA",
-        "res_a_num": 202,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 199,
-        "res_b_chain": "A",
-        "distance": 3.289400097282178
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "SER",
         "res_a_num": 203,
         "res_a_chain": "A",
@@ -8139,36 +8679,6 @@
         "res_b_num": 200,
         "res_b_chain": "A",
         "distance": 3.141230650557199
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "SER",
-        "res_a_num": 203,
-        "res_a_chain": "A",
-        "res_b_name": "ASP",
-        "res_b_num": 163,
-        "res_b_chain": "A",
-        "distance": 3.767751849578207
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "VAL",
-        "res_a_num": 204,
-        "res_a_chain": "A",
-        "res_b_name": "THR",
-        "res_b_num": 201,
-        "res_b_chain": "A",
-        "distance": 2.981477653781762
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "GLY",
-        "res_a_num": 205,
-        "res_a_chain": "A",
-        "res_b_name": "ALA",
-        "res_b_num": 202,
-        "res_b_chain": "A",
-        "distance": 3.0337099399909677
       },
       {
         "interaction_type": "hbond_possible",
@@ -8192,56 +8702,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "PHE",
-        "res_a_num": 208,
-        "res_a_chain": "A",
-        "res_b_name": "GLY",
-        "res_b_num": 205,
-        "res_b_chain": "A",
-        "distance": 3.304318083962257
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 209,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 206,
-        "res_b_chain": "A",
-        "distance": 3.3491555652134166
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "THR",
-        "res_a_num": 210,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 207,
-        "res_b_chain": "A",
-        "distance": 3.2163050228484233
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ALA",
-        "res_a_num": 211,
-        "res_a_chain": "A",
-        "res_b_name": "PHE",
-        "res_b_num": 208,
-        "res_b_chain": "A",
-        "distance": 3.126561210019724
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ILE",
-        "res_a_num": 212,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 209,
-        "res_b_chain": "A",
-        "distance": 3.202903994814706
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "ASP",
         "res_a_num": 213,
         "res_a_chain": "A",
@@ -8262,16 +8722,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "TYR",
-        "res_a_num": 215,
-        "res_a_chain": "A",
-        "res_b_name": "ILE",
-        "res_b_num": 212,
-        "res_b_chain": "A",
-        "distance": 2.94112784489216
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "ILE",
         "res_a_num": 216,
         "res_a_chain": "A",
@@ -8282,16 +8732,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "SER",
-        "res_a_num": 217,
-        "res_a_chain": "A",
-        "res_b_name": "ARG",
-        "res_b_num": 214,
-        "res_b_chain": "A",
-        "distance": 3.1696772706381315
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "ILE",
         "res_a_num": 218,
         "res_a_chain": "A",
@@ -8299,36 +8739,6 @@
         "res_b_num": 215,
         "res_b_chain": "A",
         "distance": 3.3008527686038955
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "HIS",
-        "res_a_num": 219,
-        "res_a_chain": "A",
-        "res_b_name": "ILE",
-        "res_b_num": 216,
-        "res_b_chain": "A",
-        "distance": 3.321044112925934
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "TYR",
-        "res_a_num": 224,
-        "res_a_chain": "A",
-        "res_b_name": "ARG",
-        "res_b_num": 220,
-        "res_b_chain": "A",
-        "distance": 2.9310817115870376
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "TYR",
-        "res_a_num": 224,
-        "res_a_chain": "A",
-        "res_b_name": "ASP",
-        "res_b_num": 213,
-        "res_b_chain": "A",
-        "distance": 3.70291844360634
       },
       {
         "interaction_type": "hbond_possible",
@@ -8382,26 +8792,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "VAL",
-        "res_a_num": 235,
-        "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 232,
-        "res_b_chain": "A",
-        "distance": 3.334220898500878
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ALA",
-        "res_a_num": 236,
-        "res_a_chain": "A",
-        "res_b_name": "ALA",
-        "res_b_num": 233,
-        "res_b_chain": "A",
-        "distance": 3.5069766181142414
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "PHE",
         "res_a_num": 237,
         "res_a_chain": "A",
@@ -8442,16 +8832,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "TRP",
-        "res_a_num": 241,
-        "res_a_chain": "A",
-        "res_b_name": "CYS",
-        "res_b_num": 238,
-        "res_b_chain": "A",
-        "distance": 3.648477627723652
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "THR",
         "res_a_num": 242,
         "res_a_chain": "A",
@@ -8459,16 +8839,6 @@
         "res_b_num": 239,
         "res_b_chain": "A",
         "distance": 3.0993531583219096
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ILE",
-        "res_a_num": 243,
-        "res_a_chain": "A",
-        "res_b_name": "MET",
-        "res_b_num": 240,
-        "res_b_chain": "A",
-        "distance": 3.436852193504982
       },
       {
         "interaction_type": "hbond_possible",
@@ -8499,16 +8869,6 @@
         "res_b_num": 243,
         "res_b_chain": "A",
         "distance": 3.3433255898880088
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ILE",
-        "res_a_num": 247,
-        "res_a_chain": "A",
-        "res_b_name": "ALA",
-        "res_b_num": 244,
-        "res_b_chain": "A",
-        "distance": 3.842250382262978
       },
       {
         "interaction_type": "hbond_possible",
@@ -8543,32 +8903,12 @@
       {
         "interaction_type": "hbond_possible",
         "res_a_name": "LEU",
-        "res_a_num": 250,
-        "res_a_chain": "A",
-        "res_b_name": "ALA",
-        "res_b_num": 248,
-        "res_b_chain": "A",
-        "distance": 3.5354293940057686
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
         "res_a_num": 253,
         "res_a_chain": "A",
         "res_b_name": "LEU",
         "res_b_num": 250,
         "res_b_chain": "A",
         "distance": 2.7376053404389737
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "GLY",
-        "res_a_num": 254,
-        "res_a_chain": "A",
-        "res_b_name": "PRO",
-        "res_b_num": 251,
-        "res_b_chain": "A",
-        "distance": 3.7991670139650355
       },
       {
         "interaction_type": "hbond_possible",
@@ -8582,56 +8922,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "SER",
-        "res_a_num": 265,
-        "res_a_chain": "A",
-        "res_b_name": "ASP",
-        "res_b_num": 366,
-        "res_b_chain": "A",
-        "distance": 4.045632336236204
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ASP",
-        "res_a_num": 266,
-        "res_a_chain": "A",
-        "res_b_name": "ASP",
-        "res_b_num": 366,
-        "res_b_chain": "A",
-        "distance": 2.9554189212360416
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "HIS",
-        "res_a_num": 270,
-        "res_a_chain": "A",
-        "res_b_name": "GLU",
-        "res_b_num": 258,
-        "res_b_chain": "A",
-        "distance": 3.901482538728065
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "HIS",
-        "res_a_num": 270,
-        "res_a_chain": "A",
-        "res_b_name": "GLU",
-        "res_b_num": 258,
-        "res_b_chain": "A",
-        "distance": 3.851056218753499
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ILE",
-        "res_a_num": 271,
-        "res_a_chain": "A",
-        "res_b_name": "PRO",
-        "res_b_num": 269,
-        "res_b_chain": "A",
-        "distance": 3.9914260609461363
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "TYR",
         "res_a_num": 275,
         "res_a_chain": "A",
@@ -8639,16 +8929,6 @@
         "res_b_num": 272,
         "res_b_chain": "A",
         "distance": 3.40086959467722
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "TYR",
-        "res_a_num": 275,
-        "res_a_chain": "A",
-        "res_b_name": "ASP",
-        "res_b_num": 272,
-        "res_b_chain": "A",
-        "distance": 3.7645851033015565
       },
       {
         "interaction_type": "hbond_possible",
@@ -8732,16 +9012,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "THR",
-        "res_a_num": 283,
-        "res_a_chain": "A",
-        "res_b_name": "ILE",
-        "res_b_num": 280,
-        "res_b_chain": "A",
-        "distance": 3.4606409810900645
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "SER",
         "res_a_num": 284,
         "res_a_chain": "A",
@@ -8773,32 +9043,12 @@
       {
         "interaction_type": "hbond_possible",
         "res_a_name": "LEU",
-        "res_a_num": 287,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 284,
-        "res_b_chain": "A",
-        "distance": 3.0293344153460513
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
         "res_a_num": 288,
         "res_a_chain": "A",
         "res_b_name": "VAL",
         "res_b_num": 285,
         "res_b_chain": "A",
         "distance": 3.3206409019946745
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "PHE",
-        "res_a_num": 289,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 286,
-        "res_b_chain": "A",
-        "distance": 3.3075708609189314
       },
       {
         "interaction_type": "hbond_possible",
@@ -8832,16 +9082,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "ALA",
-        "res_a_num": 293,
-        "res_a_chain": "A",
-        "res_b_name": "ILE",
-        "res_b_num": 290,
-        "res_b_chain": "A",
-        "distance": 3.595231703242504
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "TYR",
         "res_a_num": 294,
         "res_a_chain": "A",
@@ -8872,16 +9112,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "ILE",
-        "res_a_num": 297,
-        "res_a_chain": "A",
-        "res_b_name": "TYR",
-        "res_b_num": 294,
-        "res_b_chain": "A",
-        "distance": 3.3703421191327143
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "LEU",
         "res_a_num": 298,
         "res_a_chain": "A",
@@ -8892,16 +9122,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "TRP",
-        "res_a_num": 299,
-        "res_a_chain": "A",
-        "res_b_name": "TYR",
-        "res_b_num": 296,
-        "res_b_chain": "A",
-        "distance": 3.2619297969147025
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "LYS",
         "res_a_num": 300,
         "res_a_chain": "A",
@@ -8909,26 +9129,6 @@
         "res_b_num": 297,
         "res_b_chain": "A",
         "distance": 3.4492046909396357
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ALA",
-        "res_a_num": 301,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 298,
-        "res_b_chain": "A",
-        "distance": 3.3662413757780363
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "HIS",
-        "res_a_num": 302,
-        "res_a_chain": "A",
-        "res_b_name": "TRP",
-        "res_b_num": 299,
-        "res_b_chain": "A",
-        "distance": 3.6676654700231333
       },
       {
         "interaction_type": "hbond_possible",
@@ -8949,16 +9149,6 @@
         "res_b_num": 300,
         "res_b_chain": "A",
         "distance": 2.990114546300861
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "HIS",
-        "res_a_num": 304,
-        "res_a_chain": "A",
-        "res_b_name": "ALA",
-        "res_b_num": 301,
-        "res_b_chain": "A",
-        "distance": 3.1762846220072936
       },
       {
         "interaction_type": "hbond_possible",
@@ -8992,16 +9182,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "MET",
-        "res_a_num": 308,
-        "res_a_chain": "A",
-        "res_b_name": "ALA",
-        "res_b_num": 305,
-        "res_b_chain": "A",
-        "distance": 3.432266161007912
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "ILE",
         "res_a_num": 309,
         "res_a_chain": "A",
@@ -9029,16 +9209,6 @@
         "res_b_num": 308,
         "res_b_chain": "A",
         "distance": 3.0734021865027676
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "GLY",
-        "res_a_num": 312,
-        "res_a_chain": "A",
-        "res_b_name": "ILE",
-        "res_b_num": 309,
-        "res_b_chain": "A",
-        "distance": 3.0308554897916196
       },
       {
         "interaction_type": "hbond_possible",
@@ -9092,26 +9262,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "ILE",
-        "res_a_num": 339,
-        "res_a_chain": "A",
-        "res_b_name": "ARG",
-        "res_b_num": 336,
-        "res_b_chain": "A",
-        "distance": 3.399182990072761
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ARG",
-        "res_a_num": 340,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 316,
-        "res_b_chain": "A",
-        "distance": 3.9443328967012907
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "LEU",
         "res_a_num": 341,
         "res_a_chain": "A",
@@ -9142,76 +9292,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "THR",
-        "res_a_num": 344,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 341,
-        "res_b_chain": "A",
-        "distance": 3.115081700373203
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 345,
-        "res_a_chain": "A",
-        "res_b_name": "ALA",
-        "res_b_num": 342,
-        "res_b_chain": "A",
-        "distance": 3.8082615456399513
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "VAL",
-        "res_a_num": 346,
-        "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 343,
-        "res_b_chain": "A",
-        "distance": 3.831160398625983
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 347,
-        "res_a_chain": "A",
-        "res_b_name": "THR",
-        "res_b_num": 344,
-        "res_b_chain": "A",
-        "distance": 3.590228683524212
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ILE",
-        "res_a_num": 348,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 345,
-        "res_b_chain": "A",
-        "distance": 3.3467975738009614
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 349,
-        "res_a_chain": "A",
-        "res_b_name": "VAL",
-        "res_b_num": 346,
-        "res_b_chain": "A",
-        "distance": 3.3567862606963828
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "VAL",
-        "res_a_num": 350,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 347,
-        "res_b_chain": "A",
-        "distance": 3.6321640932094463
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "VAL",
         "res_a_num": 351,
         "res_a_chain": "A",
@@ -9232,26 +9312,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "ILE",
-        "res_a_num": 353,
-        "res_a_chain": "A",
-        "res_b_name": "VAL",
-        "res_b_num": 350,
-        "res_b_chain": "A",
-        "distance": 3.2992874988397114
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ILE",
-        "res_a_num": 354,
-        "res_a_chain": "A",
-        "res_b_name": "VAL",
-        "res_b_num": 351,
-        "res_b_chain": "A",
-        "distance": 3.1609050919001027
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "CYS",
         "res_a_num": 355,
         "res_a_chain": "A",
@@ -9259,26 +9319,6 @@
         "res_b_num": 352,
         "res_b_chain": "A",
         "distance": 3.2021820685276468
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "TRP",
-        "res_a_num": 356,
-        "res_a_chain": "A",
-        "res_b_name": "ILE",
-        "res_b_num": 353,
-        "res_b_chain": "A",
-        "distance": 3.2977205763981883
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "GLY",
-        "res_a_num": 357,
-        "res_a_chain": "A",
-        "res_b_name": "ILE",
-        "res_b_num": 354,
-        "res_b_chain": "A",
-        "distance": 3.660586018658761
       },
       {
         "interaction_type": "hbond_possible",
@@ -9299,16 +9339,6 @@
         "res_b_num": 357,
         "res_b_chain": "A",
         "distance": 3.205833121046696
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ALA",
-        "res_a_num": 361,
-        "res_a_chain": "A",
-        "res_b_name": "PRO",
-        "res_b_num": 358,
-        "res_b_chain": "A",
-        "distance": 3.4477626078371464
       },
       {
         "interaction_type": "hbond_possible",
@@ -9333,52 +9363,12 @@
       {
         "interaction_type": "hbond_possible",
         "res_a_name": "VAL",
-        "res_a_num": 364,
-        "res_a_chain": "A",
-        "res_b_name": "ALA",
-        "res_b_num": 361,
-        "res_b_chain": "A",
-        "distance": 3.3616583705070333
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "TYR",
-        "res_a_num": 365,
-        "res_a_chain": "A",
-        "res_b_name": "ILE",
-        "res_b_num": 362,
-        "res_b_chain": "A",
-        "distance": 2.991097624618762
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ASP",
-        "res_a_num": 366,
-        "res_a_chain": "A",
-        "res_b_name": "MET",
-        "res_b_num": 363,
-        "res_b_chain": "A",
-        "distance": 3.9140130301264975
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "VAL",
         "res_a_num": 367,
         "res_a_chain": "A",
         "res_b_name": "MET",
         "res_b_num": 363,
         "res_b_chain": "A",
         "distance": 3.858251547009344
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "VAL",
-        "res_a_num": 367,
-        "res_a_chain": "A",
-        "res_b_name": "TYR",
-        "res_b_num": 365,
-        "res_b_chain": "A",
-        "distance": 3.082980700555876
       },
       {
         "interaction_type": "hbond_possible",
@@ -9395,50 +9385,10 @@
         "res_a_name": "LYS",
         "res_a_num": 376,
         "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 373,
-        "res_b_chain": "A",
-        "distance": 3.275045190527912
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LYS",
-        "res_a_num": 376,
-        "res_a_chain": "A",
         "res_b_name": "ASP",
         "res_b_num": 266,
         "res_b_chain": "A",
         "distance": 2.9126113712611916
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "THR",
-        "res_a_num": 377,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 374,
-        "res_b_chain": "A",
-        "distance": 3.448761081895933
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "VAL",
-        "res_a_num": 378,
-        "res_a_chain": "A",
-        "res_b_name": "ILE",
-        "res_b_num": 375,
-        "res_b_chain": "A",
-        "distance": 2.999326757790821
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "PHE",
-        "res_a_num": 379,
-        "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 376,
-        "res_b_chain": "A",
-        "distance": 3.3245313955503564
       },
       {
         "interaction_type": "hbond_possible",
@@ -9482,46 +9432,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 388,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 385,
-        "res_b_chain": "A",
-        "distance": 3.3951737805302398
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ASN",
-        "res_a_num": 389,
-        "res_a_chain": "A",
-        "res_b_name": "CYS",
-        "res_b_num": 386,
-        "res_b_chain": "A",
-        "distance": 3.7580325969847572
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "SER",
-        "res_a_num": 390,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 387,
-        "res_b_chain": "A",
-        "distance": 3.099883868792507
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "THR",
-        "res_a_num": 391,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 388,
-        "res_b_chain": "A",
-        "distance": 3.2627488410847687
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "VAL",
         "res_a_num": 392,
         "res_a_chain": "A",
@@ -9529,26 +9439,6 @@
         "res_b_num": 389,
         "res_b_chain": "A",
         "distance": 3.4514434661457223
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ASN",
-        "res_a_num": 393,
-        "res_a_chain": "A",
-        "res_b_name": "SER",
-        "res_b_num": 390,
-        "res_b_chain": "A",
-        "distance": 3.689849048402929
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ASN",
-        "res_a_num": 393,
-        "res_a_chain": "A",
-        "res_b_name": "ASP",
-        "res_b_num": 163,
-        "res_b_chain": "A",
-        "distance": 3.9694298079195205
       },
       {
         "interaction_type": "hbond_possible",
@@ -9582,36 +9472,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "TYR",
-        "res_a_num": 397,
-        "res_a_chain": "A",
-        "res_b_name": "PRO",
-        "res_b_num": 394,
-        "res_b_chain": "A",
-        "distance": 3.6195926566396937
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ALA",
-        "res_a_num": 398,
-        "res_a_chain": "A",
-        "res_b_name": "ILE",
-        "res_b_num": 395,
-        "res_b_chain": "A",
-        "distance": 3.550123518977896
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LEU",
-        "res_a_num": 399,
-        "res_a_chain": "A",
-        "res_b_name": "ILE",
-        "res_b_num": 396,
-        "res_b_chain": "A",
-        "distance": 3.888383854508194
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "ARG",
         "res_a_num": 400,
         "res_a_chain": "A",
@@ -9622,16 +9482,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "ARG",
-        "res_a_num": 400,
-        "res_a_chain": "A",
-        "res_b_name": "ALA",
-        "res_b_num": 398,
-        "res_b_chain": "A",
-        "distance": 3.589920333377887
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "LYS",
         "res_a_num": 402,
         "res_a_chain": "A",
@@ -9639,36 +9489,6 @@
         "res_b_num": 403,
         "res_b_chain": "A",
         "distance": 2.4625655321229525
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "LYS",
-        "res_a_num": 402,
-        "res_a_chain": "A",
-        "res_b_name": "ASP",
-        "res_b_num": 403,
-        "res_b_chain": "A",
-        "distance": 3.5738561806541678
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ARG",
-        "res_a_num": 405,
-        "res_a_chain": "A",
-        "res_b_name": "LYS",
-        "res_b_num": 402,
-        "res_b_chain": "A",
-        "distance": 3.6815809104242145
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "HIS",
-        "res_a_num": 406,
-        "res_a_chain": "A",
-        "res_b_name": "ASP",
-        "res_b_num": 403,
-        "res_b_chain": "A",
-        "distance": 3.3630225987941262
       },
       {
         "interaction_type": "hbond_possible",
@@ -9702,16 +9522,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "SER",
-        "res_a_num": 410,
-        "res_a_chain": "A",
-        "res_b_name": "ALA",
-        "res_b_num": 407,
-        "res_b_chain": "A",
-        "distance": 3.2652241883215303
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "HIS",
         "res_a_num": 435,
         "res_a_chain": "A",
@@ -9723,32 +9533,12 @@
       {
         "interaction_type": "hbond_possible",
         "res_a_name": "HIS",
-        "res_a_num": 435,
-        "res_a_chain": "A",
-        "res_b_name": "GLU",
-        "res_b_num": 470,
-        "res_b_chain": "A",
-        "distance": 3.8738598322603273
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "HIS",
         "res_a_num": 443,
         "res_a_chain": "A",
         "res_b_name": "SER",
         "res_b_num": 441,
         "res_b_chain": "A",
         "distance": 3.946008869731541
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ARG",
-        "res_a_num": 444,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 472,
-        "res_b_chain": "A",
-        "distance": 3.4137533595735934
       },
       {
         "interaction_type": "hbond_possible",
@@ -9772,16 +9562,6 @@
       },
       {
         "interaction_type": "hbond_possible",
-        "res_a_name": "ARG",
-        "res_a_num": 444,
-        "res_a_chain": "A",
-        "res_b_name": "LEU",
-        "res_b_num": 472,
-        "res_b_chain": "A",
-        "distance": 3.730804336868928
-      },
-      {
-        "interaction_type": "hbond_possible",
         "res_a_name": "LYS",
         "res_a_num": 458,
         "res_a_chain": "A",
@@ -9799,16 +9579,6 @@
         "res_b_num": 383,
         "res_b_chain": "A",
         "distance": 3.3096761170845697
-      },
-      {
-        "interaction_type": "hbond_possible",
-        "res_a_name": "ASP",
-        "res_a_num": 5,
-        "res_a_chain": "Z",
-        "res_b_name": "LEU",
-        "res_b_num": 3,
-        "res_b_chain": "Z",
-        "distance": 3.6803969894564363
       },
       {
         "interaction_type": "hbond_possible",
@@ -9886,16 +9656,6 @@
       {
         "interaction_type": "saltbridge",
         "res_a_name": "ARG",
-        "res_a_num": 230,
-        "res_a_chain": "A",
-        "res_b_name": "CYS",
-        "res_b_num": 149,
-        "res_b_chain": "A",
-        "distance": 4.6886660149769686
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "ARG",
         "res_a_num": 336,
         "res_a_chain": "A",
         "res_b_name": "ASP",
@@ -9912,16 +9672,6 @@
         "res_b_num": 472,
         "res_b_chain": "A",
         "distance": 3.522507913404881
-      },
-      {
-        "interaction_type": "saltbridge",
-        "res_a_name": "HIS",
-        "res_a_num": 143,
-        "res_a_chain": "A",
-        "res_b_name": "CYS",
-        "res_b_num": 139,
-        "res_b_chain": "A",
-        "distance": 4.9432934618531394
       },
       {
         "interaction_type": "saltbridge",
@@ -10039,47 +9789,38 @@
     "pication": [
       {
         "interaction_type": "pication",
-        "res_a_name": "ARG",
-        "res_a_num": 182,
+        "res_a_name": "PHE",
+        "res_a_num": 174,
         "res_a_chain": "A",
-        "res_b_name": "PHE",
-        "res_b_num": 180,
-        "res_b_chain": "A",
-        "distance": 3.8347728094373466
-      },
-      {
-        "interaction_type": "pication",
-        "res_a_name": "HIS",
-        "res_a_num": 178,
-        "res_a_chain": "A",
-        "res_b_name": "PHE",
-        "res_b_num": 174,
-        "res_b_chain": "A",
-        "distance": 5.472136376935226
-      },
-      {
-        "interaction_type": "pication",
-        "res_a_name": "HIS",
-        "res_a_num": 178,
-        "res_a_chain": "A",
-        "res_b_name": "PHE",
-        "res_b_num": 174,
+        "res_b_name": "HIS",
+        "res_b_num": 178,
         "res_b_chain": "A",
         "distance": 3.408560672939694
+      },
+      {
+        "interaction_type": "pication",
+        "res_a_name": "PHE",
+        "res_a_num": 180,
+        "res_a_chain": "A",
+        "res_b_name": "ARG",
+        "res_b_num": 182,
+        "res_b_chain": "A",
+        "distance": 3.8347728094373466
       }
     ],
     "halogen": [],
     "metal": [],
+    "metal_possible": [],
     "water_bridge": [],
     "water_bridge_possible": []
   },
   "metrics": {
     "pdb_id": "GPCR_pep",
-    "total_time": 0.2949343156069517,
-    "load_time": 0.13409903272986412,
-    "analysis_time": 0.1608272260054946,
+    "total_time": 0.3746262709610164,
+    "load_time": 0.17871242691762745,
+    "analysis_time": 0.1958921910263598,
     "num_atoms": 5974,
     "num_residues": 373,
-    "num_interactions": 1005
+    "num_interactions": 979
   }
 }

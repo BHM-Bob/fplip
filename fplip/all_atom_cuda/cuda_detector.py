@@ -143,6 +143,10 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
         # Refine hydrogen bonds (filter by salt bridges and duplicate donors)
         self._refine_hbonds()
 
+        # Refine hydrophobic interactions (stacking exclusion, ring-system and
+        # covalent-connectivity exclusion). Must match the CPU pipeline.
+        self._refine_hydrophobic()
+
         # Detect water bridges (H-bond based)
         self._detect_water_bridges(verbose)
 
@@ -466,7 +470,10 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
             ring_a = all_rings[i]
             ring_b = all_rings[j]
 
-            if ring_a['indices'][0] == ring_b['indices'][0]:
+            # Skip rings belonging to the same pi system (identical ring, or a
+            # fused ring and one of its own sub-rings). A pi system cannot stack
+            # on itself; these pairs are geometrically degenerate.
+            if not frozenset(ring_a['indices']).isdisjoint(ring_b['indices']):
                 continue
 
             atom_a = self.atom_container[ring_a['indices'][0]]

@@ -49,6 +49,47 @@ MIN_DIST = 0.5  # Minimum distance for all distance thresholds
 # Some distance thresholds were extended (max. 1.0A) if too restrictive too account for low-quality structures
 HYDROPH_DIST_MAX = 4.1  # Distance cutoff for detection of hydrophobic contacts (extended from 4.0 to reduce false negatives)
 HYDROPH_DIST_STRONG = 3.5  # Distance below which hydrophobic contact is classified as strong
+# Carbons bonded to these halogen elements are not classified as hydrophobic.
+# Organic fluorine has a large localised dipole and a van der Waals radius
+# (1.47 A) close to the C-F bond length (1.35 A), so the fluorine sphere almost
+# completely shields the attached carbon: the carbon is not a reachable apolar
+# surface, and the C-F group behaves as a weak, orientation-dependent
+# "polar hydrophobe" (Biffinger, Kim & DiMaio, ChemBioChem 2004) rather than a
+# plain apolar contact. C-F carbons are therefore excluded by default. Add
+# 17/35/53 to also exclude C-Cl/C-Br/C-I (this matches PLIP, whose hydrophobic
+# carbons may only have C/H neighbours).
+HYDROPH_C_EXCLUDED_HALOGENS = (9,)
+# Halogen atoms that are themselves apolar surface and therefore count as
+# hydrophobic atoms. Br and I are large, highly polarisable and carry almost no
+# localised dipole, so they expose a genuine apolar surface (ProLIF likewise
+# lists Br and I as hydrophobic atoms). F is spacial: its
+# polarisability is only 0.56 A^3 (Br 3.05, I 5.35) and its strong dipole makes
+# it favour directional multipolar contacts instead of entropy-driven burial.
+# Cl is also left out by default to stay consistent with the C-Cl carbon rule.
+# Set to (9, 17, 35, 53) to treat every halogen atom as hydrophobic.
+HYDROPH_HALOGEN_ATOMS = (35, 53)
+# A fluorine atom is hydrophobic only when the carbon it is attached to carries
+# at least this many fluorine substituents (default 2, i.e. -CF2- and -CF3).
+# Rationale: a single C-F bond has a large localised dipole (pi = +0.14), the F
+# is strongly polar, and the F sphere shields the carbon, so a mono-fluorinated
+# group exposes no apolar surface and is effectively invisible to interaction
+# detection. With two or three F atoms on one carbon the individual C-F dipoles
+# largely cancel by symmetry (HCF3 vs CH4: mu 1.65 D vs 0 D) and the resulting
+# perfluoro shell is apolar - the Hansch pi of -CF3 (+0.88) is far above three
+# times that of -F (+0.42), which is the excess hydrophobicity of the CF3 group.
+# Set to 1 to treat every C-F fluorine as hydrophobic, or to 4 to disable poly-
+# fluorinated fluorine entirely.
+HYDROPH_POLYFLUORO_MIN_F = 2
+# A sulfur atom is only hydrophobic if it has no O/N/S neighbour and its total
+# valence does not exceed this value. Thioether/thiol/aromatic S have valence 2;
+# sulfoxide (4), sulfone/sulfonate/sulfate (6) and sulfonium are polar.
+HYDROPH_SULFUR_MAX_VALENCE = 2
+# Minimum bond-graph (topological) distance between two atoms of a hydrophobic
+# contact. 1-2 (bonded), 1-3 and 1-4 pairs are not hydrophobic contacts.
+HYDROPH_MIN_TOPOLOGICAL_DIST = 4
+# Largest ring treated as a rigid ring system for hydrophobic filtering.
+# Atoms of one rigid (fused/bridged/spiro) ring system cannot contact each other.
+HYDROPH_MAX_RING_SIZE = 7
 HBOND_DIST_MAX = 4.1  # Max. distance between hydrogen bond donor and acceptor (Hubbard & Haider, 2001) + 0.6 A
 HBOND_DON_ANGLE_MIN = 100  # Min. angle at the hydrogen bond donor (Hubbard & Haider, 2001) + 10
 HBOND_ACC_ANGLE_MIN = 90  # Default min. angle at the H-bond acceptor (H···A-Y)
@@ -153,3 +194,22 @@ biolip_list = ['ACE', 'HEX', 'TMA', 'SOH', 'P25', 'CCN', 'PR', 'PTN', 'NO3', 'TC
                'L2C', '4AG', 'B3H', '1EM', 'DDR', 'I42', 'CNS', 'PC7', 'HGP', 'PC8', 'HGX', 'LIO', 'PLD', 'PC2', 'PCF',
                'MC3', 'P1O', 'PLC', 'PC6', 'HSH', 'BXC', 'HSG', 'DPG', '2DP', 'POV', 'PCW', 'GVT', 'CE9', 'CXE', 'C10',
                'CE1', 'SPJ', 'SPZ', 'SPK', 'SPW', 'HT3', 'HTH', '2OP', '3NI', 'BO3', 'DET', 'D1D', 'SWE', 'SOG']
+
+#############################
+# SASA (Shrake-Rupley)      #
+#############################
+# Parameters for the solvent-accessible surface area module
+# (fplip.all_atom.sasa). SASA is an application-level quantity built on top of
+# the atom classification in this file, so its knobs live at the end.
+
+SASA_PROBE_RADIUS = 1.4  # Solvent probe radius in Angstrom (standard value for water)
+SASA_N_SPHERE_POINTS = 256  # Test points per atom sphere; 256 gives <0.5% error vs the analytic limit for protein-sized structures, 92 (original Shrake-Rupley) ~2%
+SASA_ATOM_CHUNK = 32  # Atoms per batch in the vectorised SASA kernel. A genuine batch size: 32 stays in L3 cache and is ~1.9x faster than 512 on a 3841-atom complex
+# Bondi (1964) van der Waals radii, plus the usual extensions. Do not replace
+# with force-field sigma values, otherwise absolute areas are not comparable
+# with other SASA implementations. Keys double as the element-symbol table.
+SASA_VDW_RADII = {
+    'H': 1.20, 'C': 1.70, 'N': 1.55, 'O': 1.52, 'F': 1.47,
+    'P': 1.80, 'S': 1.80, 'Cl': 1.75, 'Br': 1.85, 'I': 1.98, 'Se': 1.90,
+}
+SASA_VDW_DEFAULT = 1.70  # Fallback radius for elements missing from SASA_VDW_RADII

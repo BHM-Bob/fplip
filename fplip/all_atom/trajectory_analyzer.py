@@ -4,8 +4,6 @@ Trajectory Analyzer Module
 Provides fast trajectory analysis using MDAnalysis for coordinate loading
 and OpenBabel for interaction detection.
 """
-import gzip
-import pickle
 from collections import defaultdict
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
@@ -13,7 +11,6 @@ from typing import Callable, Dict, List, Optional, Union
 import numpy as np
 import polars as pl
 from lazydock.gmx.mda.utils import filter_atoms_by_chains
-from mbapy import opts_file
 from MDAnalysis import Universe
 from scipy.spatial import cKDTree
 from scipy.spatial.distance import cdist

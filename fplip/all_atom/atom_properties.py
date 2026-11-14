@@ -40,12 +40,19 @@ class AtomProperties:
         
         self.hydrophobic_atoms: Set[int] = set()
 
-        # Neighbor atoms for hydrophobic interaction filtering
-        # atom_idx -> set of neighbor atom indices (connected by chemical bonds)
+        # Bond adjacency built once from the OpenBabel bond list.
+        # atom_idx -> set of bonded atom indices (all atoms, not only C/S).
+        # Building it with OBMolBondIter is O(n_bonds) and replaces thousands of
+        # per-atom OBAtomAtomIter calls.
         self.atom_neighbors: Dict[int, Set[int]] = {}
+        # Cache of topological (bond graph) distances, key -> distance or None
+        self._topo_dist_cache: Dict[Tuple[int, int], Optional[int]] = {}
 
         self.rings: List[Dict] = []  # Aromatic/planar/imidazolium rings for pi-stacking and pi-cation detection
         self.all_sssr_rings: List[Dict] = []  # All SSSR rings (including non-aromatic, non-planar) for hydrophobic filtering
+        # atom_idx -> ring-system id. Rings fused/bridged/spiro (sharing >= 1 atom) are
+        # merged into one rigid system; atoms outside small rings are absent.
+        self.ring_system: Dict[int, int] = {}
         
         self.metal_binding: Set[int] = set()
         self.metals: Set[int] = set()
@@ -76,6 +83,10 @@ class AtomProperties:
         """Identify all atom properties"""
         logger.info('Identifying atom properties...')
 
+        # Bond adjacency is needed by several property detectors and by the
+        # hydrophobic topological filter; build it once from the bond list.
+        self._build_bond_adjacency()
+
         # Charges must be identified first to filter pos_charged atoms from hbond acceptors
         self._identify_rings()  # Rings before charges to provide imidazolium info
         self._identify_charges()  # Charges before hbond to filter pos_charged from acceptors
@@ -92,6 +103,67 @@ class AtomProperties:
                    f'{len(self.hydrophobic_atoms)} hydrophobic, '
                    f'{len(self.rings)} rings ({len(self.all_sssr_rings)} SSSR), '
                    f'{len(self.metals)} metals')
+
+    def _build_bond_adjacency(self):
+        """Build the bond graph for all atoms in a single pass over OBMol bonds.
+
+        Iterating bonds with ``OBMolBondIter`` costs O(n_bonds) and is much
+        cheaper than calling ``OBAtomAtomIter`` once per atom: for a protein of
+        N atoms the latter is O(N) Python-level iterations with individual
+        SWIG calls, whereas the bond list is a flat iteration of ~N bonds.
+        The resulting adjacency is reused by every property detector.
+        """
+        self.atom_neighbors = {}
+        obatom = None
+        for atom in self.atom_container:
+            if atom.obatom is not None:
+                obatom = atom.obatom
+                break
+        if obatom is None:
+            return
+        obmol = obatom.GetParent()
+        if obmol is None:
+            return
+
+        for bond in pybel.ob.OBMolBondIter(obmol):
+            i = bond.GetBeginAtomIdx()
+            j = bond.GetEndAtomIdx()
+            self.atom_neighbors.setdefault(i, set()).add(j)
+            self.atom_neighbors.setdefault(j, set()).add(i)
+        self._topo_dist_cache = {}
+
+    def topological_distance(self, idx_a: int, idx_b: int,
+                             max_dist: int = 4) -> Optional[int]:
+        """Shortest bond-graph distance between two atoms, or None if > max_dist.
+
+        Uses breadth-first search over the cached bond adjacency and memoises
+        the result. Used to discard hydrophobic contacts that are covalently
+        connected (1-2), geminal (1-3) or vicinal (1-4).
+        """
+        if idx_a == idx_b:
+            return 0
+        # The cached value is bounded by max_dist, so max_dist is part of the key.
+        key = (min(idx_a, idx_b), max(idx_a, idx_b), max_dist)
+        if key in self._topo_dist_cache:
+            return self._topo_dist_cache[key]
+
+        dist = None
+        visited = {key[0]}
+        frontier = {key[0]}
+        for depth in range(1, max_dist + 1):
+            next_frontier = set()
+            for atom_idx in frontier:
+                next_frontier |= self.atom_neighbors.get(atom_idx, set())
+            if key[1] in next_frontier:
+                dist = depth
+                break
+            next_frontier -= visited
+            visited |= next_frontier
+            frontier = next_frontier
+            if not frontier:
+                break
+        self._topo_dist_cache[key] = dist
+        return dist
     
     def _precompute_atom_lists(self):
         """Pre-compute atom lists for fast access.
@@ -468,13 +540,23 @@ class AtomProperties:
                 self.pos_charged[atom.idx] = 'tertamine'
         
         # 3. Detect Sulfonium (S-centered)
+        # A sulfonium is a positively charged sulfur with three carbon
+        # substituents (R3S+). Requiring all three non-H neighbours to be carbon
+        # is essential: a sulfoxide (R2S=O, also three non-H neighbours) and a
+        # sulfonamide (R-S(=O)2-N) are neutral and must not be flagged.
         for atom in sulfur_atoms:
             if atom.idx in self.pos_charged:
                 continue
-            neighbors = list(pybel.ob.OBAtomAtomIter(atom.obatom))
-            non_h_neighbors = [n for n in neighbors if n.GetAtomicNum() != 1]
-            if len(non_h_neighbors) == 3:
-                self.pos_charged[atom.idx] = 'sulfonium'
+            neighbor_nums = [self.atom_container.atoms[n].atomic_num
+                             for n in self.atom_neighbors.get(atom.idx, ())
+                             if n in self.atom_container.atoms]
+            non_h_nums = [n for n in neighbor_nums if n != 1]
+            if len(non_h_nums) != 3 or any(n != 6 for n in non_h_nums):
+                continue
+            obatom = atom.obatom
+            if obatom is None or obatom.GetTotalValence() != 3:
+                continue
+            self.pos_charged[atom.idx] = 'sulfonium'
         
         # 4. Detect Imidazolium (ring-based)
         # For standard His, only mark ND1 and NE2 (ring nitrogens) as imidazolium
@@ -557,23 +639,33 @@ class AtomProperties:
                     break
         
         # Thiolate detection (deprotonated thiol)
-        # R-S- where S has negative formal charge or is in CYS deprotonated state
+        # R-S- where S has negative formal charge or is an explicitly
+        # deprotonated thiol.
+        #
+        # A sulfur carrying any hydrogen (explicit or implicit) is a neutral
+        # thiol and must NOT be reported as thiolate. This matters because
+        # OpenBabel supplies an implicit hydrogen on PDB sulfur atoms that have
+        # no hydrogen in the file, so "no H in the PDB" is not evidence of
+        # deprotonation. Disulfide sulfur (S-S) and oxidised sulfur are also
+        # excluded: they are covalent/polar, not anionic.
         for s_atom in sulfur_atoms:
             if s_atom.idx in self.neg_charged:
                 continue
-            neighbors = list(pybel.ob.OBAtomAtomIter(s_atom.obatom))
-            non_h_neighbors = [n for n in neighbors if n.GetAtomicNum() != 1]
-            # Thiolate: S connected to 1 C (and possibly H, but deprotonated)
-            # In PDB without H, CYS SG with no H would be thiolate
-            if len(non_h_neighbors) == 1 and non_h_neighbors[0].GetAtomicNum() == 6:
-                # Check if it's a cysteine SG that might be deprotonated
-                if resname == 'CYS' and s_atom.atom_name == 'SG':
-                    self.neg_charged[s_atom.idx] = 'thiolate'
-                # For non-standard residues, check if S has no H neighbors
-                elif resname not in ['CYS', 'MET']:
-                    h_neighbors = [n for n in neighbors if n.GetAtomicNum() == 1]
-                    if len(h_neighbors) == 0:
-                        self.neg_charged[s_atom.idx] = 'thiolate'
+            neighbor_nums = [self.atom_container.atoms[n].atomic_num
+                             for n in self.atom_neighbors.get(s_atom.idx, ())
+                             if n in self.atom_container.atoms]
+            non_h_nums = [n for n in neighbor_nums if n != 1]
+            if len(non_h_nums) != 1 or non_h_nums[0] != 6:
+                continue
+            obatom = s_atom.obatom
+            if obatom is None:
+                continue
+            if obatom.GetFormalCharge() >= 0:
+                n_hydrogen = sum(1 for n in neighbor_nums if n == 1)
+                n_hydrogen += obatom.GetImplicitHCount()
+                if n_hydrogen > 0:
+                    continue  # neutral thiol R-SH
+            self.neg_charged[s_atom.idx] = 'thiolate'
 
     def _assign_imidazolium_from_rings(self):
         """Assign imidazolium charge type to N atoms in pre-computed imidazolium rings.
@@ -592,29 +684,116 @@ class AtomProperties:
                     self.pos_charged[n_idx] = 'imidazolium'
 
     def _identify_hydrophobic(self):
-        """Identify hydrophobic atoms"""
+        """Identify hydrophobic atoms.
+
+        Physicochemical criteria:
+
+        * Carbon is hydrophobic only if it has no polar heavy neighbour
+          (N, O, P, S) and no strongly electron-withdrawing halogen neighbour
+          listed in ``config.HYDROPH_C_EXCLUDED_HALOGENS`` (F by default: the
+          fluorine vdW sphere shields the attached carbon, and the C-F group is
+          a weak orientation-dependent "polar hydrophobe" rather than a plain
+          apolar surface). Hydrogens are ignored.
+        * Halogen atoms listed in ``config.HYDROPH_HALOGEN_ATOMS`` (Br and I by
+          default) are themselves apolar surface and count as hydrophobic.
+          Br and I are large and highly polarisable, so they expose a genuine
+          apolar surface.
+        * Fluorine is handled separately and only counts when it is part of a
+          poly-fluorinated carbon: at least ``config.HYDROPH_POLYFLUORO_MIN_F``
+          (2) F atoms share the same carbon. A single C-F is strongly polar
+          (pi = +0.14) and its F sphere shields the carbon, so a mono-fluorinated
+          group contributes no apolar surface; with two or three F on one carbon
+          the C-F dipoles largely cancel and the perfluoro shell is apolar
+          (pi of -CF3 = +0.88, far above 3 x +0.14). The carbon is never
+          hydrophobic in either case (see HYDROPH_C_EXCLUDED_HALOGENS).
+        * Sulfur is hydrophobic only if it is neutral, has no O/N/S neighbour and
+          its total valence does not exceed ``config.HYDROPH_SULFUR_MAX_VALENCE``
+          (2). This keeps thioether/thiol/aromatic sulfur and rejects
+          sulfoxide (S=O, valence 4), sulfone/sulfonamide/sulfonate/sulfate
+          (valence 6), sulfonium (3 substituents) and disulfide (S-S neighbour).
+        * Anything carrying a formal or topology-derived charge (including
+          thiolate R-S-) is never hydrophobic.
+        """
+        excluded_halogens = set(config.HYDROPH_C_EXCLUDED_HALOGENS)
+        hydroph_halogens = set(config.HYDROPH_HALOGEN_ATOMS)
+        polyfluoro_min = config.HYDROPH_POLYFLUORO_MIN_F
+        charged_idxs = set(self.pos_charged) | set(self.neg_charged)
+
         for atom in self.atom_container:
-            # only collect neighbers for C and S
-            if atom.atomic_num not in {6, 16}:
+            atomic_num = atom.atomic_num
+            is_carbon_or_sulfur = atomic_num in (6, 16)
+            is_halogen = atomic_num in hydroph_halogens
+            is_fluorine = atomic_num == 9
+            if not (is_carbon_or_sulfur or is_halogen or is_fluorine):
                 continue
-            atom_neighbors = set()
-            for neighbor in pybel.ob.OBAtomAtomIter(atom.obatom):
-                atom_neighbors.add(neighbor.GetIdx())
-            self.atom_neighbors[atom.idx] = atom_neighbors
+            if atom.idx in charged_idxs:
+                continue
 
-            if atom.atomic_num == 6:
-                is_polar = False
-                for neighbor in atom_neighbors:
-                    n_atomic_num = self.atom_container.atoms_by_orig_idx[neighbor].atomic_num
-                    if n_atomic_num in [7, 8, 15, 16]:  # N, O, P, S
-                        is_polar = True
-                        break
+            # Apolar halogen atoms are hydrophobic as-is; their polarity is set
+            # by the element, not by their neighbours.
+            if is_halogen:
+                self.hydrophobic_atoms.add(atom.idx)
+                continue
 
+            if is_fluorine:
+                # A C-F fluorine is apolar only when the attached carbon carries
+                # several fluorines (dipoles cancel). Mono-fluorinated fluorine
+                # stays polar and is not counted.
+                if self._count_fluorines_on_carbon(atom.idx) >= polyfluoro_min:
+                    self.hydrophobic_atoms.add(atom.idx)
+                continue
+
+            neighbor_nums = []
+            for n_idx in self.atom_neighbors.get(atom.idx, ()):
+                n_atom = self.atom_container.atoms.get(n_idx)
+                if n_atom is not None:
+                    neighbor_nums.append(n_atom.atomic_num)
+
+            if atomic_num == 6:
+                # Polar if bonded to N/O/P/S (classic apolar carbon definition)
+                # or to an electron-withdrawing halogen (C-F by default).
+                # NOTE: this rejects the carbon of EVERY C-F group, mono- or
+                # poly-fluorinated alike - the fluorine sphere always shields the
+                # carbon, so the carbon is never a reachable apolar surface. The
+                # mono/poly distinction in the F branch above only decides whether
+                # the fluorine atoms themselves count as apolar surface.
+                is_polar = any(n in (7, 8, 15, 16) or n in excluded_halogens
+                               for n in neighbor_nums)
                 if not is_polar:
                     self.hydrophobic_atoms.add(atom.idx)
 
-            elif atom.atomic_num == 16:  # Sulfur
+            else:  # Sulfur
+                # Oxidised or heteroatom-bonded sulfur is polar (sulfoxide,
+                # sulfone, sulfonamide, sulfonate, sulfate, disulfide).
+                if any(n in (7, 8, 16) for n in neighbor_nums):
+                    continue
+                obatom = atom.obatom
+                if obatom is None:
+                    continue
+                # Charged sulfur (sulfonium / thiolate) is not hydrophobic.
+                if obatom.GetFormalCharge() != 0:
+                    continue
+                # Valence 2 covers thioether, thiol and aromatic S; sulfonium
+                # (3) and oxidised species (4/6) are excluded.
+                if obatom.GetTotalValence() > config.HYDROPH_SULFUR_MAX_VALENCE:
+                    continue
                 self.hydrophobic_atoms.add(atom.idx)
+
+    def _count_fluorines_on_carbon(self, f_idx: int) -> int:
+        """Number of fluorine atoms bonded to the carbon carrying ``f_idx``.
+
+        Returns 0 when the fluorine is not attached to a carbon.
+        """
+        total = 0
+        for c_idx in self.atom_neighbors.get(f_idx, ()):
+            c_atom = self.atom_container.atoms.get(c_idx)
+            if c_atom is None or c_atom.atomic_num != 6:
+                continue
+            for n_idx in self.atom_neighbors.get(c_idx, ()):
+                n_atom = self.atom_container.atoms.get(n_idx)
+                if n_atom is not None and n_atom.atomic_num == 9:
+                    total += 1
+        return total
     
     def _identify_rings(self):
         """Identify aromatic rings and imidazolium rings."""
@@ -716,12 +895,57 @@ class AtomProperties:
 
         self.rings = rings
 
+        # Merge rings into rigid ring systems for hydrophobic filtering
+        self._build_ring_systems()
+
         # Detect fused ring systems and add merged rings for pi-stacking detection
         # Merged rings represent the union of fused sub-rings (e.g., indole = 5-ring + 6-ring),
         # allowing pi-stacking detection when a partner ring stacks on the junction of the fused system
         # where individual sub-ring offsets might exceed the threshold.
         if config.DETECT_FUSED_RINGS:
             self._detect_fused_rings()
+
+    def _build_ring_systems(self):
+        """Merge rings into rigid ring systems.
+
+        Rings that share at least one atom (fused, bridged or spiro) form one
+        rigid ring system; atoms inside such a system cannot be in hydrophobic
+        contact with each other. Only small rings
+        (3..config.HYDROPH_MAX_RING_SIZE members) are considered: larger rings
+        are not rigid, so an atom pair across a macrocycle is a genuine
+        non-bonded contact.
+
+        The result is stored in ``self.ring_system`` (atom_idx -> system id).
+        It depends only on the bond topology, so it is computed once here and
+        reused for every frame.
+        """
+        rings = [r for r in self.all_sssr_rings
+                 if 3 <= len(r['indices']) <= config.HYDROPH_MAX_RING_SIZE]
+        if not rings:
+            return
+
+        parents = list(range(len(rings)))
+
+        def find(i):
+            while parents[i] != i:
+                parents[i] = parents[parents[i]]
+                i = parents[i]
+            return i
+
+        atom_rings = defaultdict(list)
+        for ring_idx, ring in enumerate(rings):
+            for atom_idx in ring['indices']:
+                atom_rings[atom_idx].append(ring_idx)
+
+        for ring_idxs in atom_rings.values():
+            root = find(ring_idxs[0])
+            for other in ring_idxs[1:]:
+                other_root = find(other)
+                if other_root != root:
+                    parents[other_root] = root
+
+        self.ring_system = {atom_idx: find(ring_idxs[0])
+                            for atom_idx, ring_idxs in atom_rings.items()}
 
     def _detect_fused_rings(self):
         """Detect fused ring systems and add merged rings to self.rings.
