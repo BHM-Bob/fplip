@@ -395,6 +395,11 @@ class TrajectoryAnalyzer:
 
         for residue in tqdm(self.detector.residues, desc="Processing residues",
                             disable=not verbose, leave=False):
+            # Same guard as UnifiedInteractionDetector.detect_all: distant waters
+            # marked by filter_distant_waters must not initiate detection either,
+            # otherwise they still leak in as donors of H-bonds.
+            if residue.is_skip:
+                continue
             self.detector._detect_for_residue(residue)
 
         self.detector._remove_duplicates()
@@ -492,6 +497,20 @@ class TrajectoryAnalyzer:
             else:
                 water_res.is_skip = False
                 kept += 1
+
+        # Publish the kept-atom bookkeeping that AtomProperties.filter_remain_atoms
+        # and the detector consume, so skipped waters drop out of the cached H-bond
+        # donor/acceptor lists without rebuilding the detector.
+        container = self.mol.atom_container
+        keep_mask = np.ones(len(container.sorted_indices), dtype=bool)
+        for water_res in self.water_residues:
+            if water_res.is_skip:
+                positions = [container.idx_to_array_pos[idx] for idx in water_res.atom_idxs]
+                keep_mask[positions] = False
+        container.remain_atom_mask = keep_mask
+        container.remain_atom_idxs = np.nonzero(keep_mask)[0]
+        container.remain_atom_idxs_set = {idx for idx, keep in zip(container.sorted_indices, keep_mask)
+                                          if keep}
 
         return {"total": len(self.water_residues), "filtered": filtered, "kept": kept}
 
