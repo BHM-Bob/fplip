@@ -37,15 +37,20 @@ class AtomInfo:
         self.residue_obj: Optional['Residue'] = None
         
         # Atom properties
-        self.atom_type = obatom.GetType()
-        self.atomic_num = obatom.GetAtomicNum()
+        self.atom_type: str = obatom.GetType()
+        self.atomic_num: int = obatom.GetAtomicNum()
         self.is_hydrogen = self.atomic_num == 1
+        # Immutable OpenBabel-derived properties, pre-stored so that later
+        # property detection does not have to go back to the OBAtom.
+        self.is_aromatic: bool = obatom.IsAromatic()
+        self.formal_charge: int = obatom.GetFormalCharge()
+        self.hybridization: int = obatom.GetHyb()
         
         # Atom name from residue
         if residue:
-            self.atom_name = residue.GetAtomID(obatom).strip()
+            self.atom_name: str = residue.GetAtomID(obatom).strip()
         else:
-            self.atom_name = self.atom_type
+            self.atom_name: str = self.atom_type
         
         # Component type (protein, ligand, dna, rna, water, ion)
         self.component_type = self._determine_component_type()
@@ -133,6 +138,12 @@ class MDWAtomInfo(AtomInfo):
         # Atom properties
         self.atomic_num = self.ELEMENT2NUM[self.atom_name]
         self.is_hydrogen = self.atomic_num == 1
+        # MDW atoms carry no OBAtom; mirror the AtomInfo fields with water
+        # defaults so that shared property code can read them unconditionally.
+        self.is_aromatic = False
+        self.formal_charge = 0
+        # Water oxygen is sp3; hydrogens have no meaningful hybridisation.
+        self.hybridization = 3 if self.atomic_num == 8 else 0
         # Component type (protein, ligand, dna, rna, water, ion)
         self.component_type = component_type
 
