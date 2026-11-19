@@ -27,6 +27,13 @@ class AtomProperties:
     """
     Identifies and stores atom properties for interaction detection.
     """
+
+    # Main-group valence electron counts, used to derive the lone-pair count of
+    # an H-bond acceptor from its formal charge and bond-order sum.
+    VALENCE_ELECTRONS = {
+        1: 1, 5: 3, 6: 4, 7: 5, 8: 6, 9: 7,
+        14: 4, 15: 5, 16: 6, 17: 7, 35: 7, 53: 7,
+    }
     
     def __init__(self, atom_container: AtomContainer):
         self.atom_container = atom_container
@@ -72,6 +79,10 @@ class AtomProperties:
         # hbond_acceptor_hybridization: acceptor_idx -> hybridization (2 for sp2, 3 for sp3)
         self.hbond_acceptor_y_atoms: Dict[int, int] = {}
         self.hbond_acceptor_hybridization: Dict[int, int] = {}
+        # hbond_acceptor_capacity: acceptor_idx -> max number of H-bonds it may take.
+        # Derived from the lone-pair count (see _acceptor_capacity) and clamped to
+        # config.HBOND_ACCEPTOR_MAX. Used by UnifiedInteractionDetector._refine_hbonds.
+        self.hbond_acceptor_capacity: Dict[int, int] = {}
         
         # Initialize
         self._identify_all_properties()
@@ -192,6 +203,61 @@ class AtomProperties:
         self._metals_list = [self.atom_container[idx] for idx in sorted(self.metals)]
         self._metal_binding_list = [self.atom_container[idx] for idx in sorted(self.metal_binding)]
     
+    def _is_amide_nitrogen(self, atom: AtomInfo) -> bool:
+        """Return True for amide/thioamide nitrogen atoms.
+
+        Such a nitrogen is bonded to a trigonal carbon that carries exocyclic O
+        or S. Its lone pair is delocalised into the C=O / C=S pi system, so it
+        cannot act as an H-bond acceptor; OpenBabel nonetheless reports it as
+        one, so it is filtered out explicitly here.
+
+        Bond orders are deliberately not used: for peptide bonds OpenBabel may
+        represent the linkage as the enol-imidate tautomer (C=N double, C-O
+        single), so the pattern is matched topologically instead.
+
+        Requires the carbon to have exactly three heavy neighbours and to be
+        non-aromatic, which excludes amino alcohols (two heavy neighbours) and
+        phenolic carbons (aromatic) from being mistaken for amides.
+        """
+        if atom.atomic_num != 7:
+            return False
+        for carbon_idx in self.atom_neighbors.get(atom.idx, ()):
+            carbon = self.atom_container[carbon_idx]
+            if carbon.atomic_num != 6 or carbon.is_aromatic:
+                continue
+            heavy = [idx for idx in self.atom_neighbors.get(carbon_idx, ())
+                     if self.atom_container[idx].atomic_num != 1]
+            if len(heavy) != 3:
+                continue
+            if any(self.atom_container[idx].atomic_num in (8, 16) for idx in heavy):
+                return True
+        return False
+
+    def _acceptor_capacity(self, atom) -> int:
+        """Maximum number of H-bonds this acceptor atom can take.
+
+        The limit is the number of lone pairs:
+
+            lone_pairs = (valence_electrons - formal_charge - bond_order_sum) / 2
+
+        and the result is clamped to ``config.HBOND_ACCEPTOR_MAX``. The clamp
+        matters because some delocalisation is invisible to the formal bond
+        orders (carboxylate O- would otherwise report three lone pairs) while no
+        acceptor is observed to take more than two H-bonds.
+
+        ``bond_order_sum`` is summed on the fly: it is only needed once per
+        acceptor, so caching it would cost more memory than it saves.
+        """
+        valence = self.VALENCE_ELECTRONS.get(atom.atomic_num)
+        if valence is None:
+            return 1
+        bond_order_sum = 0
+        for neighbor_idx in self.atom_neighbors.get(atom.idx, ()):
+            bond_order_sum += atom.obatom.GetBond(
+                self.atom_container[neighbor_idx].obatom).GetBondOrder()
+        lone_pairs = (valence - atom.formal_charge - bond_order_sum) // 2
+        return max(0, min(lone_pairs, config.HBOND_ACCEPTOR_MAX))
+
     def _identify_hbond_properties(self):
         """Identify hydrogen bond donors and acceptors"""
         for atom in self.atom_container:
@@ -201,21 +267,46 @@ class AtomProperties:
             if atom.is_hydrogen:
                 continue
             
-            # Check if atom is H-bond acceptor
-            ## MDWAtomInfo is a water mol, it's O atom can be both H-bond acceptor and donor
-            ## check MDWAtomInfo first as fast-path for MDWAtomInfo, H atom already filtered out
-            ## so here only pass when atom is MDWAtomInfo OR fallback to OpenBabel check if AtomInfo
-            ## CRITICAL: Skip atoms that are positively charged (e.g., Lys NZ, Arg NE/NH1/NH2, His ND1/NE2)
-            ## Positively charged N atoms cannot be H-bond acceptors (no lone pairs available)
-            is_acceptor = (atom._TYPE == 'MDWAtomInfo' and atom.atomic_num == 8) or obatom.IsHbondAcceptor()
-            if is_acceptor and atom.idx not in self.pos_charged:
-                self.hbond_acceptors.add(atom.idx)
+            # Decide whether this atom is an H-bond acceptor. The checks form a
+            # ladder: an atom must pass every level before it is registered.
+            #
+            # Level 1 - water: the oxygen of an MDWAtomInfo water is an acceptor
+            #   by construction. It has no OpenBabel atom, so the chemical checks
+            #   below cannot be applied to it.
+            # Level 2 - OpenBabel perception: for every other atom, trust
+            #   IsHbondAcceptor().
+            # Level 3 - amide/thioamide nitrogen: reject; its lone pair is
+            #   delocalised into the adjacent C=O / C=S.
+            # Level 4 - positively charged atom: reject; the lone pair is either
+            #   used by a bond or consumed by a proton (Lys NZ, Arg NE/NH1/NH2,
+            #   His ND1/NE2).
+            # Level 5 - zero lone pairs: reject atoms whose computed capacity is
+            #   0 (e.g. N-oxide) even if OpenBabel still flags them.
+            # Level 6 - register: store the atom and its capacity, which
+            #   _refine_hbonds later uses to cap how many H-bonds it may take.
+            is_water_oxygen = atom._TYPE == 'MDWAtomInfo' and atom.atomic_num == 8
+            is_acceptor = is_water_oxygen or (
+                obatom.IsHbondAcceptor() and not self._is_amide_nitrogen(atom))
+            # Level 4
+            if is_acceptor and atom.idx in self.pos_charged:
+                is_acceptor = False
+            if is_acceptor:
+                # Level 5
+                capacity = (config.HBOND_ACCEPTOR_MAX if is_water_oxygen
+                            else self._acceptor_capacity(atom))
+                if capacity <= 0:
+                    is_acceptor = False
+                else:
+                    # Level 6
+                    self.hbond_acceptors.add(atom.idx)
+                    self.hbond_acceptor_capacity[atom.idx] = capacity
+            if is_acceptor:
                 # Pre-compute Y atom and hybridization for acceptor angle checking
                 if atom._TYPE == 'MDWAtomInfo':
                     # Water oxygen carries no OpenBabel atom, so the generic Y lookup
-                    # (OBAtomAtomIter) cannot run for it. The lone pairs of a water
-                    # oxygen point away from both O-H bonds, so one of its hydrogens
-                    # serves as Y and the acceptor is treated as sp3 (A-O-H > 100 deg).
+                    # cannot run for it. The lone pairs of a water oxygen point away
+                    # from both O-H bonds, so one of its hydrogens serves as Y and the
+                    # acceptor is treated as sp3 (A-O-H > 100 deg).
                     for h_idx in sorted(a.idx for a in atom.residue_obj.atoms
                                         if a.atomic_num == 1):
                         self.hbond_acceptor_y_atoms[atom.idx] = h_idx
