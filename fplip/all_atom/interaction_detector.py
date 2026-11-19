@@ -2086,88 +2086,72 @@ class UnifiedInteractionDetector:
             logger.info(f'Removed {len(to_remove)} sub-ring pi-stacking interaction(s) in favor of fused ring')
 
     def _refine_hbonds(self):
-        """Refine hydrogen bonds by filtering out those involved in salt bridges and duplicate donors.
+        """Split geometrically valid H-bonds into 'hbond' and 'hbond_possible'.
 
-        This implements all-atom's unified approach to H-bond refinement:
-        1. Filter out H-bonds where donor/acceptor atoms are involved in salt bridges
-           - If donor is in a salt bridge's positive atoms AND acceptor is in the same
-             salt bridge's negative atoms (or vice versa), filter it out
-        2. Keep only one H-bond per donor (the one with largest angle)
+        No H-bond is discarded here: every candidate that survived the distance
+        and angle criteria of :meth:`_detect_hbonds` ends up in exactly one of the
+        two buckets, so ``len(hbond) + len(hbond_possible)`` equals the number of
+        raw candidates. The split is a one-pass greedy assignment over two
+        mutually independent capacity constraints:
 
-        Unlike PLIP, all-atom does NOT distinguish between ligand and protein.
-        It treats all residues uniformly, filtering H-bonds based on whether the
-        donor/acceptor pair forms a salt bridge, regardless of residue type.
+        1. **Donor side** — one H-bond per donor-hydrogen arm, i.e. per
+           ``(donor_idx, h_idx)`` pair. A heavy-atom donor with several hydrogens
+           (Arg NH1/NH2, Lys NZ, Asn ND2, ...) and a water oxygen can therefore
+           donate as many H-bonds as it has hydrogens.
+        2. **Acceptor side** — at most ``AtomProperties.hbond_acceptor_capacity``
+           H-bonds per acceptor atom, which is derived from its lone-pair count
+           (O/S = 2, N = 1) and clamped to ``config.HBOND_ACCEPTOR_MAX``.
 
-        Filtered H-bonds are moved to 'hbond_possible' instead of being deleted.
+        Candidates are visited in decreasing angle order (then increasing
+        distance, then atom indices for determinism), so the weakest member of an
+        over-subscribed group is the one demoted to 'hbond_possible'.
+
+        Salt bridges are deliberately **not** consulted: a charged H-bond inside a
+        salt bridge is a genuine H-bond, and reporting both is not double counting
+        — they describe the same contact from two different angles. Downstream
+        consumers can filter by interaction type if they want a unique view.
         """
         if not self.interactions['hbond']:
             return
 
-        # Build salt bridge lookup: atom_idx -> (partner_residue_atoms, is_positive)
-        # For each atom in a salt bridge, store the partner's atoms and whether this atom is positive
-        saltbridge_lookup = {}  # atom_idx -> {'partner_neg': set(), 'partner_pos': set()}
+        candidates = sorted(
+            self.interactions['hbond'],
+            key=lambda hb: (
+                -(hb.angle if hb.angle is not None else 0.0),
+                hb.distance,
+                hb.details.get('donor_idx') if hb.details.get('donor_idx') is not None else -1,
+                hb.details.get('acceptor_idx') if hb.details.get('acceptor_idx') is not None else -1,
+                hb.details.get('h_idx') if hb.details.get('h_idx') is not None else -1,
+            ),
+        )
 
-        for sb in self.interactions['saltbridge']:
-            pos_atoms = set(sb.details.get('positive_atoms', []))
-            neg_atoms = set(sb.details.get('negative_atoms', []))
+        used_arms = set()
+        used_acceptor_slots = {}
+        confirmed_hbonds = []
+        possible_hbonds = []
 
-            # For each positive atom, the partner negative atoms are the other side
-            for pos_atom in pos_atoms:
-                if pos_atom not in saltbridge_lookup:
-                    saltbridge_lookup[pos_atom] = {'partner_neg': set(), 'partner_pos': set()}
-                saltbridge_lookup[pos_atom]['partner_neg'].update(neg_atoms)
-
-            # For each negative atom, the partner positive atoms are the other side
-            for neg_atom in neg_atoms:
-                if neg_atom not in saltbridge_lookup:
-                    saltbridge_lookup[neg_atom] = {'partner_neg': set(), 'partner_pos': set()}
-                saltbridge_lookup[neg_atom]['partner_pos'].update(pos_atoms)
-
-        # First pass: mark H-bonds involved in salt bridges
-        marked_hbonds = []
-        for hbond in self.interactions['hbond']:
-            is_filtered = False
-            donor_idx = hbond.details.get('donor_idx')
-            acceptor_idx = hbond.details.get('acceptor_idx')
-
-            # Check if donor is in a salt bridge
-            if donor_idx in saltbridge_lookup:
-                # If donor is positive and acceptor is in partner negative atoms -> filter
-                if acceptor_idx in saltbridge_lookup[donor_idx]['partner_neg']:
-                    is_filtered = True
-                # If donor is negative and acceptor is in partner positive atoms -> filter
-                elif acceptor_idx in saltbridge_lookup[donor_idx]['partner_pos']:
-                    is_filtered = True
-
-            marked_hbonds.append((hbond, is_filtered))
-
-        # Second pass: keep only one H-bond per donor (largest angle)
-        # Sort marked_hbonds by atom indices to ensure deterministic ordering
-        marked_hbonds_sorted = sorted(marked_hbonds, key=lambda x: (x[0].atom_a_idx, x[0].atom_b_idx))
-
-        donor_best = {}  # donor_idx -> (angle, hbond)
-        for hbond, is_filtered in marked_hbonds_sorted:
-            if is_filtered:
-                continue
+        for hbond in candidates:
             donor_idx = hbond.details.get('donor_idx')
             if donor_idx is None:
-                # Skip H-bonds without donor_idx (heavy atom only H-bonds)
+                # Heavy-atom-only entries lack donor_idx/h_idx and cannot be
+                # deduplicated; keep them as possible rather than dropping them.
+                possible_hbonds.append(hbond)
                 continue
 
-            current_angle = hbond.angle if hbond.angle is not None else 0.0
+            arm = (donor_idx, hbond.details.get('h_idx'))
+            acceptor_idx = hbond.details.get('acceptor_idx')
+            capacity = self.atom_props.hbond_acceptor_capacity.get(
+                acceptor_idx, config.HBOND_ACCEPTOR_MAX)
+            used = used_acceptor_slots.get(acceptor_idx, 0)
 
-            if donor_idx not in donor_best:
-                donor_best[donor_idx] = (current_angle, hbond)
-            else:
-                if donor_best[donor_idx][0] < current_angle:
-                    donor_best[donor_idx] = (current_angle, hbond)
+            if arm in used_arms or used >= capacity:
+                possible_hbonds.append(hbond)
+                continue
 
-        confirmed_hbonds = [hb[1] for hb in donor_best.values()]
-        confirmed_set = set(id(hb) for hb in confirmed_hbonds)
-        possible_hbonds = [hb for hb, is_filtered in marked_hbonds_sorted if is_filtered or
-                          (id(hb) not in confirmed_set)]
+            used_arms.add(arm)
+            used_acceptor_slots[acceptor_idx] = used + 1
+            confirmed_hbonds.append(hbond)
 
-        # Update interactions
         self.interactions['hbond'] = confirmed_hbonds
         self.interactions['hbond_possible'] = possible_hbonds
 
