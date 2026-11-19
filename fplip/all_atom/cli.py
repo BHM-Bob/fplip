@@ -12,6 +12,7 @@ Usage:
     python -m plip.all_atom.cli analyze input.pdb -o results.json
     python -m plip.all_atom.cli dock --ligand dock.pdbqt --receptor receptor.pdbqt -o dock_results.json
     python -m plip.all_atom.cli sasa input.pdb -o sasa.json
+    python -m plip.all_atom.cli analyze-traj pull.tpr pull_center.xtc -g pull.gro -o traj.tar
     python -m plip.all_atom.cli static results.json --plot-matrix -o matrix.png
     python -m plip.all_atom.cli interactive results.json --port 8080
 """
@@ -530,6 +531,97 @@ def cmd_sasa(args):
         sys.exit(1)
 
 
+def cmd_analyze_traj(args):
+    """Analyze an MD trajectory and export interaction records."""
+    from lazydock.gmx.mda.convert import PDBConverter
+    from lazydock.gmx.mda.utils import filter_atoms_by_chains
+
+    from fplip.all_atom.trajectory_analyzer import TrajectoryAnalyzer
+
+    tpr_path = Path(args.tpr)
+    xtc_path = Path(args.xtc)
+
+    for path, label in ((tpr_path, 'TPR'), (xtc_path, 'XTC')):
+        if not path.exists():
+            print(f"Error: {label} file not found: {path}")
+            sys.exit(1)
+    if args.gro is not None and not Path(args.gro).exists():
+        print(f"Error: GRO file not found: {args.gro}")
+        sys.exit(1)
+
+    print("Analyzing trajectory...")
+    print(f"  TPR: {tpr_path}")
+    print(f"  XTC: {xtc_path}")
+    print(f"  GRO: {args.gro if args.gro else '(none, using TPR residue ids)'}")
+
+    analyzer = TrajectoryAnalyzer(str(tpr_path), str(xtc_path), args.gro,
+                                  tolerance=args.tolerance)
+    u = analyzer.load_universe()
+    n_frames = len(u.trajectory)
+    print(f"  Frames in trajectory: {n_frames}")
+
+    # Resolve which chains go into the OpenBabel side of the complex
+    available_chains = list(dict.fromkeys(u.atoms.chainIDs))
+    if args.chains:
+        chains = args.chains
+    else:
+        excluded = {args.water_chain} if args.water_chain else set()
+        chains = [c for c in available_chains if c not in excluded]
+    chains = [c for c in chains if c in available_chains]
+    if not chains:
+        print(f"Error: no valid chains selected. Available: {available_chains}")
+        sys.exit(1)
+
+    print(f"  Chains: {' '.join(chains)}")
+    converter = PDBConverter(filter_atoms_by_chains(u.atoms, chains), reindex=False)
+    analyzer.load_molecule(converter.fast_convert(), as_string=True)
+    print(f"  Loaded {len(analyzer.mol.atom_container)} atoms")
+
+    analyzer.align_with_mda(frame=args.align_frame)
+    stats = analyzer.get_alignment_stats()
+    print(f"  Alignment: {stats['matched_atoms']}/{stats['total_atoms']} atoms matched")
+    if stats['unmatched_atoms'] > 0:
+        print(f"  Warning: {stats['unmatched_atoms']} atoms could not be matched "
+              f"at frame {args.align_frame} (tolerance={args.tolerance})")
+
+    if args.water_chain:
+        analyzer.load_waters(args.water_chain)
+        print(f"  Loaded {len(analyzer.water_atoms)} water atoms")
+
+    analyzer.setup_detector()
+    analyzer.precompute_detector_once()
+
+    if args.dry_run:
+        print("\nDry run: skipping frame iteration.")
+        return
+
+    start = args.start
+    stop = n_frames if args.stop is None else min(args.stop, n_frames)
+    if stop <= start:
+        print(f"Error: empty frame range (start={start}, stop={stop}).")
+        sys.exit(1)
+
+    frame_indices = range(start, stop, args.step)
+    n_selected = len(frame_indices)
+    print(f"\nProcessing frames {start}..{stop} step {args.step} ({n_selected} frames)")
+
+    filter_waters = None if args.no_filter_waters else args.filter_waters
+    total_interactions = 0
+    for frame_idx, interactions in analyzer.iterate_frames(
+            start=start, stop=stop, step=args.step,
+            filter_waters=filter_waters, verbose=args.verbose):
+        total_interactions += sum(len(v) for v in interactions.values())
+        analyzer.add_record(interactions, frame_idx)
+
+    analyzer.save_records(args.output)
+    print(f"\nResults saved to: {args.output}")
+    print(f"  Frames processed: {n_selected}")
+    print(f"  Interactions detected: {total_interactions}")
+    print(f"  Records written: {len(analyzer.df)}")
+    for inter_type, detail_pack in analyzer.detail_packs.items():
+        print(f"    detail_{inter_type}: {len(detail_pack['idx'])}")
+
+
 def cmd_static(args):
     """Generate static visualizations from JSON data."""
     input_path = args.input
@@ -650,6 +742,9 @@ def main():
 Examples:
   # Analyze PDB file
   %(prog)s analyze input.pdb -o results.json
+
+  # Analyze MD trajectory
+  %(prog)s analyze-traj pull.tpr pull_center.xtc -g pull.gro --water-chain SOL -o traj.tar
 
   # Generate static visualization
   %(prog)s static results.json --plot-matrix -o matrix.png
@@ -776,6 +871,49 @@ Examples:
                                   'Default is NOHYDRO=True, i.e. keep the hydrogens '
                                   'that are already in the file.')
     sasa_parser.set_defaults(func=cmd_sasa)
+
+    # Analyze-traj command (MD trajectory)
+    traj_parser = subparsers.add_parser(
+        'analyze-traj',
+        help='Analyze MD trajectory and export interaction records',
+        description='Run interaction detection over a GROMACS trajectory and '
+                    'export the records to a Snappy-compressed Parquet TAR archive.'
+    )
+    traj_parser.add_argument('tpr', help='GROMACS TPR file (topology)')
+    traj_parser.add_argument('xtc', help='GROMACS XTC file (trajectory)')
+    traj_parser.add_argument('-g', '--gro', default=None,
+                             help='GROMACS GRO file (preferred residue ids)')
+    traj_parser.add_argument('-o', '--output', default='fplip.tar',
+                             help='Output TAR archive path (default: fplip.tar)')
+    traj_parser.add_argument('--chains', nargs='+', default=None,
+                             help='Chains included in detection. Default: all '
+                                  'chains except --water-chain.')
+    traj_parser.add_argument('--water-chain', default=None,
+                             help='Chain ID of water residues (e.g. SOL). '
+                                  'Waters are only loaded when this is given.')
+    traj_parser.add_argument('--start', type=int, default=0,
+                             help='First frame index (default: 0)')
+    traj_parser.add_argument('--stop', type=int, default=None,
+                             help='Stop frame index, exclusive (default: all frames)')
+    traj_parser.add_argument('--step', type=int, default=1,
+                             help='Frame step (default: 1)')
+    traj_parser.add_argument('--align-frame', type=int, default=0,
+                             help='Frame used to align OpenBabel atoms to MDA '
+                                  '(default: 0)')
+    traj_parser.add_argument('--tolerance', type=float, default=1e-4,
+                             help='KD-tree matching tolerance in Angstrom '
+                                  '(default: 1e-4)')
+    traj_parser.add_argument('--filter-waters', type=float, default=5.0,
+                             help='Distance threshold for filtering distant '
+                                  'waters (default: 5.0)')
+    traj_parser.add_argument('--no-filter-waters', action='store_true',
+                             help='Disable water filtering entirely')
+    traj_parser.add_argument('-v', '--verbose', action='store_true',
+                             help='Show per-frame and per-residue progress bars')
+    traj_parser.add_argument('--dry-run', action='store_true',
+                             help='Only set up the system and report alignment '
+                                  'statistics, do not process frames')
+    traj_parser.set_defaults(func=cmd_analyze_traj)
 
     # Parse arguments
     args = parser.parse_args()
