@@ -95,6 +95,10 @@ HBOND_DON_ANGLE_MIN = 100  # Min. angle at the hydrogen bond donor (Hubbard & Ha
 HBOND_ACC_ANGLE_MIN = 90  # Default min. angle at the H-bond acceptor (H···A-Y)
 HBOND_ACC_ANGLE_SP2_MIN = 90  # Min. angle for sp2 hybridized acceptors (e.g., C=O carbonyl)
 HBOND_ACC_ANGLE_SP3_MIN = 100  # Min. angle for sp3 hybridized acceptors (e.g., -OH hydroxyl)
+# Hard cap on the number of H-bonds a single acceptor atom may take. The real
+# limit is the lone-pair count (O/S = 2, N = 1), but delocalisation and formal
+# bond orders do not always capture it, so the computed count is clamped here.
+HBOND_ACCEPTOR_MAX = 2
 
 # H-bond strength classification thresholds (three-level system)
 HBOND_STRONG_DIST = 2.8  # Max D-A distance for strong H-bonds
