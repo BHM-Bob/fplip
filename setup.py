@@ -127,6 +127,7 @@ setup(
         "console_scripts": [
             "fplip = fplip.plipcmd:main",
             "fplip-aa = fplip.all_atom.cli:main",
+            "fplip-aa-cuda = fplip.all_atom_cuda.cli:main",
         ]
     },
     package_data={
