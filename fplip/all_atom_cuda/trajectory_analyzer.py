@@ -141,8 +141,9 @@ class TrajectoryAnalyzer(_TrajectoryAnalyzer):
 
         return self.detector.interactions
 
-    def detect_frame_fast(self, frame_idx: int, filter_waters: Optional[float] = 5.0, verbose: bool = False,
-                          detect_water_bridges_plip_style: bool = False) -> Dict[str, List]:
+    def detect_frame_fast(self, frame_idx: int, filter_waters: Optional[float] = 5.0,
+                          detect_water_bridges_plip_style: bool = False,
+                          verbose: bool = False) -> Dict[str, List]:
         """Detect interactions for a frame using cached setup.
 
         Assumes setup_detector_once() has been called. This method skips
