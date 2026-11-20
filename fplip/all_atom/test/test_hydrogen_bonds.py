@@ -236,7 +236,7 @@ class AllAtomHydrogenBondTest(unittest.TestCase):
         - Possible H-bonds (ligand-protein): 9
           (Updated from 18 after positively charged N filter.
            LYS NZ and ARG NE/NH1/NH2 atoms are no longer H-bond acceptors.)
-        - Total ligand-protein H-bonds: 20
+        - Total ligand-protein H-bonds: 19
           (Updated from 29 due to chemically correct acceptor filtering.)
         - Main PLIP count: 16 (doesn't detect protein-protein interactions)
 
@@ -252,12 +252,13 @@ class AllAtomHydrogenBondTest(unittest.TestCase):
         Attribution for Previous Update (Scheme B - Unified Charge Detection):
         1. LYS NZ atoms are now correctly marked as 'ammonium' instead of 'tertamine',
            leading to more accurate salt bridge detection (GCP-LYS16, GCP-LYS147).
-        2. Salt bridges filter out H-bonds where donor/acceptor atoms are
-           involved in the salt bridge.
+        2. Salt bridges no longer collapse H-bonds: a charged H-bond inside a salt
+           bridge is reported in both interaction types (see
+           docs/all-atom/hbond-refine-logic.md).
 
         Note: The numbers reflect ligand-protein interactions only (water excluded).
-        The "possible" H-bonds include those filtered by salt bridge detection
-        and weaker H-bonds from donors with multiple interactions.
+        The "possible" H-bonds are candidates that lost the per-donor-arm or
+        per-acceptor capacity competition during refinement.
         """
         for _ in range(0, 10):
             interactions, _, _ = self._analyze_complex('4dst_protonated.pdb', binding_site_id='GCP:A:202')
@@ -282,20 +283,21 @@ class AllAtomHydrogenBondTest(unittest.TestCase):
             # - possible=9 (was 18): Significantly reduced due to positively charged N filter
             # - total=20 (was 29): Reduced due to chemically correct acceptor filtering
             #
-            # Change breakdown:
-            # - Original total: 29 (confirmed 13 + possible 16)
-            # - After Scheme B: 29 (confirmed 11 + possible 18)
-            # - After N filter: 20 (confirmed 11 + possible 9)
-            # - Total reduction: 9 H-bonds lost due to positively charged N filter
+            # Updated expectations after the H-bond refine rework
+            # (see docs/all-atom/hbond-refine-logic.md):
+            # - salt bridges no longer demote H-bonds, so charged H-bonds stay confirmed
+            # - one H-bond per donor-hydrogen arm instead of one per donor atom
+            # - amide nitrogen is no longer an acceptor, which removes 4 raw H-bonds
+            # - confirmed=11, possible=8, total=19
             total = confirmed + possible
             self.assertEqual(confirmed, 11,
                            f"Expected 11 confirmed hydrogen bonds, got {confirmed}")
-            self.assertEqual(possible, 9,
-                           f"Expected 9 possible hydrogen bonds, got {possible}. "
-                           f"The reduction from 18 is due to positively charged Lys/Arg N atoms "
-                           f"no longer being H-bond acceptors.")
-            self.assertEqual(total, 20,
-                           f"Expected 20 total hydrogen bonds, got {total}")
+            self.assertEqual(possible, 8,
+                           f"Expected 8 possible hydrogen bonds, got {possible}. "
+                           f"These are arms that lost the per-donor-arm / per-acceptor "
+                           f"capacity competition.")
+            self.assertEqual(total, 19,
+                           f"Expected 19 total hydrogen bonds, got {total}")
 
     def test_no_protonation(self):
         """Test ligand-donated hydrogen bonds with pre-protonated structure.
@@ -360,22 +362,20 @@ class AllAtomHydrogenBondTest(unittest.TestCase):
         # - possible=1 (was 8): Significantly reduced due to positively charged N filter
         # - total=4 (was 11): Reduced due to chemically correct acceptor filtering
         #
-        # Change breakdown:
-        # - Original total: 11 (confirmed 7 + possible 4)
-        # - After Scheme B: 11 (confirmed 3 + possible 8)
-        # - After N filter: 4 (confirmed 3 + possible 1)
-        # - Total reduction: 7 H-bonds lost due to positively charged N filter
-        #
-        # Salt bridges affecting refinement:
-        # - ARG67 <-> DTF174
-        # - ARG86 <-> DTF174
-        # - HIS107 <-> DTF174
-        self.assertEqual(confirmed, 3,
-                        f"Expected 3 confirmed hydrogen bonds, got {confirmed}")
-        self.assertEqual(possible, 1,
-                        f"Expected 1 possible hydrogen bond, got {possible}. "
-                        f"The reduction from 8 is due to positively charged Lys/Arg N atoms "
-                        f"no longer being H-bond acceptors.")
+        # Updated after the H-bond refine rework
+        # (see docs/all-atom/hbond-refine-logic.md):
+        # - salt bridges no longer demote H-bonds (ARG67/ARG86/HIS107 <-> DTF174
+        #   H-bonds stay confirmed instead of being pushed to 'possible')
+        # - one H-bond per donor-hydrogen arm
+        # - per-acceptor capacity from the lone-pair count, capped at 2
+        # - amide nitrogen is no longer an acceptor
+        # - confirmed=4, possible=0, total=4
+        self.assertEqual(confirmed, 4,
+                        f"Expected 4 confirmed hydrogen bonds, got {confirmed}")
+        self.assertEqual(possible, 0,
+                        f"Expected 0 possible hydrogen bonds, got {possible}. "
+                        f"With salt bridges no longer demoting H-bonds, these charged "
+                        f"H-bonds remain confirmed.")
         self.assertEqual(total, 4,
                         f"Expected 4 total hydrogen bonds, got {total}")
 

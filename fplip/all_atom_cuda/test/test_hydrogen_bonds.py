@@ -295,13 +295,21 @@ class AllAtomCUDAHydrogenBondTest(unittest.TestCase):
             # - confirmed=11 (was 13): Improved salt bridge detection filters some H-bonds
             # - possible=18 (was 16): More comprehensive detection of possible interactions
             # - total=29 (unchanged): Overall detection accuracy maintained
+            #
+            # Updated after the H-bond refine rework
+            # (see docs/all-atom/hbond-refine-logic.md):
+            # - salt bridges no longer demote H-bonds
+            # - one H-bond per donor-hydrogen arm
+            # - per-acceptor capacity from the lone-pair count, capped at 2
+            # - amide nitrogen is no longer an acceptor
+            # - confirmed=13, possible=15, total=28
             total = confirmed + possible
-            self.assertEqual(confirmed, 11,
-                           f"Expected 11 confirmed hydrogen bonds, got {confirmed}")
-            self.assertEqual(possible, 18,
-                           f"Expected 18 possible hydrogen bonds, got {possible}")
-            self.assertEqual(total, 29,
-                           f"Expected 29 total hydrogen bonds, got {total}")
+            self.assertEqual(confirmed, 13,
+                           f"Expected 13 confirmed hydrogen bonds, got {confirmed}")
+            self.assertEqual(possible, 15,
+                           f"Expected 15 possible hydrogen bonds, got {possible}")
+            self.assertEqual(total, 28,
+                           f"Expected 28 total hydrogen bonds, got {total}")
 
     def test_no_protonation(self):
         """Test ligand-donated hydrogen bonds with pre-protonated structure.
@@ -355,14 +363,18 @@ class AllAtomCUDAHydrogenBondTest(unittest.TestCase):
         # - possible=8 (was 4): More comprehensive detection of possible interactions
         # - total=11 (unchanged): Overall detection accuracy maintained
         #
-        # Salt bridges affecting refinement:
-        # - ARG67 <-> DTF174
-        # - ARG86 <-> DTF174
-        # - HIS107 <-> DTF174
-        self.assertEqual(confirmed, 3,
-                        f"Expected 3 confirmed hydrogen bonds, got {confirmed}")
-        self.assertEqual(possible, 8,
-                        f"Expected 8 possible hydrogen bonds, got {possible}")
+        # Updated after the H-bond refine rework
+        # (see docs/all-atom/hbond-refine-logic.md):
+        # - salt bridges no longer demote H-bonds (ARG67/ARG86/HIS107 <-> DTF174
+        #   stay confirmed)
+        # - one H-bond per donor-hydrogen arm
+        # - per-acceptor capacity from the lone-pair count, capped at 2
+        # - amide nitrogen is no longer an acceptor
+        # - confirmed=7, possible=4, total=11
+        self.assertEqual(confirmed, 7,
+                        f"Expected 7 confirmed hydrogen bonds, got {confirmed}")
+        self.assertEqual(possible, 4,
+                        f"Expected 4 possible hydrogen bonds, got {possible}")
         self.assertEqual(total, 11,
                         f"Expected 11 total hydrogen bonds, got {total}")
 
