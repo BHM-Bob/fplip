@@ -73,7 +73,11 @@ class TorchBackend(ComputeBackend):
     @property
     def is_gpu(self) -> bool:
         return self._device.type.startswith('cuda')
-    
+
+    @property
+    def device(self) -> str:
+        return str(self._device)
+
     def arange(self, stop: int) -> "torch.Tensor":
         return self._torch.arange(stop, device=self._device)
     

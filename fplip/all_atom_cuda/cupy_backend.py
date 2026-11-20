@@ -65,7 +65,11 @@ class CuPyBackend(ComputeBackend):
     @property
     def is_gpu(self) -> bool:
         return True
-    
+
+    @property
+    def device(self) -> int:
+        return self._device_id
+
     def arange(self, stop: int) -> 'cupy.ndarray':
         return self._cp.arange(stop)
     

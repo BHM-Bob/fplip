@@ -44,7 +44,11 @@ class NumPyBackend(ComputeBackend):
     @property
     def is_gpu(self) -> bool:
         return False
-    
+
+    @property
+    def device(self) -> None:
+        return None
+
     def arange(self, stop: int) -> np.ndarray:
         return np.arange(stop)
 

@@ -397,6 +397,12 @@ class ComputeBackend(ABC):
         """Whether this backend runs on GPU."""
         pass
 
+    @property
+    @abstractmethod
+    def device(self) -> Union[str, int, None]:
+        """Device identifier used to rebuild this backend in worker processes."""
+        pass
+
     @abstractmethod
     def free_mem(self):
         """Free up memory on CUDA device."""
