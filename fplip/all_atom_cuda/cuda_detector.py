@@ -180,6 +180,10 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
             if len(self._all_halogen_donor_coords) > 0 else None
         self._all_halogen_acceptor_coords = self.backend.to_device(self._all_halogen_acceptor_coords) \
             if isinstance(self._all_halogen_acceptor_coords, np.ndarray) and len(self._all_halogen_acceptor_coords) > 0 else None
+        self._hba_y_coords = self.backend.to_device(self._hba_y_coords) \
+            if self._hba_y_coords is not None else None
+        self._hba_hybridization = self.backend.to_device(self._hba_hybridization) \
+            if self._hba_hybridization is not None else None
         # calcu all-atom distance matrix
         if self.atom_container.remain_atom_idxs is None:
             self._all_atom_dist_matrix = self.backend.cdist(self.atom_container.coords_array, self.atom_container.coords_array)
@@ -317,6 +321,29 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
             return 
         
         pair_idxs, acc_idxs = self.backend.argwhere(valid_mask)
+
+        # Acceptor angle (H···A-Y), matching the CPU detector.
+        if self._hba_y_coords is not None:
+            vec_ha_sel = vec_ha[pair_idxs, acc_idxs]
+            vec_ah_sel = -vec_ha_sel
+            vec_ay_sel = self._hba_y_coords[acc_idxs] - acc_coords[acc_idxs]
+            norm_ah = self.backend.norm(vec_ah_sel, axis=1)
+            norm_ay = self.backend.norm(vec_ay_sel, axis=1)
+            norm_ah_safe = self.backend.where(norm_ah == 0, 1, norm_ah)
+            norm_ay_safe = self.backend.where(norm_ay == 0, 1, norm_ay)
+            dot_ah = self.backend.sum(vec_ah_sel * vec_ay_sel, axis=1)
+            cos_acc = self.backend.clip(dot_ah / (norm_ah_safe * norm_ay_safe), -1.0, 1.0)
+            acc_angles = self.backend.degrees(self.backend.arccos(cos_acc))
+            hyb = self._hba_hybridization[acc_idxs]
+            thresholds = self.backend.where(
+                hyb == 3, config.HBOND_ACC_ANGLE_SP3_MIN,
+                self.backend.where(hyb == 2, config.HBOND_ACC_ANGLE_SP2_MIN,
+                                   config.HBOND_ACC_ANGLE_MIN))
+            acc_mask = acc_angles > thresholds
+            pair_idxs, acc_idxs = pair_idxs[acc_mask], acc_idxs[acc_mask]
+            if pair_idxs.shape[0] == 0:
+                return
+
         dists_ad, dists_ah, angles = dist_ad_matrix[pair_idxs, acc_idxs], dist_ah_matrix[pair_idxs, acc_idxs], angle_matrix[pair_idxs, acc_idxs]
         dists_ad, dists_ah, angles = self.backend.to_numpy(dists_ad), self.backend.to_numpy(dists_ah), self.backend.to_numpy(angles)
         hbond_types = np.where((dists_ad < 3.2) & (angles > 140), 'strong', 'weak')
@@ -551,7 +578,7 @@ class CudaInteractionDetector(UnifiedInteractionDetector):
                 proj = pos_atom.coords - proj_dist * ring['normal']
                 offset = np.linalg.norm(proj - ring['center'])
 
-                if offset >= config.PISTACK_OFFSET_MAX:
+                if offset >= config.PICATION_OFFSET_MAX:
                     continue
 
                 interaction = Interaction(
