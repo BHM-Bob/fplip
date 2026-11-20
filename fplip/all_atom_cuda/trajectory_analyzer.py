@@ -225,7 +225,11 @@ class TrajectoryAnalyzer(_TrajectoryAnalyzer):
         self.detector.atom_container.remain_atom_mask = np.ones(self.detector.atom_container.coords_array.shape[0], dtype=bool)
         self.detector.atom_container.remain_atom_mask[self.detector.atom_container.idx_to_array_pos_array[skip_atoms_idxs]] = False
         self.detector.atom_container.remain_atom_idxs = np.nonzero(self.detector.atom_container.remain_atom_mask)[0]
-        self.detector.atom_container.remain_atom_idxs_set = set(self.detector.atom_container.remain_atom_idxs)
+        # remain_atom_idxs are positions; the *_set consumed by AtomProperties
+        # must hold atom indices, matching the CPU implementation.
+        self.detector.atom_container.remain_atom_idxs_set = set(
+            self.detector.atom_container.array_pos_to_idx_array[
+                self.detector.atom_container.remain_atom_idxs].tolist())
         return {"total": len(self.water_residues), "filtered": filtered, "kept": kept}
 
 
