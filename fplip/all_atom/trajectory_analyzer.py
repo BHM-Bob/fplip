@@ -347,7 +347,9 @@ class TrajectoryAnalyzer:
 
         self._detector_precomputed = True
 
-    def detect_frame_fast(self, frame_idx: int, filter_waters: Optional[float] = None, verbose: bool = False) -> Dict[str, List]:
+    def detect_frame_fast(self, frame_idx: int, filter_waters: Optional[float] = None,
+                          detect_water_bridges_plip_style: bool = True,
+                          verbose: bool = False) -> Dict[str, List]:
         """Detect interactions for a frame using cached setup.
 
         Assumes setup_detector_once() has been called. This method skips
@@ -362,6 +364,8 @@ class TrajectoryAnalyzer:
             Frame index to process
         filter_waters : Optional[float]
             Distance threshold to filter out distant molecules (default None, no filter)
+        detect_water_bridges_plip_style : bool
+            Whether to detect PLIP-style water bridges (default True)
         verbose : bool
             Whether to show progress bars
 
@@ -408,7 +412,8 @@ class TrajectoryAnalyzer:
         self.detector._refine_hydrophobic()
         self.detector._analyze_metal_geometry()
         self.detector._detect_water_bridges()
-        self.detector._detect_water_bridges_plip_style()
+        if detect_water_bridges_plip_style:
+            self.detector._detect_water_bridges_plip_style()
 
         return self.detector.interactions
 
@@ -538,9 +543,10 @@ class TrajectoryAnalyzer:
         stop: Optional[int] = None,
         step: int = 1,
         filter_waters: Optional[float] = 5,
-        verbose: bool = False,
         verbose2: bool = False,
-        progress_callback: Optional[Callable[[int, Dict], None]] = None
+        progress_callback: Optional[Callable[[int, Dict], None]] = None,
+        detect_water_bridges_plip_style: bool = True,
+        verbose: bool = False
     ):
         """Iterate over frames and detect interactions.
 
@@ -552,12 +558,14 @@ class TrajectoryAnalyzer:
             Stopping frame index (exclusive)
         step : int
             Frame step
-        verbose : bool
-            Whether to show progress bars for each frame
         verbose2 : bool
             Whether to show progress bars for each residue
         progress_callback : Callable, optional
             Callback function called after each frame with (frame_idx, interactions)
+        detect_water_bridges_plip_style : bool
+            Whether to detect PLIP-style water bridges (default True)
+        verbose : bool
+            Whether to show progress bars for each frame
 
         Yields
         ------
@@ -570,7 +578,9 @@ class TrajectoryAnalyzer:
         frame_indices = list(range(start, stop or len(self.u.trajectory), step))
         self.precompute_detector_once()
         for frame_idx in tqdm(frame_indices, desc="Processing frames", disable=not verbose):
-            interactions = self.detect_frame_fast(frame_idx, filter_waters=filter_waters, verbose=verbose2)
+            interactions = self.detect_frame_fast(frame_idx, filter_waters=filter_waters,
+                                                  detect_water_bridges_plip_style=detect_water_bridges_plip_style,
+                                                  verbose=verbose2)
             if progress_callback:
                 progress_callback(frame_idx, interactions)
             yield frame_idx, interactions

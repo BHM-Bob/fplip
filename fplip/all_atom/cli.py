@@ -609,7 +609,8 @@ def cmd_analyze_traj(args):
     total_interactions = 0
     for frame_idx, interactions in analyzer.iterate_frames(
             start=start, stop=stop, step=args.step,
-            filter_waters=filter_waters, verbose=args.verbose):
+            filter_waters=filter_waters, verbose=args.verbose,
+            detect_water_bridges_plip_style=args.plip_style_water_bridges):
         total_interactions += sum(len(v) for v in interactions.values())
         analyzer.add_record(interactions, frame_idx)
 
@@ -908,6 +909,9 @@ Examples:
                                   'waters (default: 5.0)')
     traj_parser.add_argument('--no-filter-waters', action='store_true',
                              help='Disable water filtering entirely')
+    traj_parser.add_argument('--plip-style-water-bridges', action='store_true',
+                             help='Also detect PLIP-style water bridges '
+                                  '(stored as water_bridge_possible)')
     traj_parser.add_argument('-v', '--verbose', action='store_true',
                              help='Show per-frame and per-residue progress bars')
     traj_parser.add_argument('--dry-run', action='store_true',
