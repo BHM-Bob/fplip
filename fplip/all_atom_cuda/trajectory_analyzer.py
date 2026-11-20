@@ -277,9 +277,26 @@ def _analyzer_server(analyzer: TrajectoryAnalyzer,
                 inter_data.objs[atom] = None
         _mp_result_que.put((frame_idx, interactions))
 
+class FakeResidueGroup:
+    """Residue view over a FakeAtomGroup for 3-site water systems."""
+
+    def __init__(self, atoms: FakeAtomGroup):
+        # Each water residue has exactly three atoms in a row.
+        self.resids = atoms.resids[::3]
+        self.resnames = atoms.resnames[::3]
+
+
+class FakeAtomGroupWithResidues(FakeAtomGroup):
+    """FakeAtomGroup with the ``residues`` view expected by load_waters."""
+
+    @property
+    def residues(self) -> FakeResidueGroup:
+        return FakeResidueGroup(self)
+
+
 class FakeUniverse:
     def __init__(self, universe: Universe):
-        self.atoms = FakeAtomGroup(universe.atoms)
+        self.atoms = FakeAtomGroupWithResidues(universe.atoms)
         self.trajectory = np.zeros(len(universe.trajectory))
 
 class TrajectoryParallelAnalyzer(TrajectoryAnalyzer):
