@@ -252,14 +252,15 @@ def _analyzer_server(analyzer: TrajectoryAnalyzer,
         
     for fn_name, args in init_opts:
         if fn_name == "setup_detector":
-            if args[1] == 'cupy':
-                analyzer.setup_detector(atom_props=args[0], backend=CuPyBackend())
-            elif args[1] == 'torch':
-                analyzer.setup_detector(atom_props=args[0], backend=TorchBackend())
-            elif args[1] == 'numpy':
-                analyzer.setup_detector(atom_props=args[0], backend=NumPyBackend())
-            else:
-                analyzer.setup_detector(*args)
+            atom_props, backend_name, device = args
+            if backend_name == 'cupy':
+                analyzer.setup_detector(atom_props=atom_props,
+                                        backend=CuPyBackend(device_id=device if device is not None else 0))
+            elif backend_name == 'torch':
+                analyzer.setup_detector(atom_props=atom_props,
+                                        backend=TorchBackend(device=device or 'cuda:0'))
+            elif backend_name == 'numpy':
+                analyzer.setup_detector(atom_props=atom_props, backend=NumPyBackend())
         else:
             getattr(analyzer, fn_name)(*args)
 
@@ -332,7 +333,7 @@ class TrajectoryParallelAnalyzer(TrajectoryAnalyzer):
             
     def setup_detector(self, atom_props=None, backend: Optional[ComputeBackend] = None):
         self.backend = backend if backend is not None else TorchBackend()
-        self._init_opts.append(("setup_detector", [atom_props, backend.name if backend else None]))
+        self._init_opts.append(("setup_detector", [atom_props, self.backend.name, self.backend.device]))
             
     def precompute_detector_once(self):
         self._init_opts.append(("precompute_detector_once", []))
