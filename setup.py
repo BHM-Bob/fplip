@@ -107,7 +107,13 @@ setup(
         'numpy',
         'lxml',
         'polars',
-        # 'openbabel',  # Allow user to install openbabel_wheel or openbabel
+        'tqdm',
+        'scipy',
+        'MDAnalysis',
+        'mbapy',
+        'pyarrow',
+        'lazydock',
+        # 'openbabel',  # Allow user to install openbabel_wheel or openbabel via conda
     ],
     extras_require={
         'cython': ['cython>=0.29.0'],  # Optional for performance
